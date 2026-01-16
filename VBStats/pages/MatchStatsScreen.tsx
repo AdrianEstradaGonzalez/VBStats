@@ -18,11 +18,12 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary } from '../services/types';
-import { StatsIcon } from '../components/VectorIcons';
+import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 
 interface MatchStatsScreenProps {
   match: Match;
   onBack: () => void;
+  onOpenMenu?: () => void;
 }
 
 // Función para obtener color según el tipo de stat
@@ -65,7 +66,7 @@ const STAT_TYPE_ORDER = [
   'Error', 'error'
 ];
 
-export default function MatchStatsScreen({ match, onBack }: MatchStatsScreenProps) {
+export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
   
@@ -532,8 +533,8 @@ export default function MatchStatsScreen({ match, onBack }: MatchStatsScreenProp
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={onBack}>
-            <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.primary} />
+          <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
+            <MenuIcon size={28} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Estadísticas</Text>
           <View style={{ width: 40 }} />
@@ -551,8 +552,8 @@ export default function MatchStatsScreen({ match, onBack }: MatchStatsScreenProp
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.primary} />
+        <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
+          <MenuIcon size={28} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <StatsIcon size={20} color={Colors.primary} />

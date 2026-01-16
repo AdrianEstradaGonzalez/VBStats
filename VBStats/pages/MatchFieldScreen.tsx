@@ -23,6 +23,7 @@ import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
 import type { MatchDetails } from './MatchDetailsScreen';
 import type { Player, StatSetting, MatchStatCreate, Match } from '../services/types';
+import MatchStatsScreen from './MatchStatsScreen';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -131,6 +132,7 @@ export default function MatchFieldScreen({
     timestamp: number;
   }[]>([]);
   const [showAddPositionModal, setShowAddPositionModal] = useState(false);
+  const [showChangePositionModal, setShowChangePositionModal] = useState(false);
   const [showEndSetAlert, setShowEndSetAlert] = useState(false);
   const [showEndMatchAlert, setShowEndMatchAlert] = useState(false);
   const [showSetStatsModal, setShowSetStatsModal] = useState(false);
@@ -138,10 +140,13 @@ export default function MatchFieldScreen({
   const [setStatsFilter, setSetStatsFilter] = useState<number | null>(null);
   const [statsViewType, setStatsViewType] = useState<'match' | number>('match');
   const setStatsFilterScrollRef = useRef<ScrollView>(null);
+  const viewTypeScrollRef = useRef<ScrollView>(null);
 
   // Estados para el partido en BD
   const [matchId, setMatchId] = useState<number | null>(null);
   const [matchCreated, setMatchCreated] = useState(false);
+  const [showMatchStatsScreen, setShowMatchStatsScreen] = useState(false);
+  const [finishedMatch, setFinishedMatch] = useState<Match | null>(null);
   
   // Estados para estadísticas en memoria (cache)
   const [pendingStats, setPendingStats] = useState<StatAction[]>([]);
@@ -553,8 +558,9 @@ export default function MatchFieldScreen({
     
     // Actualizar el partido en BD como finalizado
     if (matchId) {
-      try {;
-        await matchesService.finishMatch(matchId, currentSet);
+      try {
+        const updatedMatch = await matchesService.finishMatch(matchId, currentSet);
+        setFinishedMatch(updatedMatch);
         console.log('🏆 Partido finalizado y guardado');
       } catch (error) {
         console.error('❌ Error finalizando partido:', error);
@@ -562,7 +568,16 @@ export default function MatchFieldScreen({
     }
     
     setShowEndMatchAlert(false);
-    // TODO: Navegar a pantalla de inicio o estadísticas
+  };
+
+  const handleShowMatchStats = async () => {
+    await confirmEndMatch();
+    setShowMatchStatsScreen(true);
+  };
+
+  const handleBackToField = () => {
+    setShowMatchStatsScreen(false);
+    // Opcionalmente puedes navegar a inicio aquí
   };
 
   const handleUndo = () => {
@@ -626,6 +641,18 @@ export default function MatchFieldScreen({
     setShowAddPositionModal(false);
   };
 
+  const handleChangePosition = (newPositionLabel: string) => {
+    if (!selectedPosition) return;
+    
+    setPositions(prev => prev.map(pos => 
+      pos.id === selectedPosition 
+        ? { ...pos, label: newPositionLabel }
+        : pos
+    ));
+    
+    setShowChangePositionModal(false);
+  };
+
   const handleOpenStats = () => {
     if (currentSet > 0) {
       // Si hay un set activo, mostrar ese set, si no, mostrar el último completado
@@ -643,11 +670,19 @@ export default function MatchFieldScreen({
     
     // Filtrar según el tipo de vista
     if (statsViewType === 'match') {
-      // Todo el partido: historial completo + pendingStats si hay set activo
-      const historyStats = actionHistory
-        .filter(a => a.type === 'add_stat')
+      // Todo el partido: obtener stats guardadas de todos los sets
+      // Si hay set activo: sets completados (<) + pendingStats del actual
+      // Si NO hay set activo: todos los sets completados (<=) incluyendo el que acaba de finalizar
+      const setCondition = isSetActive 
+        ? (setNum: number) => setNum < currentSet 
+        : (setNum: number) => setNum <= currentSet;
+      
+      const completedSetsStats = actionHistory
+        .filter(a => a.type === 'add_stat' && setCondition(a.data.setNumber))
         .map(a => a.data);
-      stats = isSetActive ? [...historyStats, ...pendingStats] : historyStats;
+      
+      // Si hay set activo, añadir las stats pendientes del set actual
+      stats = isSetActive ? [...completedSetsStats, ...pendingStats] : completedSetsStats;
     } else {
       // Vista de set específico (número)
       const setNumber = typeof statsViewType === 'number' ? statsViewType : currentSet;
@@ -758,6 +793,50 @@ export default function MatchFieldScreen({
     return Array.from(playersMap.values()).sort((a, b) => (a.number || 0) - (b.number || 0));
   };
 
+  // Autoscroll del selector de tipo de vista cuando se abre el modal o cambia la vista seleccionada
+  useEffect(() => {
+    if (!showSetStatsModal) return;
+
+    const scrollRef = viewTypeScrollRef.current;
+    if (!scrollRef) return;
+
+    // Construir la lista de sets mostrados (misma lógica que en el render)
+    const displayedSets = Array.from({ length: currentSet }, (_, i) => i + 1)
+      .filter(setNum => setNum < currentSet || !isSetActive);
+
+    let index = 0; // 0 -> Partido
+
+    if (statsViewType === 'match') {
+      index = 0;
+    } else if (typeof statsViewType === 'number') {
+      const setNum = statsViewType as number;
+      const pos = displayedSets.indexOf(setNum);
+      if (pos >= 0) {
+        // +1 por el card 'Partido'
+        index = 1 + pos;
+      } else if (isSetActive && setNum === currentSet) {
+        // El 'Set Actual' está al final cuando está activo
+        index = 1 + displayedSets.length;
+      }
+    }
+
+    // Estimación del ancho de cada card para calcular desplazamiento
+    const CARD_ESTIMATED_WIDTH = 120;
+    const SPACING_ESTIMATED = 12; // margen entre cards
+    const x = Math.max(0, index * (CARD_ESTIMATED_WIDTH + SPACING_ESTIMATED));
+
+    // Esperar un poco a que se renderice el contenido del modal
+    const t = setTimeout(() => {
+      try {
+        scrollRef.scrollTo({ x, animated: true });
+      } catch (e) {
+        // noop
+      }
+    }, 120);
+
+    return () => clearTimeout(t);
+  }, [showSetStatsModal, statsViewType, currentSet, isSetActive]);
+
   // Calcular G-P total de las estadísticas
   const calculateGP = (stats: StatAction[]) => {
     let gp = 0;
@@ -825,6 +904,17 @@ export default function MatchFieldScreen({
     
     return <MaterialCommunityIcons name="circle-outline" size={size} color={color} />;
   };
+
+  // Si se debe mostrar la pantalla de estadísticas del partido, renderizarla
+  if (showMatchStatsScreen && finishedMatch) {
+    return (
+      <MatchStatsScreen 
+        match={finishedMatch} 
+        onBack={handleBackToField}
+        onOpenMenu={onOpenMenu}
+      />
+    );
+  }
 
   const renderPlayerRow = (position: Position, index: number) => {
     const categories = position.playerId ? getStatsForPosition(position.label) : [];
@@ -923,15 +1013,18 @@ export default function MatchFieldScreen({
               style={styles.emptyStatsPlaceholder}
               onPress={() => handlePositionPress(position.id)}
               activeOpacity={0.7}
+              disabled={isSetActive}
             >
               <Text style={styles.emptyStatsText}>Selecciona jugador</Text>
-              <TouchableOpacity 
-                style={styles.deletePositionButton}
-                onPress={() => handleRemovePosition(position.id)}
-                activeOpacity={0.7}
-              >
-                <DeleteIcon size={20} color="#ef4444" />
-              </TouchableOpacity>
+              {!isSetActive && (
+                <TouchableOpacity 
+                  style={styles.deletePositionButton}
+                  onPress={() => handleRemovePosition(position.id)}
+                  activeOpacity={0.7}
+                >
+                  <DeleteIcon size={20} color="#ef4444" />
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -1051,10 +1144,7 @@ export default function MatchFieldScreen({
         buttons={[
           {
             text: 'Ver estadísticas',
-            onPress: () => {
-              confirmEndMatch();
-              // TODO: Navegar a estadísticas del partido
-            },
+            onPress: handleShowMatchStats,
             style: 'default'
           },
           {
@@ -1205,6 +1295,37 @@ export default function MatchFieldScreen({
                 </View>
               );
             })()}
+
+            {/* Footer con botones de eliminar y modificar posición */}
+            {selectedPosition && (
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={[styles.modalFooterButton, styles.modalFooterButtonDelete]}
+                  onPress={() => {
+                    handleRemovePosition(selectedPosition);
+                    setShowPlayerModal(false);
+                    setSelectedPosition(null);
+                    setSelectedPositionLabel('');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <DeleteIcon size={20} color="#FFFFFF" />
+                  <Text style={styles.modalFooterButtonText}>Eliminar posición</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalFooterButton, styles.modalFooterButtonChange]}
+                  onPress={() => {
+                    setShowPlayerModal(false);
+                    setShowChangePositionModal(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="swap-horizontal" size={20} color="#FFFFFF" />
+                  <Text style={styles.modalFooterButtonText}>Modificar posición</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -1231,6 +1352,46 @@ export default function MatchFieldScreen({
                   key={pos}
                   style={styles.positionOption}
                   onPress={() => handleAddPosition(pos)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.positionOptionText}>{pos}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal cambiar posición */}
+      <Modal
+        visible={showChangePositionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowChangePositionModal(false);
+          setSelectedPosition(null);
+          setSelectedPositionLabel('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.addPositionModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cambiar Posición</Text>
+              <TouchableOpacity onPress={() => {
+                setShowChangePositionModal(false);
+                setSelectedPosition(null);
+                setSelectedPositionLabel('');
+              }}>
+                <XIcon size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.positionOptionsContainer}>
+              {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
+                <TouchableOpacity
+                  key={pos}
+                  style={styles.positionOption}
+                  onPress={() => handleChangePosition(pos)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.positionOptionText}>{pos}</Text>
@@ -1270,7 +1431,12 @@ export default function MatchFieldScreen({
 
           {/* Filtros de tipo de vista - Cards horizontales */}
           <View style={styles.viewTypeSection}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.viewTypeScrollContent}>
+            <ScrollView 
+              ref={viewTypeScrollRef}
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={styles.viewTypeScrollContent}
+            >
               {/* Partido completo */}
               <TouchableOpacity
                 style={[styles.viewTypeCard, statsViewType === 'match' && styles.viewTypeCardActive]}
@@ -1817,6 +1983,34 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xl,
     fontWeight: '700',
     color: Colors.text,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  modalFooterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  modalFooterButtonDelete: {
+    backgroundColor: '#ef4444',
+  },
+  modalFooterButtonChange: {
+    backgroundColor: Colors.primary,
+  },
+  modalFooterButtonText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   tabsContainer: {
     flexDirection: 'row',

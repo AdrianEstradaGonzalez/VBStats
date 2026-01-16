@@ -123,6 +123,7 @@ export default function StatsScreen({
       <MatchStatsScreen 
         match={selectedMatch} 
         onBack={() => setSelectedMatch(null)} 
+        onOpenMenu={onOpenMenu}
       />
     );
   }
