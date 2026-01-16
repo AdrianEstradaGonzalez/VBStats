@@ -35,15 +35,17 @@ export default function App() {
 
   // Load teams from backend when user logs in
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && userId) {
       loadTeams();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, userId]);
 
   const loadTeams = async () => {
+    if (!userId) return;
+    
     try {
       const [fetchedTeams, allPlayers] = await Promise.all([
-        teamsService.getAll(),
+        teamsService.getAll(userId),
         playersService.getAll()
       ]);
       
@@ -137,6 +139,7 @@ export default function App() {
             onOpenMenu={handleOpenMenu}
             teams={teams}
             onTeamsChange={setTeams}
+            userId={userId}
           />
         );
       case 'selectTeam':

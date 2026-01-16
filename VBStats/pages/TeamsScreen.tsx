@@ -39,6 +39,7 @@ interface TeamsScreenProps {
   onOpenMenu?: () => void;
   teams: Team[];
   onTeamsChange: (teams: Team[]) => void;
+  userId: number | null;
 }
 
 const POSITIONS = ['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'] as const;
@@ -149,10 +150,10 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange }
   };
 
   const handleAddTeam = async () => {
-    if (newTeamName.trim()) {
+    if (newTeamName.trim() && userId) {
       setLoading(true);
       try {
-        const newTeam = await teamsService.create(newTeamName.trim());
+        const newTeam = await teamsService.create(newTeamName.trim(), userId);
         onTeamsChange([...teams, newTeam]);
         setNewTeamName('');
         setShowTeamModal(false);
@@ -195,10 +196,10 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange }
   };
 
   const confirmDeleteTeam = async () => {
-    if (!teamToDelete) return;
+    if (!teamToDelete || !userId) return;
     
     try {
-      await teamsService.delete(teamToDelete.id);
+      await teamsService.delete(teamToDelete.id, userId);
       onTeamsChange(teams.filter(t => t.id !== teamToDelete.id));
       if (selectedTeam?.id === teamToDelete.id) {
         setSelectedTeam(null);
