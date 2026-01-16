@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
@@ -75,7 +76,11 @@ export default function HomeScreen({
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
-          <VolleyballIcon size={28} color={Colors.primary} />
+          <Image 
+            source={require('../assets/logo_sinfondo.png')} 
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.headerTitle}>VBStats</Text>
         </View>
         
@@ -140,6 +145,10 @@ const styles = StyleSheet.create({
   headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
   },
   headerTitle: {
     fontSize: FontSizes.xl,
