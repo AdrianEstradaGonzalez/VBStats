@@ -7,7 +7,26 @@
 
 import { Platform } from 'react-native';
 
+const PROD_API_URL = 'https://vbstats.onrender.com/api';
+
 const getApiUrl = (): string => {
+  // Allow an optional developer override file to force a specific API URL
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const override = require('./overrideApiUrl') as { API_OVERRIDE_URL?: string };
+    if (override && override.API_OVERRIDE_URL) {
+      return override.API_OVERRIDE_URL;
+    }
+  } catch (e) {
+    // ignore if file does not exist
+  }
+
+  // In production builds use the deployed Render URL
+  if (typeof __DEV__ !== 'undefined' && !__DEV__) {
+    return PROD_API_URL;
+  }
+
+  // Development: different hosts depending on platform/emulator
   if (Platform.OS === 'android') {
     // Android Emulator maps 10.0.2.2 to host's localhost
     return 'http://10.0.2.2:4000/api';
