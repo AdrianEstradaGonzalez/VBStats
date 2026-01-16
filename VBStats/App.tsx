@@ -1,0 +1,212 @@
+import React, { useState, useEffect } from "react";
+import { View, StatusBar, Alert } from "react-native";
+import { 
+  LoginScreen, 
+  HomeScreen, 
+  TeamsScreen, 
+  StartMatchScreen, 
+  StatsScreen,
+  SettingsScreen,
+  SelectTeamScreen,
+  MatchDetailsScreen,
+  MatchFieldScreen,
+  Team,
+  MatchDetails,
+} from "./pages";
+import { Colors } from "./styles";
+import { SideMenu } from "./components";
+import { teamsService, playersService, usersService } from "./services/api";
+
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField';
+
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedTeamName, setSelectedTeamName] = useState<string>("");
+  const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
+
+  // Load teams from backend when user logs in
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadTeams();
+    }
+  }, [isLoggedIn]);
+
+  const loadTeams = async () => {
+    try {
+      const [fetchedTeams, allPlayers] = await Promise.all([
+        teamsService.getAll(),
+        playersService.getAll()
+      ]);
+      
+      // Add players to each team
+      const teamsWithPlayers = fetchedTeams.map(team => {
+        const teamPlayers = allPlayers.filter(p => p.team_id === team.id);
+        return {
+          ...team,
+          players: teamPlayers,
+          playerCount: teamPlayers.length
+        };
+      });
+      
+      setTeams(teamsWithPlayers);
+      console.log('Teams loaded with players:', teamsWithPlayers.map(t => `${t.name}: ${t.players?.length || 0} jugadores`));
+    } catch (error) {
+      console.error('Error loading teams:', error);
+    }
+  };
+
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const user = await usersService.login({ email, password });
+      setUserId(user.id);
+      setUserName(user.name || email.split("@")[0]);
+      setUserEmail(user.email);
+      setIsLoggedIn(true);
+    } catch (error) {
+      Alert.alert('Error', 'Credenciales incorrectas');
+    }
+  };
+
+  const handleForgotPassword = () => {
+    console.log("Forgot password");
+  };
+
+  const handleSignUp = () => {
+    console.log("Sign up");
+  };
+
+  const handleNavigate = (screen: string) => {
+    if (screen === 'startMatch') {
+      // Start the match flow by going to team selection
+      setCurrentScreen('selectTeam');
+    } else {
+      setCurrentScreen(screen as Screen);
+    }
+    setMenuVisible(false);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUserId(null);
+    setUserName("");
+    setUserEmail("");
+    setCurrentScreen('home');
+    setMenuVisible(false);
+  };
+
+  const handleOpenMenu = () => {
+    setMenuVisible(true);
+  };
+
+  const renderCurrentScreen = () => {
+    switch (currentScreen) {
+      case 'teams':
+        return (
+          <TeamsScreen 
+            onOpenMenu={handleOpenMenu}
+            teams={teams}
+            onTeamsChange={setTeams}
+          />
+        );
+      case 'selectTeam':
+        return (
+          <SelectTeamScreen 
+            onBack={() => setCurrentScreen('home')}
+            onTeamSelected={(teamId, teamName) => {
+              setSelectedTeamId(teamId);
+              setSelectedTeamName(teamName);
+              setCurrentScreen('matchDetails');
+            }}
+          />
+        );
+      case 'matchDetails':
+        return (
+          <MatchDetailsScreen 
+            teamId={selectedTeamId!}
+            teamName={selectedTeamName}
+            onBack={() => setCurrentScreen('selectTeam')}
+            onStartMatch={(details) => {
+              setMatchDetails(details);
+              setCurrentScreen('matchField');
+            }}
+          />
+        );
+      case 'matchField':
+        return (
+          <MatchFieldScreen 
+            matchDetails={matchDetails!}
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
+          />
+        );
+      case 'startMatch':
+        return (
+          <StartMatchScreen 
+            teams={teams}
+            onOpenMenu={handleOpenMenu}
+            onStartMatch={(team) => console.log('Starting match with team:', team.name)}
+          />
+        );
+      case 'stats':
+        return (
+          <StatsScreen 
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
+          />
+        );
+      case 'settings':
+        return (
+          <SettingsScreen 
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
+          />
+        );
+      default:
+        return (
+          <HomeScreen 
+            userName={userName}
+            userEmail={userEmail}
+            onNavigate={handleNavigate}
+            onLogout={handleLogout}
+          />
+        );
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={Colors.background}
+      />
+      {!isLoggedIn ? (
+        <LoginScreen
+          onLogin={handleLogin}
+          onForgotPassword={handleForgotPassword}
+          onSignUp={handleSignUp}
+        />
+      ) : (
+        <>
+          {renderCurrentScreen()}
+          {currentScreen !== 'home' && (
+            <SideMenu
+              visible={menuVisible}
+              onClose={() => setMenuVisible(false)}
+              onNavigate={handleNavigate}
+              onLogout={handleLogout}
+              userName={userName}
+              userEmail={userEmail}
+            />
+          )}
+        </>
+      )}
+    </View>
+  );
+}
