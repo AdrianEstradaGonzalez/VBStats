@@ -1,5 +1,5 @@
 /**
- * Pantalla de inicio de sesión
+ * Pantalla de registro de nueva cuenta
  */
 
 import React, { useState } from 'react';
@@ -16,6 +16,7 @@ import {
   Animated,
   SafeAreaView,
   StatusBar,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -24,18 +25,22 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 const ANDROID_NAV_BAR_HEIGHT = 48;
 
-interface LoginScreenProps {
-  onLogin: (email: string, password: string) => Promise<boolean>;
-  onForgotPassword?: () => void;
-  onSignUp?: () => void;
+interface SignUpScreenProps {
+  onSignUp: (email: string, password: string, name?: string) => Promise<boolean>;
+  onBackToLogin: () => void;
 }
 
-export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: LoginScreenProps) {
+export default function SignUpScreen({ onSignUp, onBackToLogin }: SignUpScreenProps) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [nameFocused, setNameFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
@@ -50,9 +55,36 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
     ]).start();
   };
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage('Por favor, completa todos los campos');
+  const validateForm = (): string | null => {
+    if (!email.trim()) {
+      return 'Por favor, ingresa tu correo electrónico';
+    }
+    
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Por favor, ingresa un correo electrónico válido';
+    }
+
+    if (!password.trim()) {
+      return 'Por favor, ingresa una contraseña';
+    }
+
+    if (password.length < 6) {
+      return 'La contraseña debe tener al menos 6 caracteres';
+    }
+
+    if (password !== confirmPassword) {
+      return 'Las contraseñas no coinciden';
+    }
+
+    return null;
+  };
+
+  const handleSignUp = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setErrorMessage(validationError);
       shakeError();
       return;
     }
@@ -61,9 +93,9 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
     setErrorMessage(null);
     
     try {
-      const success = await onLogin(email, password);
+      const success = await onSignUp(email, password, name.trim() || undefined);
       if (!success) {
-        setErrorMessage('Credenciales incorrectas. Verifica tu correo y contraseña.');
+        setErrorMessage('Error al crear la cuenta. El correo puede estar en uso.');
         shakeError();
       }
     } catch (error) {
@@ -80,7 +112,11 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Logo/Header Section */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
@@ -90,8 +126,8 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>VBStats</Text>
-            <Text style={styles.subtitle}>Estadísticas de Voleibol</Text>
+            <Text style={styles.title}>Crear Cuenta</Text>
+            <Text style={styles.subtitle}>Únete a VBStats</Text>
           </View>
 
           {/* Form Section */}
@@ -104,9 +140,36 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
               </View>
             )}
 
+            {/* Name Input (Optional) */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Nombre (Opcional)</Text>
+              <View style={[styles.inputWrapper, nameFocused && styles.inputWrapperFocused]}>
+                <MaterialCommunityIcons 
+                  name="account-outline" 
+                  size={20} 
+                  color={nameFocused ? Colors.primary : Colors.textTertiary} 
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tu nombre"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    setErrorMessage(null);
+                  }}
+                  onFocus={() => setNameFocused(true)}
+                  onBlur={() => setNameFocused(false)}
+                  autoCapitalize="words"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Correo Electrónico</Text>
+              <Text style={styles.label}>Correo Electrónico *</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="email-outline" 
@@ -135,7 +198,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Contraseña</Text>
+              <Text style={styles.label}>Contraseña *</Text>
               <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="lock-outline" 
@@ -145,7 +208,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="••••••••"
+                  placeholder="Mínimo 6 caracteres"
                   placeholderTextColor={Colors.textTertiary}
                   value={password}
                   onChangeText={(text) => {
@@ -172,49 +235,74 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
               </View>
             </View>
 
-            {/* Forgot Password */}
-            {onForgotPassword && (
-              <TouchableOpacity
-                onPress={onForgotPassword}
-                style={styles.forgotPasswordContainer}
-                disabled={isLoading}
-              >
-                <Text style={styles.forgotPasswordText}>
-                  ¿Olvidaste tu contraseña?
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* Confirm Password Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Repetir Contraseña *</Text>
+              <View style={[styles.inputWrapper, confirmPasswordFocused && styles.inputWrapperFocused]}>
+                <MaterialCommunityIcons 
+                  name="lock-check-outline" 
+                  size={20} 
+                  color={confirmPasswordFocused ? Colors.primary : Colors.textTertiary} 
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Repite tu contraseña"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    setErrorMessage(null);
+                  }}
+                  onFocus={() => setConfirmPasswordFocused(true)}
+                  onBlur={() => setConfirmPasswordFocused(false)}
+                  secureTextEntry={!showConfirmPassword}
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.eyeButton}
+                  disabled={isLoading}
+                >
+                  <MaterialCommunityIcons 
+                    name={showConfirmPassword ? "eye-off" : "eye"} 
+                    size={22} 
+                    color={Colors.textTertiary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-            {/* Login Button */}
+            {/* Sign Up Button */}
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
+              style={[styles.signUpButton, isLoading && styles.signUpButtonDisabled]}
+              onPress={handleSignUp}
               activeOpacity={0.8}
               disabled={isLoading}
             >
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.loginButtonText}>Iniciando sesión...</Text>
+                  <Text style={styles.signUpButtonText}>Creando cuenta...</Text>
                 </View>
               ) : (
-                <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+                <Text style={styles.signUpButtonText}>Crear Cuenta</Text>
               )}
             </TouchableOpacity>
 
-            {/* Sign Up */}
-            {onSignUp && (
-              <TouchableOpacity
-                style={styles.signUpButton}
-                onPress={onSignUp}
-                activeOpacity={0.8}
-                disabled={isLoading}
-              >
-                <Text style={styles.signUpButtonText}>Crear Cuenta</Text>
-              </TouchableOpacity>
-            )}
+            {/* Back to Login */}
+            <TouchableOpacity
+              style={styles.backToLoginButton}
+              onPress={onBackToLogin}
+              activeOpacity={0.8}
+              disabled={isLoading}
+            >
+              <Text style={styles.backToLoginText}>¿Ya tienes cuenta? </Text>
+              <Text style={styles.backToLoginTextBold}>Inicia Sesión</Text>
+            </TouchableOpacity>
           </Animated.View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -231,19 +319,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xl,
   },
   header: {
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   logoContainer: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
@@ -254,8 +343,8 @@ const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
   },
   title: {
     fontSize: FontSizes.xxxl,
@@ -266,7 +355,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   formContainer: {
     width: '100%',
@@ -321,26 +410,18 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     marginLeft: Spacing.xs,
   },
-  forgotPasswordContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: Spacing.md,
-  },
-  forgotPasswordText: {
-    fontSize: FontSizes.sm,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  loginButton: {
+  signUpButton: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: Spacing.sm,
     marginBottom: Spacing.md,
     minHeight: 52,
     ...Shadows.md,
   },
-  loginButtonDisabled: {
+  signUpButtonDisabled: {
     opacity: 0.8,
   },
   loadingContainer: {
@@ -348,23 +429,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  loginButtonText: {
+  signUpButtonText: {
     color: Colors.textOnPrimary,
     fontSize: FontSizes.lg,
     fontWeight: '700',
   },
-  signUpButton: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+  backToLoginButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    padding: Spacing.sm,
   },
-  signUpButtonText: {
+  backToLoginText: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+  },
+  backToLoginTextBold: {
+    fontSize: FontSizes.md,
     color: Colors.primary,
-    fontSize: FontSizes.lg,
     fontWeight: '700',
   },
 });

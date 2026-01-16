@@ -12,6 +12,9 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  Platform,
+  StatusBar,
+  Image,
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -19,6 +22,10 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
+
+// Safe area paddings para Android
+const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
+const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface MatchStatsScreenProps {
   match: Match;
@@ -436,9 +443,9 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         <View style={styles.pieLegendTable}>
           {/* Header de la tabla */}
           <View style={styles.pieLegendHeader}>
-            <Text style={styles.pieLegendHeaderText}>Tipo</Text>
-            <Text style={styles.pieLegendHeaderTextRight}>Cant.</Text>
-            <Text style={styles.pieLegendHeaderTextRight}>%</Text>
+            <Text style={styles.pieLegendHeaderText} numberOfLines={1}>Tipo</Text>
+            <Text style={styles.pieLegendHeaderTextRight} numberOfLines={1}>Cant.</Text>
+            <Text style={styles.pieLegendHeaderTextRight} numberOfLines={1}>%</Text>
           </View>
           
           {/* Filas de datos */}
@@ -537,7 +544,11 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
             <MenuIcon size={28} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Estadísticas</Text>
-          <View style={{ width: 40 }} />
+          <Image 
+            source={require('../assets/logo_sinfondo.png')} 
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         </View>
         <View style={styles.emptyContainer}>
           <StatsIcon size={80} color={Colors.textTertiary} />
@@ -559,7 +570,11 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
           <StatsIcon size={20} color={Colors.primary} />
           <Text style={styles.headerTitle}>Estadísticas</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <Image 
+          source={require('../assets/logo_sinfondo.png')} 
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Info del partido */}
@@ -695,7 +710,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
           <View style={styles.totalPerformanceCard}>
             <View style={styles.totalPerformanceHeader}>
               <View>
-                <Text style={styles.totalPerformanceLabel}>Rendimiento Total</Text>
+                <Text style={styles.totalPerformanceLabel}>Rendimiento</Text>
                 <Text style={styles.totalPerformanceSubtext}>{totalPerformance.total} acciones</Text>
               </View>
               <View style={styles.totalPerformanceValues}>
@@ -874,6 +889,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   header: {
     flexDirection: 'row',
@@ -1404,6 +1421,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    alignItems: 'center',
   },
   pieLegendHeaderText: {
     flex: 1,
@@ -1411,14 +1429,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
+    minWidth: 40,
   },
   pieLegendHeaderTextRight: {
-    width: 60,
+    width: 50,
     fontSize: FontSizes.xs,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     textAlign: 'right',
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
   },
   pieLegendRow: {
     flexDirection: 'row',

@@ -11,10 +11,15 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  Platform,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
 import SideMenu from '../components/SideMenu';
+
+// Safe area paddings para Android
+const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
+const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface HomeScreenProps {
   userName?: string;
@@ -129,6 +134,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   header: {
     flexDirection: 'row',

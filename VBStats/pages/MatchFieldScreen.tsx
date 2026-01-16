@@ -15,6 +15,8 @@ import {
   Dimensions,
   Animated,
   ScrollView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -26,6 +28,10 @@ import type { Player, StatSetting, MatchStatCreate, Match } from '../services/ty
 import MatchStatsScreen from './MatchStatsScreen';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Safe area paddings para Android
+const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
+const ANDROID_NAV_BAR_HEIGHT = 48; // Altura aproximada de la barra de navegación
 
 interface MatchFieldScreenProps {
   onOpenMenu?: () => void;
@@ -1309,8 +1315,8 @@ export default function MatchFieldScreen({
                   }}
                   activeOpacity={0.7}
                 >
-                  <DeleteIcon size={20} color="#FFFFFF" />
-                  <Text style={styles.modalFooterButtonText}>Eliminar posición</Text>
+                  <DeleteIcon size={24} color="#FFFFFF" />
+                  <Text style={styles.modalFooterButtonText} numberOfLines={2} adjustsFontSizeToFit>Eliminar{"\n"}posición</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -1321,8 +1327,8 @@ export default function MatchFieldScreen({
                   }}
                   activeOpacity={0.7}
                 >
-                  <MaterialCommunityIcons name="swap-horizontal" size={20} color="#FFFFFF" />
-                  <Text style={styles.modalFooterButtonText}>Modificar posición</Text>
+                  <MaterialCommunityIcons name="swap-horizontal" size={24} color="#FFFFFF" />
+                  <Text style={styles.modalFooterButtonText} numberOfLines={2} adjustsFontSizeToFit>Modificar{"\n"}posición</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1406,6 +1412,8 @@ export default function MatchFieldScreen({
       <Modal
         visible={showSetStatsModal}
         animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={true}
         onRequestClose={() => setShowSetStatsModal(false)}
       >
         <SafeAreaView style={styles.setStatsContainer}>
@@ -1661,6 +1669,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.surface,
+    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   header: {
     backgroundColor: '#1a1a1a',
@@ -1994,12 +2004,14 @@ const styles = StyleSheet.create({
   },
   modalFooterButton: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.lg,
+    minHeight: 70,
   },
   modalFooterButtonDelete: {
     backgroundColor: '#ef4444',
@@ -2008,9 +2020,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   modalFooterButtonText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: '700',
     color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 16,
   },
   tabsContainer: {
     flexDirection: 'row',

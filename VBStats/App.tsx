@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, StatusBar, Alert } from "react-native";
+import { View, StatusBar, Alert, Platform } from "react-native";
 import { 
-  LoginScreen, 
+  LoginScreen,
+  SignUpScreen,
   HomeScreen, 
   TeamsScreen, 
   StartMatchScreen, 
@@ -21,6 +22,7 @@ type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -62,15 +64,17 @@ export default function App() {
     }
   };
 
-  const handleLogin = async (email: string, password: string) => {
+  const handleLogin = async (email: string, password: string): Promise<boolean> => {
     try {
       const user = await usersService.login({ email, password });
       setUserId(user.id);
       setUserName(user.name || email.split("@")[0]);
       setUserEmail(user.email);
       setIsLoggedIn(true);
+      return true;
     } catch (error) {
-      Alert.alert('Error', 'Credenciales incorrectas');
+      console.error('Login error:', error);
+      return false;
     }
   };
 
@@ -78,8 +82,28 @@ export default function App() {
     console.log("Forgot password");
   };
 
-  const handleSignUp = () => {
-    console.log("Sign up");
+  const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
+    try {
+      const user = await usersService.register({ email, password, name });
+      // Después de registrar exitosamente, iniciamos sesión automáticamente
+      setUserId(user.id);
+      setUserName(user.name || email.split("@")[0]);
+      setUserEmail(user.email);
+      setIsLoggedIn(true);
+      setShowSignUp(false);
+      return true;
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return false;
+    }
+  };
+
+  const handleShowSignUp = () => {
+    setShowSignUp(true);
+  };
+
+  const handleBackToLogin = () => {
+    setShowSignUp(false);
   };
 
   const handleNavigate = (screen: string) => {
@@ -185,13 +209,21 @@ export default function App() {
       <StatusBar
         barStyle="light-content"
         backgroundColor={Colors.background}
+        translucent={false}
       />
       {!isLoggedIn ? (
-        <LoginScreen
-          onLogin={handleLogin}
-          onForgotPassword={handleForgotPassword}
-          onSignUp={handleSignUp}
-        />
+        showSignUp ? (
+          <SignUpScreen
+            onSignUp={handleSignUp}
+            onBackToLogin={handleBackToLogin}
+          />
+        ) : (
+          <LoginScreen
+            onLogin={handleLogin}
+            onForgotPassword={handleForgotPassword}
+            onSignUp={handleShowSignUp}
+          />
+        )
       ) : (
         <>
           {renderCurrentScreen()}

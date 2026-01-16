@@ -13,6 +13,8 @@ import {
   TextInput,
   SafeAreaView,
   Alert,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { 
@@ -27,6 +29,10 @@ import {
 } from '../components/VectorIcons';
 import { CustomAlert } from '../components';
 import { teamsService, playersService, Team, Player } from '../services/api';
+
+// Safe area paddings para Android
+const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
+const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface TeamsScreenProps {
   onBack?: () => void;
@@ -238,7 +244,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange }
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <TeamIcon size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
             {selectedTeam ? selectedTeam.name : 'Mis Equipos'}
           </Text>
         </View>
@@ -600,6 +606,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   header: {
     flexDirection: 'row',
@@ -614,10 +622,13 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
   },
   headerCenter: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: Spacing.sm,
   },
   headerTitle: {
+    flex: 1,
     fontSize: FontSizes.xl,
     fontWeight: '700',
     color: Colors.text,
@@ -628,6 +639,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: Spacing.sm,
+    minWidth: 60,
   },
   backButtonText: {
     fontSize: FontSizes.md,
