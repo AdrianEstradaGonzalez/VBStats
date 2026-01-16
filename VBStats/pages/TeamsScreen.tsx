@@ -68,7 +68,7 @@ const sortPlayers = (players: Player[]): Player[] => {
   });
 };
 
-export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange }: TeamsScreenProps) {
+export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, userId }: TeamsScreenProps) {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -105,9 +105,13 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange }
   };
 
   const reloadTeamsWithCounts = async () => {
+    if (userId == null) {
+      // No userId available — skip reloading teams
+      return;
+    }
     try {
       const [fetchedTeams, allPlayers] = await Promise.all([
-        teamsService.getAll(),
+        teamsService.getAll(userId),
         playersService.getAll()
       ]);
       const teamsWithCounts = fetchedTeams.map(team => ({
