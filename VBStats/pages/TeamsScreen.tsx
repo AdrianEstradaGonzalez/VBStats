@@ -15,6 +15,7 @@ import {
   Alert,
   Platform,
   StatusBar,
+  Image,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { 
@@ -369,32 +370,64 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
       {/* Modal para añadir equipo */}
       <Modal visible={showTeamModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nuevo Equipo</Text>
-              <TouchableOpacity onPress={() => setShowTeamModal(false)}>
-                <CloseIcon size={24} color={Colors.text} />
-              </TouchableOpacity>
+          <View style={styles.teamModalContent}>
+            {/* Modern Header with Logo and App Name */}
+            <View style={styles.teamModalHeader}>
+              <View style={styles.logoWrapper}>
+                <Image
+                  source={require('../assets/VBStats_logo_sinfondo.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.appName}>VBStats</Text>
             </View>
-            
-            <Text style={styles.inputLabel}>Nombre del equipo</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej: Club Deportivo VB"
-              placeholderTextColor={Colors.textTertiary}
-              value={newTeamName}
-              onChangeText={setNewTeamName}
-            />
-            
-            <TouchableOpacity
-              style={[styles.modalButton, (!newTeamName.trim() || loading) && styles.modalButtonDisabled]}
-              onPress={handleAddTeam}
-              disabled={!newTeamName.trim() || loading}
-            >
-              <Text style={styles.modalButtonText}>
-                {loading ? 'Creando...' : 'Crear Equipo'}
-              </Text>
-            </TouchableOpacity>
+
+            {/* Content Area - White Background */}
+            <View style={styles.teamModalContentArea}>
+              <View style={styles.teamModalIconContainer}>
+                <TeamIcon size={32} color={Colors.primary} />
+              </View>
+
+              <Text style={styles.teamModalTitle}>Crear Nuevo Equipo</Text>
+              <Text style={styles.teamModalSubtitle}>Ingresa el nombre de tu equipo</Text>
+
+              <TextInput
+                style={styles.teamInput}
+                placeholder="Ej: Club Deportivo VB"
+                placeholderTextColor={Colors.textTertiary}
+                value={newTeamName}
+                onChangeText={setNewTeamName}
+                autoFocus
+              />
+
+              <View style={styles.teamModalButtons}>
+                <TouchableOpacity
+                  style={styles.teamCancelButton}
+                  onPress={() => {
+                    setShowTeamModal(false);
+                    setNewTeamName('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.teamCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.teamCreateButton,
+                    (!newTeamName.trim() || loading) && styles.teamCreateButtonDisabled,
+                  ]}
+                  onPress={handleAddTeam}
+                  disabled={!newTeamName.trim() || loading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.teamCreateButtonText}>
+                    {loading ? 'Creando...' : 'Crear Equipo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -786,11 +819,133 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.lg,
   },
+  // Estilos del modal de crear equipo (estilo CustomAlert)
+  teamModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  teamModalHeader: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  logoWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  logo: {
+    width: 28,
+    height: 28,
+  },
+  appName: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+    letterSpacing: 0.5,
+  },
+  teamModalContentArea: {
+    backgroundColor: '#ffffff',
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  teamModalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  teamModalTitle: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  teamModalSubtitle: {
+    fontSize: FontSizes.md,
+    color: '#4a4a4a',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  teamInput: {
+    width: '100%',
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  teamModalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: Spacing.md,
+  },
+  teamCancelButton: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    minHeight: 48,
+  },
+  teamCancelButtonText: {
+    color: '#424242',
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  teamCreateButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    ...Shadows.md,
+  },
+  teamCreateButtonDisabled: {
+    backgroundColor: Colors.border,
+    opacity: 0.6,
+  },
+  teamCreateButtonText: {
+    color: Colors.textOnPrimary,
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  // Estilos del modal de añadir jugador (se mantienen como estaban)
   modalContent: {
     width: '100%',
     backgroundColor: Colors.surface,

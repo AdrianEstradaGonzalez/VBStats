@@ -11,6 +11,7 @@ const matches = require('./routes/matches');
 const stats = require('./routes/stats');
 const settings = require('./routes/settings');
 const users = require('./routes/users');
+const migrate = require('./routes/migrate');
 
 const app = express();
 app.use(cors());
@@ -32,6 +33,7 @@ app.use('/api/matches', matches);
 app.use('/api/stats', stats);
 app.use('/api/settings', settings);
 app.use('/api/users', users);
+app.use('/api/migrate', migrate);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
