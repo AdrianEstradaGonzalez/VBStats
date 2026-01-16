@@ -1,19 +1,19 @@
-# Dockerfile for VBStats backend - optimized for Render
 FROM node:18-alpine
 
-# create app directory
+# workdir
 WORKDIR /usr/src/app
 
-# install dependencies (using package-lock if present)
-COPY package*.json ./
+# copiar solo package.json y package-lock.json de la carpeta backend
+COPY backend/package*.json ./ 
+
+# instalar dependencias de producción
 RUN npm ci --only=production
 
-# copy application code
-COPY . .
+# copiar el resto del backend
+COPY backend/ ./
 
-# Default port; Render will inject $PORT at runtime if set
-ENV PORT=4000
-EXPOSE 4000
+# asegúrate de usar PORT desde env
+ENV PORT=3000
+EXPOSE 3000
 
-# Start the app (assumes entry point is index.js)
 CMD ["node", "index.js"]
