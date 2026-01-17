@@ -285,7 +285,17 @@ router.get('/:id/state', async (req, res) => {
       return res.status(404).json({ error: 'No state found for this match' });
     }
     
-    const state = JSON.parse(rows[0].state_json);
+    // MySQL JSON columns are auto-parsed by mysql2, handle both cases
+    const stateJson = rows[0].state_json;
+    const state = typeof stateJson === 'string' ? JSON.parse(stateJson) : stateJson;
+    
+    console.log(`Match state retrieved for match ${matchId}:`, {
+      positions: state.positions?.filter(p => p.playerId).length || 0,
+      current_set: state.current_set,
+      is_set_active: state.is_set_active,
+      pending_stats: state.pending_stats?.length || 0
+    });
+    
     res.json(state);
   } catch (error) {
     console.error('Error fetching match state:', error);

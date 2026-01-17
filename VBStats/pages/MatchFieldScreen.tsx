@@ -156,6 +156,7 @@ export default function MatchFieldScreen({
   // Estados para el partido en BD
   const [matchId, setMatchId] = useState<number | null>(null);
   const [matchCreated, setMatchCreated] = useState(false);
+  const [isRestoringState, setIsRestoringState] = useState(!!resumeMatchId); // True si estamos resumiendo
   const [showMatchStatsScreen, setShowMatchStatsScreen] = useState(false);
   const [finishedMatch, setFinishedMatch] = useState<Match | null>(null);
   
@@ -169,6 +170,32 @@ export default function MatchFieldScreen({
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
   const feedbackScale = useRef(new Animated.Value(0.5)).current;
   const feedbackAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  
+  // Ref para mantener el estado más reciente para guardar al desmontar
+  const stateRef = useRef({
+    matchId: null as number | null,
+    userId: userId,
+    positions: [] as Position[],
+    currentSet: 0,
+    isSetActive: false,
+    actionHistory: [] as { type: 'start_set' | 'end_set' | 'add_stat'; data: any; timestamp: number; }[],
+    pendingStats: [] as StatAction[],
+    isRestoringState: !!resumeMatchId, // Add flag to ref
+  });
+  
+  // Actualizar el ref cada vez que cambie el estado
+  useEffect(() => {
+    stateRef.current = {
+      matchId,
+      userId,
+      positions,
+      currentSet,
+      isSetActive,
+      actionHistory,
+      pendingStats,
+      isRestoringState,
+    };
+  }, [matchId, userId, positions, currentSet, isSetActive, actionHistory, pendingStats, isRestoringState]);
 
   useEffect(() => {
     loadPlayers();
@@ -182,14 +209,18 @@ export default function MatchFieldScreen({
       
       // If resuming an existing match
       if (resumeMatchId) {
+        console.log('🔄 Intentando resumir partido:', resumeMatchId);
         try {
           const existingMatch = await matchesService.getById(resumeMatchId);
+          console.log('📋 Partido encontrado:', existingMatch);
+          
           setMatchId(existingMatch.id);
           setMatchCreated(true);
-          setCurrentSet(existingMatch.total_sets || 0);
           
           // Load match state (positions, pending stats)
           const matchState = await matchesService.getMatchState(resumeMatchId);
+          console.log('📦 Estado del partido cargado:', matchState);
+          
           if (matchState) {
             if (matchState.positions && matchState.positions.length > 0) {
               // Restore positions
@@ -200,12 +231,15 @@ export default function MatchFieldScreen({
                 playerName: p.playerName,
                 playerNumber: p.playerNumber,
               }));
+              console.log('👥 Posiciones restauradas:', restoredPositions.filter(p => p.playerId).length);
               setPositions(restoredPositions);
             }
             if (matchState.current_set !== undefined) {
+              console.log('🔢 Set restaurado:', matchState.current_set);
               setCurrentSet(matchState.current_set);
             }
             if (matchState.is_set_active !== undefined) {
+              console.log('▶️ Set activo:', matchState.is_set_active);
               setIsSetActive(matchState.is_set_active);
             }
             if (matchState.action_history && Array.isArray(matchState.action_history)) {
@@ -213,8 +247,9 @@ export default function MatchFieldScreen({
               const restoredHistory = matchState.action_history.map(a => ({
                 type: a.type as 'start_set' | 'end_set' | 'add_stat',
                 data: a.data,
-                timestamp: a.data?.timestamp || Date.now(),
+                timestamp: a.timestamp || a.data?.timestamp || Date.now(),
               }));
+              console.log('📜 Historial restaurado:', restoredHistory.length, 'acciones');
               setActionHistory(restoredHistory);
             }
             if (matchState.pending_stats && Array.isArray(matchState.pending_stats)) {
@@ -230,13 +265,24 @@ export default function MatchFieldScreen({
                 statType: s.statType,
                 timestamp: s.timestamp,
               }));
+              console.log('📊 Estadísticas pendientes restauradas:', restoredStats.length);
               setPendingStats(restoredStats);
             }
+            
+            // Mark restoration as complete - now auto-save can work
+            console.log('✅ Restauración completa, habilitando auto-save');
+            setIsRestoringState(false);
+          } else {
+            console.log('⚠️ No hay estado guardado para este partido');
+            // No saved state, allow normal auto-save
+            setIsRestoringState(false);
           }
           
-          console.log('✅ Partido resumido:', existingMatch.id);
+          console.log('✅ Partido resumido exitosamente:', existingMatch.id);
         } catch (error) {
           console.error('❌ Error resumiendo partido:', error);
+          // On error, still allow auto-save (will start fresh)
+          setIsRestoringState(false);
         }
         return;
       }
@@ -265,18 +311,19 @@ export default function MatchFieldScreen({
 
   // Save match state when app goes to background or component unmounts
   const saveMatchState = useCallback(async () => {
-    if (!matchId || !userId) return;
+    const state = stateRef.current;
+    if (!state.matchId || !state.userId) return;
     
     try {
       // Prepare action history for serialization
-      const serializedHistory = actionHistory.map(a => ({
+      const serializedHistory = state.actionHistory.map(a => ({
         type: a.type,
         data: a.data,
         timestamp: a.timestamp,
       }));
       
       // Prepare pending stats for serialization
-      const serializedStats = pendingStats.map(s => ({
+      const serializedStats = state.pendingStats.map(s => ({
         id: s.id,
         playerId: s.playerId,
         playerName: s.playerName,
@@ -288,22 +335,33 @@ export default function MatchFieldScreen({
         timestamp: s.timestamp,
       }));
       
-      await matchesService.saveMatchState(matchId, {
-        positions,
-        current_set: currentSet,
-        is_set_active: isSetActive,
+      await matchesService.saveMatchState(state.matchId, {
+        positions: state.positions,
+        current_set: state.currentSet,
+        is_set_active: state.isSetActive,
         action_history: serializedHistory,
         pending_stats: serializedStats,
       });
-      console.log('💾 Estado del partido guardado');
+      console.log('💾 Estado del partido guardado:', {
+        matchId: state.matchId,
+        positions: state.positions.filter(p => p.playerId).length,
+        currentSet: state.currentSet,
+        isSetActive: state.isSetActive,
+        pendingStats: state.pendingStats.length,
+      });
     } catch (error) {
       console.error('❌ Error guardando estado:', error);
     }
-  }, [matchId, userId, positions, currentSet, isSetActive, actionHistory, pendingStats]);
+  }, []); // No dependencies - uses ref
 
-  // Save state when app goes to background
+  // Save state when app goes to background or component unmounts
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      // Don't save while restoring
+      if (stateRef.current.isRestoringState) {
+        console.log('⏸️ AppState save skipped: still restoring state');
+        return;
+      }
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         saveMatchState();
       }
@@ -312,10 +370,31 @@ export default function MatchFieldScreen({
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => {
       subscription.remove();
-      // Save state when component unmounts
-      saveMatchState();
+      // Save state when component unmounts using ref for latest values (only if not restoring)
+      if (!stateRef.current.isRestoringState) {
+        saveMatchState();
+      }
     };
   }, [saveMatchState]);
+
+  // Auto-save state periodically and after changes
+  useEffect(() => {
+    // Don't save if we don't have a match yet
+    if (!matchId) return;
+    
+    // Don't save while we're still restoring state (prevents overwriting good state)
+    if (isRestoringState) {
+      console.log('⏸️ Auto-save skipped: still restoring state');
+      return;
+    }
+    
+    // Save state after a short debounce when important data changes
+    const saveTimeout = setTimeout(() => {
+      saveMatchState();
+    }, 2000); // 2 seconds debounce
+    
+    return () => clearTimeout(saveTimeout);
+  }, [matchId, positions, currentSet, isSetActive, pendingStats.length, actionHistory.length, saveMatchState, isRestoringState]);
 
   // Función para mostrar feedback visual al pulsar botón de estadística
   const showStatFeedback = useCallback((feedback: LastStatFeedback) => {
@@ -1044,9 +1123,9 @@ export default function MatchFieldScreen({
     if (normalizedType.includes('positiv') || normalizedType.includes('+') || normalizedType.includes('punto')) {
       return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
     }
-    // Neutro = Minus circle
+    // Neutro = Equal sign (=)
     if (normalizedType.includes('neutr')) {
-      return <MaterialCommunityIcons name="minus-circle" size={size} color={color} />;
+      return <MaterialCommunityIcons name="equal" size={size} color={color} />;
     }
     // Error = Close circle
     if (normalizedType.includes('error')) {
@@ -1144,7 +1223,10 @@ export default function MatchFieldScreen({
           {segments.map((segment, idx) => (
             <View key={idx} style={styles.categoryPieLegendRow}>
               <View style={styles.categoryPieLegendTypeCell}>
-                {getStatIcon(segment.statType, segment.color, 18)}
+                {getStatIcon(segment.statType, segment.color, 16)}
+                <Text style={[styles.categoryPieLegendTypeName, { color: segment.color }]} numberOfLines={1}>
+                  {segment.statType}
+                </Text>
               </View>
               <Text style={styles.categoryPieLegendCount}>{segment.count}</Text>
               <Text style={styles.categoryPieLegendPercent}>{Math.round(segment.percentage)}%</Text>
@@ -2964,7 +3046,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    gap: 6,
+  },
+  categoryPieLegendTypeName: {
+    fontSize: 11,
+    fontWeight: '600',
+    flex: 1,
   },
   categoryPieLegendCount: {
     width: 45,

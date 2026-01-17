@@ -192,18 +192,24 @@ export default function App() {
             }}
             onContinueMatch={(match: Match) => {
               // Set up for resume: find team and create match details
+              console.log('🔄 [startMatch] Continuando partido:', match.id);
               const team = teams.find(t => t.id === match.team_id);
+              console.log('👥 Equipo encontrado:', team?.name, 'con', team?.players?.length, 'jugadores');
               if (team) {
                 setResumeMatchId(match.id);
-                setMatchDetails({
+                const details = {
                   teamId: match.team_id!,
                   teamName: match.team_name || team.name,
                   players: team.players || [],
                   rivalTeam: match.opponent || '',
                   date: match.date ? new Date(match.date) : new Date(),
                   isHome: match.location === 'home',
-                });
+                };
+                console.log('📋 Match details:', details);
+                setMatchDetails(details);
                 setCurrentScreen('matchField');
+              } else {
+                console.error('❌ Equipo no encontrado para team_id:', match.team_id);
               }
             }}
           />
@@ -224,18 +230,24 @@ export default function App() {
             }}
             onContinueMatch={(match: Match) => {
               // Set up for resume: find team and create match details
+              console.log('🔄 [startMatchFlow] Continuando partido:', match.id);
               const team = teams.find(t => t.id === match.team_id);
+              console.log('👥 Equipo encontrado:', team?.name, 'con', team?.players?.length, 'jugadores');
               if (team) {
                 setResumeMatchId(match.id);
-                setMatchDetails({
+                const details = {
                   teamId: match.team_id!,
                   teamName: match.team_name || team.name,
                   players: team.players || [],
                   rivalTeam: match.opponent || '',
                   date: match.date ? new Date(match.date) : new Date(),
                   isHome: match.location === 'home',
-                });
+                };
+                console.log('📋 Match details:', details);
+                setMatchDetails(details);
                 setCurrentScreen('matchField');
+              } else {
+                console.error('❌ Equipo no encontrado para team_id:', match.team_id);
               }
             }}
           />
