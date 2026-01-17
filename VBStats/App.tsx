@@ -146,6 +146,8 @@ export default function App() {
         return (
           <SelectTeamScreen 
             onBack={() => setCurrentScreen('home')}
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
             onTeamSelected={(teamId, teamName) => {
               setSelectedTeamId(teamId);
               setSelectedTeamName(teamName);

@@ -435,87 +435,125 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
       {/* Modal para añadir jugador */}
       <Modal visible={showPlayerModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nuevo Jugador</Text>
-              <TouchableOpacity onPress={() => setShowPlayerModal(false)}>
-                <CloseIcon size={24} color={Colors.text} />
-              </TouchableOpacity>
+          <View style={styles.playerModalContent}>
+            {/* Modern Header with Logo and App Name */}
+            <View style={styles.playerModalHeader}>
+              <View style={styles.logoWrapper}>
+                <Image
+                  source={require('../assets/VBStats_logo_sinfondo.png')}
+                  style={styles.logo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.appName}>VBStats</Text>
             </View>
-            
-            <Text style={styles.inputLabel}>Nombre</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Nombre del jugador"
-              placeholderTextColor={Colors.textTertiary}
-              value={newPlayer.name}
-              onChangeText={(text) => {
-                try {
-                  setNewPlayer(prev => ({ ...prev, name: text }));
-                } catch (error) {
-                  console.error('Error updating player name:', error);
-                }
-              }}
-              autoCapitalize="words"
-            />
-            
-            <Text style={styles.inputLabel}>Dorsal</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Número"
-              placeholderTextColor={Colors.textTertiary}
-              value={newPlayer.number}
-              onChangeText={(text) => {
-                try {
-                  const numericValue = text.replace(/[^0-9]/g, '');
-                  setNewPlayer(prev => ({ ...prev, number: numericValue }));
-                } catch (error) {
-                  console.error('Error updating player number:', error);
-                }
-              }}
-              keyboardType="numeric"
-              maxLength={2}
-            />
-            
-            <Text style={styles.inputLabel}>Posición</Text>
-            <View style={styles.positionsGrid}>
-              {POSITIONS.map((pos) => (
+
+            {/* Content Area - White Background */}
+            <View style={styles.playerModalContentArea}>
+              <View style={styles.playerModalIconContainer}>
+                <VolleyballIcon size={32} color={Colors.primary} />
+              </View>
+
+              <Text style={styles.playerModalTitle}>Añadir Jugador</Text>
+              <Text style={styles.playerModalSubtitle}>Completa los datos del jugador</Text>
+
+              <ScrollView 
+                style={styles.playerFormScrollView}
+                contentContainerStyle={styles.playerFormScrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.playerFormSection}>
+                  <Text style={styles.playerInputLabel}>Nombre *</Text>
+                  <TextInput
+                    style={styles.playerInput}
+                    placeholder="Nombre completo"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={newPlayer.name}
+                    onChangeText={(text) => {
+                      try {
+                        setNewPlayer(prev => ({ ...prev, name: text }));
+                      } catch (error) {
+                        console.error('Error updating player name:', error);
+                      }
+                    }}
+                    autoCapitalize="words"
+                  />
+
+                  <Text style={styles.playerInputLabel}>Dorsal</Text>
+                  <TextInput
+                    style={styles.playerInput}
+                    placeholder="Número del dorsal"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={newPlayer.number}
+                    onChangeText={(text) => {
+                      try {
+                        const numericValue = text.replace(/[^0-9]/g, '');
+                        setNewPlayer(prev => ({ ...prev, number: numericValue }));
+                      } catch (error) {
+                        console.error('Error updating player number:', error);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+
+                  <Text style={styles.playerInputLabel}>Posición *</Text>
+                  <View style={styles.positionsGrid}>
+                    {POSITIONS.map((pos) => (
+                      <TouchableOpacity
+                        key={pos}
+                        style={[
+                          styles.positionOption,
+                          newPlayer.position === pos && styles.positionOptionSelected,
+                        ]}
+                        onPress={() => {
+                          try {
+                            setNewPlayer(prev => ({ ...prev, position: pos }));
+                          } catch (error) {
+                            console.error('Error updating position:', error);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.positionOptionText,
+                          newPlayer.position === pos && styles.positionOptionTextSelected,
+                        ]}>
+                          {pos}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.playerModalButtons}>
                 <TouchableOpacity
-                  key={pos}
-                  style={[
-                    styles.positionOption,
-                    newPlayer.position === pos && styles.positionOptionSelected,
-                  ]}
+                  style={styles.playerCancelButton}
                   onPress={() => {
-                    try {
-                      setNewPlayer(prev => ({ ...prev, position: pos }));
-                    } catch (error) {
-                      console.error('Error updating position:', error);
-                    }
+                    setShowPlayerModal(false);
+                    setNewPlayer({ name: '', number: '', position: 'Receptor' });
                   }}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[
-                    styles.positionOptionText,
-                    newPlayer.position === pos && styles.positionOptionTextSelected,
-                  ]}>
-                    {pos}
+                  <Text style={styles.playerCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.playerCreateButton,
+                    (!newPlayer.name.trim() || loading) && styles.playerCreateButtonDisabled,
+                  ]}
+                  onPress={handleAddPlayer}
+                  disabled={!newPlayer.name.trim() || loading}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.playerCreateButtonText}>
+                    {loading ? 'Guardando...' : 'Añadir'}
                   </Text>
                 </TouchableOpacity>
-              ))}
+              </View>
             </View>
-            
-            <TouchableOpacity
-              style={[
-                styles.modalButton,
-                !newPlayer.name.trim() && styles.modalButtonDisabled,
-              ]}
-              onPress={handleAddPlayer}
-              disabled={!newPlayer.name.trim() || loading}
-            >
-              <Text style={styles.modalButtonText}>
-                {loading ? 'Guardando...' : 'Añadir Jugador'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -891,15 +929,15 @@ const styles = StyleSheet.create({
   },
   teamInput: {
     width: '100%',
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    padding: Spacing.md + 4,
     fontSize: FontSizes.md,
-    color: Colors.text,
+    color: '#1a1a1a',
     marginBottom: Spacing.lg,
-    textAlign: 'center',
+    fontWeight: '500',
   },
   teamModalButtons: {
     flexDirection: 'row',
@@ -945,7 +983,129 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
-  // Estilos del modal de añadir jugador (se mantienen como estaban)
+  // Estilos del modal de añadir jugador (estilo CustomAlert)
+  playerModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  playerModalHeader: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  playerModalContentArea: {
+    backgroundColor: '#ffffff',
+    paddingTop: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
+    alignItems: 'center',
+    maxHeight: '100%',
+  },
+  playerFormScrollView: {
+    width: '100%',
+    maxHeight: 280,
+  },
+  playerFormScrollContent: {
+    flexGrow: 1,
+  },
+  playerModalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  playerModalTitle: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  playerModalSubtitle: {
+    fontSize: FontSizes.md,
+    color: '#4a4a4a',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  playerFormSection: {
+    width: '100%',
+    paddingBottom: Spacing.sm,
+  },
+  playerInputLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  playerInput: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md + 4,
+    fontSize: FontSizes.md,
+    color: '#1a1a1a',
+    fontWeight: '500',
+  },
+  playerModalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: Spacing.md,
+  },
+  playerCancelButton: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    minHeight: 48,
+  },
+  playerCancelButtonText: {
+    color: '#424242',
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  playerCreateButton: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+    ...Shadows.md,
+  },
+  playerCreateButtonDisabled: {
+    backgroundColor: Colors.border,
+    opacity: 0.6,
+  },
+  playerCreateButtonText: {
+    color: Colors.textOnPrimary,
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  // Estilos del modal de editar jugador (se mantienen como estaban)
   modalContent: {
     width: '100%',
     backgroundColor: Colors.surface,

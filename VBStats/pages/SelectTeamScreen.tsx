@@ -47,14 +47,18 @@ export default function SelectTeamScreen({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadTeams();
-  }, []);
+    if (userId) {
+      loadTeams();
+    }
+  }, [userId]);
 
   const loadTeams = async () => {
+    if (!userId) return;
+    
     try {
       setLoading(true);
       const [userTeams, allPlayers] = await Promise.all([
-        teamsService.getAll(),
+        teamsService.getAll(userId),
         playersService.getAll()
       ]);
       

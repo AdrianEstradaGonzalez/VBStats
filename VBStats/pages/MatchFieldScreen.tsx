@@ -1416,139 +1416,133 @@ export default function MatchFieldScreen({
         statusBarTranslucent={true}
         onRequestClose={() => setShowSetStatsModal(false)}
       >
-        <SafeAreaView style={styles.setStatsContainer}>
-          {/* Header moderno */}
-          <View style={styles.statsModalHeader}>
-            <TouchableOpacity 
-              style={styles.statsModalCloseButton}
-              onPress={() => setShowSetStatsModal(false)}
-            >
-              <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
-            </TouchableOpacity>
-            <View style={styles.statsModalTitleContainer}>
-              <View style={styles.statsModalTitleRow}>
-                <MaterialCommunityIcons name="chart-bar" size={22} color={Colors.primary} />
-                <Text style={styles.statsModalTitle}>
-                  {statsViewType === 'match' ? 'Partido Completo' : `Set ${statsViewType}`}
-                </Text>
+        <View style={styles.setStatsContainer}>
+          {/* Safe Area Header Container */}
+          <View style={styles.statsModalSafeHeader}>
+            {/* Modern Unified Header */}
+            <View style={styles.statsModalHeaderModern}>
+              {/* Top Row: Close button and title */}
+              <View style={styles.statsModalTopRow}>
+                <TouchableOpacity 
+                  style={styles.statsModalCloseButtonModern}
+                  onPress={() => setShowSetStatsModal(false)}
+                >
+                  <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+                <View style={styles.statsModalTitleContainerModern}>
+                  <MaterialCommunityIcons name="chart-bar" size={20} color="#FFFFFF" />
+                  <Text style={styles.statsModalTitleModern}>Estadísticas</Text>
+                </View>
+                <View style={{ width: 36 }} />
               </View>
-              <Text style={styles.statsModalSubtitle}>Estadísticas en tiempo real</Text>
-            </View>
-            <View style={{ width: 40 }} />
-          </View>
 
-          {/* Filtros de tipo de vista - Cards horizontales */}
-          <View style={styles.viewTypeSection}>
-            <ScrollView 
-              ref={viewTypeScrollRef}
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              contentContainerStyle={styles.viewTypeScrollContent}
-            >
-              {/* Partido completo */}
-              <TouchableOpacity
-                style={[styles.viewTypeCard, statsViewType === 'match' && styles.viewTypeCardActive]}
-                onPress={() => setStatsViewType('match')}
+              {/* Filter Tabs Row: Match / Sets */}
+              <ScrollView 
+                ref={viewTypeScrollRef}
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.statsModalFilterTabs}
               >
-                <MaterialCommunityIcons 
-                  name="trophy" 
-                  size={20} 
-                  color={statsViewType === 'match' ? '#FFFFFF' : Colors.primary} 
-                />
-                <Text style={[styles.viewTypeCardText, statsViewType === 'match' && styles.viewTypeCardTextActive]}>
-                  Partido
-                </Text>
-              </TouchableOpacity>
-
-              {/* Sets individuales completados */}
-              {Array.from({ length: currentSet }, (_, i) => i + 1)
-                .filter(setNum => setNum < currentSet || !isSetActive)
-                .map(setNum => (
-                  <TouchableOpacity
-                    key={`set-${setNum}`}
-                    style={[styles.viewTypeCard, statsViewType === setNum && styles.viewTypeCardActive]}
-                    onPress={() => setStatsViewType(setNum)}
-                  >
-                    <MaterialCommunityIcons 
-                      name="volleyball" 
-                      size={20} 
-                      color={statsViewType === setNum ? '#FFFFFF' : Colors.text} 
-                    />
-                    <Text style={[styles.viewTypeCardText, statsViewType === setNum && styles.viewTypeCardTextActive]}>
-                      Set {setNum}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-
-              {/* Set actual (solo si hay un set activo) */}
-              {isSetActive && (
+                {/* Partido completo */}
                 <TouchableOpacity
-                  style={[styles.viewTypeCard, statsViewType === currentSet && styles.viewTypeCardActive]}
-                  onPress={() => setStatsViewType(currentSet)}
+                  style={[styles.statsFilterTab, statsViewType === 'match' && styles.statsFilterTabActive]}
+                  onPress={() => setStatsViewType('match')}
                 >
                   <MaterialCommunityIcons 
-                    name="play-circle" 
-                    size={20} 
-                    color={statsViewType === currentSet ? '#FFFFFF' : Colors.warning} 
+                    name="trophy" 
+                    size={16} 
+                    color={statsViewType === 'match' ? Colors.primary : 'rgba(255,255,255,0.7)'} 
                   />
-                  <Text style={[styles.viewTypeCardText, statsViewType === currentSet && styles.viewTypeCardTextActive]}>
-                    Set Actual
+                  <Text style={[styles.statsFilterTabText, statsViewType === 'match' && styles.statsFilterTabTextActive]}>
+                    Partido
                   </Text>
                 </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View>
 
-          {/* Filtros por Jugador - Diseño moderno con pills */}
-          <View style={styles.playerFilterSection}>
-            <Text style={styles.playerFilterLabel}>Filtrar por jugador</Text>
-            <ScrollView 
-              ref={setStatsFilterScrollRef}
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.playerFilterScrollContent}
-            >
-              <TouchableOpacity
-                style={[styles.playerFilterPill, setStatsFilter === null && styles.playerFilterPillActive]}
-                onPress={() => {
-                  setSetStatsFilter(null);
-                  setStatsFilterScrollRef.current?.scrollTo({ x: 0, animated: true });
-                }}
-              >
-                <MaterialCommunityIcons 
-                  name="account-group" 
-                  size={18} 
-                  color={setStatsFilter === null ? '#FFFFFF' : Colors.textSecondary} 
-                />
-                <Text style={[styles.playerFilterPillText, setStatsFilter === null && styles.playerFilterPillTextActive]}>
-                  Equipo
-                </Text>
-              </TouchableOpacity>
-              {getSetPlayers().map((player, index) => (
-                <TouchableOpacity
-                  key={player.id}
-                  style={[styles.playerFilterPill, setStatsFilter === player.id && styles.playerFilterPillActive]}
-                  onPress={() => {
-                    setSetStatsFilter(player.id);
-                    setTimeout(() => {
-                      setStatsFilterScrollRef.current?.scrollTo({ 
-                        x: (index + 1) * 90, 
-                        animated: true 
-                      });
-                    }, 100);
-                  }}
-                >
-                  <View style={[styles.playerFilterNumber, setStatsFilter === player.id && styles.playerFilterNumberActive]}>
-                    <Text style={[styles.playerFilterNumberText, setStatsFilter === player.id && styles.playerFilterNumberTextActive]}>
-                      {player.number}
+                {/* Sets individuales completados */}
+                {Array.from({ length: currentSet }, (_, i) => i + 1)
+                  .filter(setNum => setNum < currentSet || !isSetActive)
+                  .map(setNum => (
+                    <TouchableOpacity
+                      key={`set-${setNum}`}
+                      style={[styles.statsFilterTab, statsViewType === setNum && styles.statsFilterTabActive]}
+                      onPress={() => setStatsViewType(setNum)}
+                    >
+                      <MaterialCommunityIcons 
+                        name="volleyball" 
+                        size={16} 
+                        color={statsViewType === setNum ? Colors.primary : 'rgba(255,255,255,0.7)'} 
+                      />
+                      <Text style={[styles.statsFilterTabText, statsViewType === setNum && styles.statsFilterTabTextActive]}>
+                        Set {setNum}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+
+                {/* Set actual (solo si hay un set activo) */}
+                {isSetActive && (
+                  <TouchableOpacity
+                    style={[styles.statsFilterTab, statsViewType === currentSet && styles.statsFilterTabActive]}
+                    onPress={() => setStatsViewType(currentSet)}
+                  >
+                    <View style={styles.liveIndicator} />
+                    <Text style={[styles.statsFilterTabText, statsViewType === currentSet && styles.statsFilterTabTextActive]}>
+                      Set Actual
                     </Text>
-                  </View>
-                  <Text style={[styles.playerFilterPillText, setStatsFilter === player.id && styles.playerFilterPillTextActive]}>
-                    {player.name.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+
+              {/* Player Filter Row */}
+              <View style={styles.statsModalPlayerFilterRow}>
+                <ScrollView 
+                  ref={setStatsFilterScrollRef}
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.statsModalPlayerFilterContent}
+                >
+                  <TouchableOpacity
+                    style={[styles.playerChip, setStatsFilter === null && styles.playerChipActive]}
+                    onPress={() => {
+                      setSetStatsFilter(null);
+                      setStatsFilterScrollRef.current?.scrollTo({ x: 0, animated: true });
+                    }}
+                  >
+                    <MaterialCommunityIcons 
+                      name="account-group" 
+                      size={14} 
+                      color={setStatsFilter === null ? Colors.primary : 'rgba(255,255,255,0.8)'} 
+                    />
+                    <Text style={[styles.playerChipText, setStatsFilter === null && styles.playerChipTextActive]}>
+                      Equipo
+                    </Text>
+                  </TouchableOpacity>
+                  {getSetPlayers().map((player, index) => (
+                    <TouchableOpacity
+                      key={player.id}
+                      style={[styles.playerChip, setStatsFilter === player.id && styles.playerChipActive]}
+                      onPress={() => {
+                        setSetStatsFilter(player.id);
+                        setTimeout(() => {
+                          setStatsFilterScrollRef.current?.scrollTo({ 
+                            x: (index + 1) * 90, 
+                            animated: true 
+                          });
+                        }, 100);
+                      }}
+                    >
+                      <View style={[styles.playerChipNumber, setStatsFilter === player.id && styles.playerChipNumberActive]}>
+                        <Text style={[styles.playerChipNumberText, setStatsFilter === player.id && styles.playerChipNumberTextActive]}>
+                          {player.number}
+                        </Text>
+                      </View>
+                      <Text style={[styles.playerChipText, setStatsFilter === player.id && styles.playerChipTextActive]}>
+                        {player.name.split(' ')[0]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
           </View>
 
           {/* Contenido de estadísticas */}
@@ -1635,7 +1629,7 @@ export default function MatchFieldScreen({
               <MaterialCommunityIcons name="arrow-right" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* Visual Feedback Overlay - Animated icon + stat name */}
@@ -2202,6 +2196,121 @@ const styles = StyleSheet.create({
   setStatsContainer: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+  },
+  // Modern Unified Stats Modal Header
+  statsModalSafeHeader: {
+    backgroundColor: '#1a1a2e',
+    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+  },
+  statsModalHeaderModern: {
+    backgroundColor: '#1a1a2e',
+    paddingBottom: Spacing.md,
+  },
+  statsModalTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+  },
+  statsModalCloseButtonModern: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statsModalTitleContainerModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  statsModalTitleModern: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  statsModalFilterTabs: {
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  statsFilterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  statsFilterTabActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  statsFilterTabText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  statsFilterTabTextActive: {
+    color: Colors.primary,
+  },
+  liveIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+  },
+  statsModalPlayerFilterRow: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  statsModalPlayerFilterContent: {
+    gap: Spacing.sm,
+  },
+  playerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  playerChipActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  playerChipText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  playerChipTextActive: {
+    color: Colors.primary,
+  },
+  playerChipNumber: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playerChipNumberActive: {
+    backgroundColor: Colors.primary + '20',
+  },
+  playerChipNumberText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  playerChipNumberTextActive: {
+    color: Colors.primary,
   },
   setStatsHeader: {
     flexDirection: 'row',
