@@ -162,6 +162,7 @@ export default function App() {
             teamId={selectedTeamId!}
             teamName={selectedTeamName}
             onBack={() => setCurrentScreen('selectTeam')}
+            onOpenMenu={handleOpenMenu}
             onStartMatch={(details) => {
               setMatchDetails(details);
               setCurrentScreen('matchField');

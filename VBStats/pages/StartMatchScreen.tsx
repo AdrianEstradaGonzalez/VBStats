@@ -48,12 +48,12 @@ export default function StartMatchScreen({
   userId,
 }: StartMatchScreenProps) {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [ongoingMatch, setOngoingMatch] = useState<Match | null>(null);
+  const [ongoingMatches, setOngoingMatches] = useState<Match[]>([]);
   const [loadingOngoing, setLoadingOngoing] = useState(true);
 
   // Check for ongoing matches when component mounts
   useEffect(() => {
-    const checkOngoingMatch = async () => {
+    const checkOngoingMatches = async () => {
       if (!userId) {
         setLoadingOngoing(false);
         return;
@@ -62,11 +62,11 @@ export default function StartMatchScreen({
       try {
         const matches = await matchesService.getAll({ user_id: userId, status: 'in_progress' });
         if (matches.length > 0) {
-          // Get the most recent ongoing match
-          const mostRecent = matches.sort((a, b) => 
+          // Sort by most recent first
+          const sorted = matches.sort((a, b) => 
             new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
-          )[0];
-          setOngoingMatch(mostRecent);
+          );
+          setOngoingMatches(sorted);
         }
       } catch (error) {
         console.error('Error checking ongoing matches:', error);
@@ -75,22 +75,24 @@ export default function StartMatchScreen({
       }
     };
     
-    checkOngoingMatch();
+    checkOngoingMatches();
   }, [userId]);
 
-  const handleFinishOngoingMatch = async () => {
-    if (!ongoingMatch) return;
-    
+  const handleFinishOngoingMatch = async (matchId: number) => {
     try {
-      await matchesService.finishMatch(ongoingMatch.id, ongoingMatch.total_sets || 0);
+      const matchToFinish = ongoingMatches.find(m => m.id === matchId);
+      if (!matchToFinish) return;
+      
+      await matchesService.finishMatch(matchId, matchToFinish.total_sets || 0);
       // Also delete any saved match state
       try {
-        await matchesService.deleteMatchState(ongoingMatch.id);
+        await matchesService.deleteMatchState(matchId);
       } catch (stateError) {
         // Ignore if no state exists
         console.log('No state to delete');
       }
-      setOngoingMatch(null);
+      // Remove from array
+      setOngoingMatches(prev => prev.filter(m => m.id !== matchId));
     } catch (error) {
       console.error('Error finishing match:', error);
     }
@@ -127,73 +129,80 @@ export default function StartMatchScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Ongoing Match Banner */}
+        {/* Ongoing Matches Banner */}
         {loadingOngoing ? (
           <View style={styles.loadingOngoing}>
             <ActivityIndicator size="small" color={Colors.primary} />
           </View>
-        ) : ongoingMatch && (
-          <View style={styles.ongoingMatchContainer}>
-            <View style={styles.ongoingMatchHeader}>
-              <View style={styles.ongoingMatchLive}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>PARTIDO EN CURSO</Text>
-              </View>
-            </View>
-            
-            <View style={styles.ongoingMatchInfo}>
-              <View style={styles.ongoingMatchTeams}>
-                <Text style={styles.ongoingMatchTeamName}>{ongoingMatch.team_name || 'Tu equipo'}</Text>
-                {ongoingMatch.opponent && (
-                  <>
-                    <Text style={styles.ongoingMatchVs}>vs</Text>
-                    <Text style={styles.ongoingMatchOpponent}>{ongoingMatch.opponent}</Text>
-                  </>
-                )}
-              </View>
-              <View style={styles.ongoingMatchMeta}>
-                <MaterialCommunityIcons 
-                  name={ongoingMatch.location === 'home' ? 'home' : 'airplane'} 
-                  size={14} 
-                  color="rgba(255,255,255,0.7)" 
-                />
-                <Text style={styles.ongoingMatchMetaText}>
-                  {ongoingMatch.location === 'home' ? 'Local' : 'Visitante'}
-                </Text>
-                <Text style={styles.ongoingMatchMetaDot}>•</Text>
-                <Text style={styles.ongoingMatchMetaText}>
-                  Set {ongoingMatch.total_sets || 1}
-                </Text>
-                {ongoingMatch.date && (
-                  <>
+        ) : ongoingMatches.length > 0 && (
+          <View style={styles.ongoingMatchesSection}>
+            <Text style={styles.ongoingMatchesSectionTitle}>
+              {ongoingMatches.length === 1 ? 'Partido en curso' : `${ongoingMatches.length} Partidos en curso`}
+            </Text>
+            {ongoingMatches.map((match) => (
+              <View key={match.id} style={styles.ongoingMatchContainer}>
+                <View style={styles.ongoingMatchHeader}>
+                  <View style={styles.ongoingMatchLive}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>EN CURSO</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.ongoingMatchInfo}>
+                  <View style={styles.ongoingMatchTeams}>
+                    <Text style={styles.ongoingMatchTeamName}>{match.team_name || 'Tu equipo'}</Text>
+                    {match.opponent && (
+                      <>
+                        <Text style={styles.ongoingMatchVs}>vs</Text>
+                        <Text style={styles.ongoingMatchOpponent}>{match.opponent}</Text>
+                      </>
+                    )}
+                  </View>
+                  <View style={styles.ongoingMatchMeta}>
+                    <MaterialCommunityIcons 
+                      name={match.location === 'home' ? 'home' : 'airplane'} 
+                      size={14} 
+                      color="rgba(255,255,255,0.7)" 
+                    />
+                    <Text style={styles.ongoingMatchMetaText}>
+                      {match.location === 'home' ? 'Local' : 'Visitante'}
+                    </Text>
                     <Text style={styles.ongoingMatchMetaDot}>•</Text>
                     <Text style={styles.ongoingMatchMetaText}>
-                      {formatMatchDate(ongoingMatch.date)}
+                      Set {match.total_sets || 1}
                     </Text>
-                  </>
-                )}
-              </View>
-            </View>
+                    {match.date && (
+                      <>
+                        <Text style={styles.ongoingMatchMetaDot}>•</Text>
+                        <Text style={styles.ongoingMatchMetaText}>
+                          {formatMatchDate(match.date)}
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                </View>
 
-            <View style={styles.ongoingMatchActions}>
-              <TouchableOpacity
-                style={styles.continueMatchButton}
-                onPress={() => onContinueMatch?.(ongoingMatch)}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
-                <Text style={styles.continueMatchButtonText}>Continuar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.finishMatchButton}
-                onPress={handleFinishOngoingMatch}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.error} />
-                <Text style={styles.finishMatchButtonText}>Finalizar</Text>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.ongoingMatchActions}>
+                  <TouchableOpacity
+                    style={styles.continueMatchButton}
+                    onPress={() => onContinueMatch?.(match)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
+                    <Text style={styles.continueMatchButtonText}>Continuar</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={styles.finishMatchButton}
+                    onPress={() => handleFinishOngoingMatch(match.id)}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.error} />
+                    <Text style={styles.finishMatchButtonText}>Finalizar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
@@ -247,27 +256,6 @@ export default function StartMatchScreen({
                 </View>
               </TouchableOpacity>
             ))}
-
-            {selectedTeam && selectedTeam.players && selectedTeam.players.length > 0 && (
-              <View style={styles.selectedInfo}>
-                <Text style={styles.selectedTitle}>Jugadores del equipo</Text>
-                <View style={styles.playersPreview}>
-                  {selectedTeam.players.slice(0, 6).map((player: Player) => (
-                    <View key={player.id} style={styles.playerChip}>
-                      <Text style={styles.playerChipNumber}>{player.number || '#'}</Text>
-                      <Text style={styles.playerChipName}>{player.name.split(' ')[0]}</Text>
-                    </View>
-                  ))}
-                  {selectedTeam.players.length > 6 && (
-                    <View style={styles.playerChip}>
-                      <Text style={styles.playerChipMore}>
-                        +{selectedTeam.players.length - 6}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
           </>
         )}
       </ScrollView>
@@ -328,6 +316,15 @@ const styles = StyleSheet.create({
   loadingOngoing: {
     padding: Spacing.md,
     alignItems: 'center',
+  },
+  ongoingMatchesSection: {
+    marginBottom: Spacing.lg,
+  },
+  ongoingMatchesSectionTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.md,
   },
   ongoingMatchContainer: {
     backgroundColor: '#1a1a2e',
@@ -517,48 +514,6 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: Colors.primary,
-  },
-  selectedInfo: {
-    marginTop: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    ...Shadows.sm,
-  },
-  selectedTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: Spacing.md,
-  },
-  playersPreview: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  playerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  playerChipNumber: {
-    fontSize: FontSizes.sm,
-    fontWeight: '800',
-    color: Colors.primary,
-    marginRight: Spacing.xs,
-  },
-  playerChipName: {
-    fontSize: FontSizes.sm,
-    color: Colors.text,
-  },
-  playerChipMore: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.textSecondary,
   },
   footer: {
     padding: Spacing.lg,
