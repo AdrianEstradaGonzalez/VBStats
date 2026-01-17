@@ -16,9 +16,9 @@ import {
 } from "./pages";
 import { Colors } from "./styles";
 import { SideMenu } from "./components";
-import { teamsService, playersService, usersService } from "./services/api";
+import { teamsService, playersService, usersService, Match } from "./services/api";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -32,6 +32,7 @@ export default function App() {
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [selectedTeamName, setSelectedTeamName] = useState<string>("");
   const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
+  const [resumeMatchId, setResumeMatchId] = useState<number | null>(null);
 
   // Load teams from backend when user logs in
   useEffect(() => {
@@ -110,8 +111,8 @@ export default function App() {
 
   const handleNavigate = (screen: string) => {
     if (screen === 'startMatch') {
-      // Start the match flow by going to team selection
-      setCurrentScreen('selectTeam');
+      // Go to start match flow screen to check for ongoing matches
+      setCurrentScreen('startMatchFlow');
     } else {
       setCurrentScreen(screen as Screen);
     }
@@ -173,6 +174,7 @@ export default function App() {
             matchDetails={matchDetails!}
             onOpenMenu={handleOpenMenu}
             userId={userId}
+            resumeMatchId={resumeMatchId}
           />
         );
       case 'startMatch':
@@ -180,7 +182,62 @@ export default function App() {
           <StartMatchScreen 
             teams={teams}
             onOpenMenu={handleOpenMenu}
-            onStartMatch={(team) => console.log('Starting match with team:', team.name)}
+            userId={userId}
+            onStartMatch={(team) => {
+              // Clear any resume state and go to select team flow
+              setResumeMatchId(null);
+              setSelectedTeamId(team.id);
+              setSelectedTeamName(team.name);
+              setCurrentScreen('matchDetails');
+            }}
+            onContinueMatch={(match: Match) => {
+              // Set up for resume: find team and create match details
+              const team = teams.find(t => t.id === match.team_id);
+              if (team) {
+                setResumeMatchId(match.id);
+                setMatchDetails({
+                  teamId: match.team_id!,
+                  teamName: match.team_name || team.name,
+                  players: team.players || [],
+                  rivalTeam: match.opponent || '',
+                  date: match.date ? new Date(match.date) : new Date(),
+                  isHome: match.location === 'home',
+                });
+                setCurrentScreen('matchField');
+              }
+            }}
+          />
+        );
+      case 'startMatchFlow':
+        return (
+          <StartMatchScreen 
+            teams={teams}
+            onBack={() => setCurrentScreen('home')}
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
+            onStartMatch={(team) => {
+              // Clear any resume state and go to match details
+              setResumeMatchId(null);
+              setSelectedTeamId(team.id);
+              setSelectedTeamName(team.name);
+              setCurrentScreen('matchDetails');
+            }}
+            onContinueMatch={(match: Match) => {
+              // Set up for resume: find team and create match details
+              const team = teams.find(t => t.id === match.team_id);
+              if (team) {
+                setResumeMatchId(match.id);
+                setMatchDetails({
+                  teamId: match.team_id!,
+                  teamName: match.team_name || team.name,
+                  players: team.players || [],
+                  rivalTeam: match.opponent || '',
+                  date: match.date ? new Date(match.date) : new Date(),
+                  isHome: match.location === 'home',
+                });
+                setCurrentScreen('matchField');
+              }
+            }}
           />
         );
       case 'stats':

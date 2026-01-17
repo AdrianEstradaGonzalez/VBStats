@@ -17,7 +17,10 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
+import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon } from '../components/VectorIcons';
@@ -37,6 +40,7 @@ interface MatchFieldScreenProps {
   onOpenMenu?: () => void;
   matchDetails: MatchDetails;
   userId?: number | null;
+  resumeMatchId?: number | null; // If provided, resume this match instead of creating new
 }
 
 type Position = {
@@ -106,7 +110,8 @@ type LastStatFeedback = {
 export default function MatchFieldScreen({ 
   onOpenMenu, 
   matchDetails,
-  userId
+  userId,
+  resumeMatchId
 }: MatchFieldScreenProps) {
   // 8 posiciones de campo
   const [positions, setPositions] = useState<Position[]>([
@@ -163,16 +168,81 @@ export default function MatchFieldScreen({
   const [lastPressedButton, setLastPressedButton] = useState<string | null>(null);
   const feedbackOpacity = useRef(new Animated.Value(0)).current;
   const feedbackScale = useRef(new Animated.Value(0.5)).current;
+  const feedbackAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     loadPlayers();
     loadStatSettings();
   }, [matchDetails.teamId]);
 
-  // Crear el partido en BD cuando se carga la pantalla
+  // Crear el partido en BD cuando se carga la pantalla o resumir uno existente
   useEffect(() => {
-    const createMatch = async () => {
-      if (!userId || !matchDetails.teamId || matchCreated) return;
+    const initializeMatch = async () => {
+      if (!userId || !matchDetails.teamId) return;
+      
+      // If resuming an existing match
+      if (resumeMatchId) {
+        try {
+          const existingMatch = await matchesService.getById(resumeMatchId);
+          setMatchId(existingMatch.id);
+          setMatchCreated(true);
+          setCurrentSet(existingMatch.total_sets || 0);
+          
+          // Load match state (positions, pending stats)
+          const matchState = await matchesService.getMatchState(resumeMatchId);
+          if (matchState) {
+            if (matchState.positions && matchState.positions.length > 0) {
+              // Restore positions
+              const restoredPositions: Position[] = matchState.positions.map(p => ({
+                id: p.id,
+                label: p.label,
+                playerId: p.playerId,
+                playerName: p.playerName,
+                playerNumber: p.playerNumber,
+              }));
+              setPositions(restoredPositions);
+            }
+            if (matchState.current_set !== undefined) {
+              setCurrentSet(matchState.current_set);
+            }
+            if (matchState.is_set_active !== undefined) {
+              setIsSetActive(matchState.is_set_active);
+            }
+            if (matchState.action_history && Array.isArray(matchState.action_history)) {
+              // Restore action history with proper typing
+              const restoredHistory = matchState.action_history.map(a => ({
+                type: a.type as 'start_set' | 'end_set' | 'add_stat',
+                data: a.data,
+                timestamp: a.data?.timestamp || Date.now(),
+              }));
+              setActionHistory(restoredHistory);
+            }
+            if (matchState.pending_stats && Array.isArray(matchState.pending_stats)) {
+              // Restore pending stats with proper typing
+              const restoredStats: StatAction[] = matchState.pending_stats.map(s => ({
+                id: s.id,
+                playerId: s.playerId,
+                playerName: s.playerName,
+                playerNumber: s.playerNumber,
+                setNumber: s.setNumber,
+                statSettingId: s.statSettingId,
+                statCategory: s.statCategory,
+                statType: s.statType,
+                timestamp: s.timestamp,
+              }));
+              setPendingStats(restoredStats);
+            }
+          }
+          
+          console.log('✅ Partido resumido:', existingMatch.id);
+        } catch (error) {
+          console.error('❌ Error resumiendo partido:', error);
+        }
+        return;
+      }
+      
+      // Create new match
+      if (matchCreated) return;
       
       try {
         const newMatch = await matchesService.create({
@@ -190,19 +260,79 @@ export default function MatchFieldScreen({
       }
     };
     
-    createMatch();
-  }, [userId, matchDetails, matchCreated]);
+    initializeMatch();
+  }, [userId, matchDetails, matchCreated, resumeMatchId]);
+
+  // Save match state when app goes to background or component unmounts
+  const saveMatchState = useCallback(async () => {
+    if (!matchId || !userId) return;
+    
+    try {
+      // Prepare action history for serialization
+      const serializedHistory = actionHistory.map(a => ({
+        type: a.type,
+        data: a.data,
+        timestamp: a.timestamp,
+      }));
+      
+      // Prepare pending stats for serialization
+      const serializedStats = pendingStats.map(s => ({
+        id: s.id,
+        playerId: s.playerId,
+        playerName: s.playerName,
+        playerNumber: s.playerNumber,
+        setNumber: s.setNumber,
+        statSettingId: s.statSettingId,
+        statCategory: s.statCategory,
+        statType: s.statType,
+        timestamp: s.timestamp,
+      }));
+      
+      await matchesService.saveMatchState(matchId, {
+        positions,
+        current_set: currentSet,
+        is_set_active: isSetActive,
+        action_history: serializedHistory,
+        pending_stats: serializedStats,
+      });
+      console.log('💾 Estado del partido guardado');
+    } catch (error) {
+      console.error('❌ Error guardando estado:', error);
+    }
+  }, [matchId, userId, positions, currentSet, isSetActive, actionHistory, pendingStats]);
+
+  // Save state when app goes to background
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        saveMatchState();
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+      // Save state when component unmounts
+      saveMatchState();
+    };
+  }, [saveMatchState]);
 
   // Función para mostrar feedback visual al pulsar botón de estadística
   const showStatFeedback = useCallback((feedback: LastStatFeedback) => {
+    // Stop any running animation
+    if (feedbackAnimationRef.current) {
+      feedbackAnimationRef.current.stop();
+      feedbackAnimationRef.current = null;
+    }
+    
     setLastStatFeedback(feedback);
     
     // Reset animation values
     feedbackOpacity.setValue(1);
     feedbackScale.setValue(0.5);
     
-    // Animate - duración total de 1 segundo
-    Animated.parallel([
+    // Create and store new animation
+    const newAnimation = Animated.parallel([
       Animated.timing(feedbackScale, {
         toValue: 1.5,
         duration: 800,
@@ -216,8 +346,15 @@ export default function MatchFieldScreen({
           useNativeDriver: true,
         }),
       ]),
-    ]).start(() => {
-      setLastStatFeedback(null);
+    ]);
+    
+    feedbackAnimationRef.current = newAnimation;
+    
+    newAnimation.start(({ finished }) => {
+      if (finished) {
+        setLastStatFeedback(null);
+        feedbackAnimationRef.current = null;
+      }
     });
   }, [feedbackOpacity, feedbackScale]);
 
@@ -568,6 +705,14 @@ export default function MatchFieldScreen({
         const updatedMatch = await matchesService.finishMatch(matchId, currentSet);
         setFinishedMatch(updatedMatch);
         console.log('🏆 Partido finalizado y guardado');
+        
+        // Delete saved match state since match is finished
+        try {
+          await matchesService.deleteMatchState(matchId);
+          console.log('🗑️ Estado del partido eliminado');
+        } catch (stateError) {
+          console.log('No state to delete or error:', stateError);
+        }
       } catch (error) {
         console.error('❌ Error finalizando partido:', error);
       }
@@ -911,6 +1056,105 @@ export default function MatchFieldScreen({
     return <MaterialCommunityIcons name="circle-outline" size={size} color={color} />;
   };
 
+  // Create SVG arc path for pie chart
+  const createArcPath = (
+    centerX: number,
+    centerY: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number
+  ): string => {
+    const startRad = ((startAngle - 90) * Math.PI) / 180;
+    const endRad = ((endAngle - 90) * Math.PI) / 180;
+
+    const x1 = centerX + radius * Math.cos(startRad);
+    const y1 = centerY + radius * Math.sin(startRad);
+    const x2 = centerX + radius * Math.cos(endRad);
+    const y2 = centerY + radius * Math.sin(endRad);
+
+    const largeArcFlag = endAngle - startAngle > 180 ? 1 : 0;
+
+    return `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+  };
+
+  // Render pie chart for category stats
+  const renderCategoryPieChart = (data: { statType: string; count: number; color: string }[], total: number) => {
+    if (total === 0) return null;
+
+    const size = 100;
+    const center = size / 2;
+    const radius = size / 2 - 2;
+    const innerRadius = radius * 0.45;
+
+    let currentAngle = 0;
+    const segments = data.map(item => {
+      const percentage = (item.count / total) * 100;
+      const angle = (percentage / 100) * 360;
+      const segment = {
+        ...item,
+        percentage,
+        startAngle: currentAngle,
+        endAngle: currentAngle + angle,
+      };
+      currentAngle += angle;
+      return segment;
+    });
+
+    return (
+      <View style={styles.categoryPieChartContainer}>
+        <View style={styles.categoryPieSvgWrapper}>
+          <Svg width={size} height={size}>
+            <G>
+              {segments.map((segment, idx) => {
+                if (segment.percentage >= 99.9) {
+                  return (
+                    <Path
+                      key={idx}
+                      d={`M ${center} ${2} A ${radius} ${radius} 0 1 1 ${center - 0.01} ${2} Z`}
+                      fill={segment.color}
+                    />
+                  );
+                }
+                
+                const path = createArcPath(
+                  center,
+                  center,
+                  radius,
+                  segment.startAngle,
+                  segment.endAngle
+                );
+                return <Path key={idx} d={path} fill={segment.color} />;
+              })}
+            </G>
+            {/* Donut center */}
+            <Path
+              d={`M ${center} ${center - innerRadius} A ${innerRadius} ${innerRadius} 0 1 1 ${center - 0.01} ${center - innerRadius} Z`}
+              fill={Colors.surface}
+            />
+          </Svg>
+        </View>
+
+        {/* Legend table */}
+        <View style={styles.categoryPieLegend}>
+          <View style={styles.categoryPieLegendHeader}>
+            <Text style={styles.categoryPieLegendHeaderText}>Tipo</Text>
+            <Text style={styles.categoryPieLegendHeaderRight}>Cant.</Text>
+            <Text style={styles.categoryPieLegendHeaderRight}>%</Text>
+          </View>
+          {segments.map((segment, idx) => (
+            <View key={idx} style={styles.categoryPieLegendRow}>
+              <View style={styles.categoryPieLegendTypeCell}>
+                {getStatIcon(segment.statType, segment.color, 18)}
+              </View>
+              <Text style={styles.categoryPieLegendCount}>{segment.count}</Text>
+              <Text style={styles.categoryPieLegendPercent}>{Math.round(segment.percentage)}%</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   // Si se debe mostrar la pantalla de estadísticas del partido, renderizarla
   if (showMatchStatsScreen && finishedMatch) {
     return (
@@ -999,8 +1243,8 @@ export default function MatchFieldScreen({
                         key={`${stat.id}-${idx}`}
                         style={[
                           btnStyle, 
-                          { borderColor: cat.color + '60' },
-                          isHighlighted && { borderColor: cat.color, borderWidth: 3 },
+                          { borderColor: 'transparent', borderWidth: 3 },
+                          isHighlighted && { borderColor: cat.color, backgroundColor: cat.color + '15' },
                           isDisabled && { opacity: 0.4 }
                         ]}
                         onPress={() => handleAddStat(position, cat.category, stat.stat_type, stat.id, cat.color)}
@@ -1588,6 +1832,12 @@ export default function MatchFieldScreen({
                     {Object.entries(statsByCategory).map(([category, catStats]) => {
                       const total = catStats.reduce((sum, s) => sum + s.count, 0);
                       const categoryColor = STAT_COLORS[category] || Colors.primary;
+                      // Prepare data for pie chart
+                      const pieData = catStats.map(stat => ({
+                        statType: stat.statType,
+                        count: stat.count,
+                        color: getStatColor(stat.statType),
+                      }));
                       return (
                         <View key={category} style={styles.setStatsCategoryCard}>
                           <View style={styles.setStatsCategoryHeader}>
@@ -1595,20 +1845,8 @@ export default function MatchFieldScreen({
                             <Text style={styles.setStatsCategoryName}>{category}</Text>
                             <Text style={styles.setStatsCategoryTotal}>{total} acciones</Text>
                           </View>
-                          <View style={styles.setStatsCategoryList}>
-                            {catStats.map((stat, idx) => {
-                              const statColor = getStatColor(stat.statType);
-                              return (
-                                <View key={idx} style={styles.setStatsStatRow}>
-                                  <View style={styles.setStatsStatTypeContainer}>
-                                    {getStatIcon(stat.statType, statColor, 18)}
-                                    <Text style={styles.setStatsStatType}>{stat.statType}</Text>
-                                  </View>
-                                  <Text style={styles.setStatsStatCount}>{stat.count}</Text>
-                                </View>
-                              );
-                            })}
-                          </View>
+                          {/* Pie chart for this category */}
+                          {renderCategoryPieChart(pieData, total)}
                         </View>
                       );
                     })}
@@ -2196,7 +2434,6 @@ const styles = StyleSheet.create({
   setStatsContainer: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   // Modern Unified Stats Modal Header
   statsModalSafeHeader: {
@@ -2657,10 +2894,8 @@ const styles = StyleSheet.create({
   },
   setStatsFooter: {
     padding: Spacing.lg,
-    backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    ...Shadows.sm,
+    paddingBottom: Platform.OS === 'android' ? Spacing.lg + ANDROID_NAV_BAR_HEIGHT : Spacing.lg,
+    backgroundColor: '#1a1a2e',
   },
   continueButton: {
     flexDirection: 'row',
@@ -2675,5 +2910,74 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // Category pie chart styles
+  categoryPieChartContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  categoryPieSvgWrapper: {
+    width: 100,
+    height: 100,
+  },
+  categoryPieLegend: {
+    flex: 1,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+  },
+  categoryPieLegendHeader: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    alignItems: 'center',
+  },
+  categoryPieLegendHeaderText: {
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  categoryPieLegendHeaderRight: {
+    width: 45,
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    textAlign: 'right',
+  },
+  categoryPieLegendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border + '40',
+  },
+  categoryPieLegendTypeCell: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryPieLegendCount: {
+    width: 45,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.text,
+    textAlign: 'right',
+  },
+  categoryPieLegendPercent: {
+    width: 45,
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.success,
+    textAlign: 'right',
   },
 });

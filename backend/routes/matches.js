@@ -229,4 +229,79 @@ router.get('/:id/stats', async (req, res) => {
   }
 });
 
+// Save match state (for resuming matches)
+router.put('/:id/state', async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    const { positions, current_set, is_set_active, action_history, pending_stats } = req.body;
+    
+    const stateJson = JSON.stringify({
+      positions,
+      current_set,
+      is_set_active,
+      action_history,
+      pending_stats
+    });
+    
+    // Check if state already exists
+    const [existing] = await pool.query(
+      'SELECT id FROM match_states WHERE match_id = ?',
+      [matchId]
+    );
+    
+    if (existing.length > 0) {
+      // Update existing state
+      await pool.query(
+        'UPDATE match_states SET state_json = ?, updated_at = NOW() WHERE match_id = ?',
+        [stateJson, matchId]
+      );
+    } else {
+      // Insert new state
+      await pool.query(
+        'INSERT INTO match_states (match_id, state_json) VALUES (?, ?)',
+        [matchId, stateJson]
+      );
+    }
+    
+    console.log(`Match state saved for match ${matchId}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving match state:', error);
+    res.status(500).json({ error: 'Failed to save match state' });
+  }
+});
+
+// Get match state (for resuming matches)
+router.get('/:id/state', async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    
+    const [rows] = await pool.query(
+      'SELECT state_json FROM match_states WHERE match_id = ?',
+      [matchId]
+    );
+    
+    if (!rows.length) {
+      return res.status(404).json({ error: 'No state found for this match' });
+    }
+    
+    const state = JSON.parse(rows[0].state_json);
+    res.json(state);
+  } catch (error) {
+    console.error('Error fetching match state:', error);
+    res.status(500).json({ error: 'Failed to fetch match state' });
+  }
+});
+
+// Delete match state when match is finished
+router.delete('/:id/state', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM match_states WHERE match_id = ?', [req.params.id]);
+    res.status(204).end();
+  } catch (error) {
+    console.error('Error deleting match state:', error);
+    res.status(500).json({ error: 'Failed to delete match state' });
+  }
+});
+
 module.exports = router;

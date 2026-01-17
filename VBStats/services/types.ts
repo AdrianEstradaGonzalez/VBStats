@@ -49,6 +49,54 @@ export interface MatchUpdate {
   notes?: string;
 }
 
+// Position state for match persistence
+export interface PositionState {
+  id: string;
+  label: string;
+  playerId: number | null;
+  playerName: string | null;
+  playerNumber: number | null;
+}
+
+// Action history item for match persistence  
+export interface ActionHistoryItem {
+  type: string;
+  timestamp?: number;
+  data?: {
+    id?: string;
+    playerId?: number;
+    playerName?: string;
+    playerNumber?: number | null;
+    setNumber?: number;
+    statSettingId?: number;
+    statCategory?: string;
+    statType?: string;
+    timestamp?: number;
+  };
+}
+
+// Stat action for in-memory tracking during a match
+export interface StatActionState {
+  id: string;
+  playerId: number;
+  playerName: string;
+  playerNumber: number | null;
+  setNumber: number;
+  statSettingId: number;
+  statCategory: string;
+  statType: string;
+  timestamp: number;
+}
+
+// Match state for persistence
+export interface MatchState {
+  positions?: PositionState[];
+  current_set?: number;
+  is_set_active?: boolean;
+  action_history?: ActionHistoryItem[];
+  pending_stats?: StatActionState[];
+}
+
 export interface Stat {
   id: number;
   match_id: number;
