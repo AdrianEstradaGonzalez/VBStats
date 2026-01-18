@@ -55,6 +55,8 @@ async function init() {
         location ENUM('home', 'away') DEFAULT 'home',
         status ENUM('in_progress', 'finished', 'cancelled') DEFAULT 'in_progress',
         total_sets INT DEFAULT 0,
+        score_home INT NULL,
+        score_away INT NULL,
         notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         finished_at TIMESTAMP NULL,
@@ -178,6 +180,8 @@ async function init() {
       { name: 'location', definition: "ENUM('home', 'away') DEFAULT 'home' AFTER date" },
       { name: 'status', definition: "ENUM('in_progress', 'finished', 'cancelled') DEFAULT 'in_progress' AFTER location" },
       { name: 'total_sets', definition: 'INT DEFAULT 0 AFTER status' },
+      { name: 'score_home', definition: 'INT NULL AFTER total_sets' },
+      { name: 'score_away', definition: 'INT NULL AFTER score_home' },
       { name: 'finished_at', definition: 'TIMESTAMP NULL AFTER created_at' },
     ];
     

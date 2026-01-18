@@ -337,19 +337,19 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       const matchInfo = `${match.team_name || 'Mi equipo'}${match.opponent ? ` vs ${match.opponent}` : ''}`;
       const dateStr = formatDate(match.date);
       const scoreStr = (match.score_home !== null && match.score_away !== null) 
-        ? `\n🏆 Resultado: ${match.score_home} - ${match.score_away}` 
+        ? `\nResultado: ${match.score_home} - ${match.score_away}` 
         : '';
       
       // Filtros aplicados
       let filterInfo = '';
       if (selectedSet !== 'all') {
-        filterInfo += `📌 Set: ${selectedSet}`;
+        filterInfo += `Set: ${selectedSet}`;
       }
       if (selectedPlayer !== null) {
         const player = uniquePlayers.find(p => p.id === selectedPlayer);
         if (player) {
           filterInfo += filterInfo ? ' | ' : '';
-          filterInfo += `👤 Jugador: ${player.name} (#${player.number})`;
+          filterInfo += `Jugador: ${player.name} (#${player.number})`;
         }
       }
       if (filterInfo) {
@@ -357,42 +357,42 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       }
 
       // Resumen general
-      let reportText = `📊 INFORME DE ESTADÍSTICAS\n`;
+      let reportText = `INFORME DE ESTADÍSTICAS\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
-      reportText += `📅 ${dateStr}\n`;
-      reportText += `🏐 ${matchInfo}${scoreStr}`;
+      reportText += `Fecha: ${dateStr}\n`;
+      reportText += `Partido: ${matchInfo}${scoreStr}`;
       reportText += filterInfo ? `${filterInfo}` : '';
       reportText += `\n\n`;
 
       // Rating general
-      reportText += `⭐ RATING GENERAL: ${totalPerformance.rating}/10\n`;
-      reportText += `📈 G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
+      reportText += `Rating general: ${totalPerformance.rating}/10\n`;
+      reportText += `G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
 
       // Estadísticas por categoría
-      reportText += `📋 DESGLOSE POR CATEGORÍA\n`;
+      reportText += `DESGLOSE POR CATEGORÍA\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
       Object.entries(categoryPerformance).forEach(([category, perf]) => {
-        reportText += `\n🏷️ ${category}\n`;
+        reportText += `\n${category}\n`;
         reportText += `   Rating: ${perf.rating}/10 | G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-        if (perf.doblePositivo > 0) reportText += `   ⭐ Doble positivo: ${perf.doblePositivo}\n`;
-        if (perf.positivo > 0) reportText += `   ✅ Positivo: ${perf.positivo}\n`;
-        if (perf.neutro > 0) reportText += `   ➖ Neutro: ${perf.neutro}\n`;
-        if (perf.error > 0) reportText += `   ❌ Error: ${perf.error}\n`;
+        if (perf.doblePositivo > 0) reportText += `   Doble positivo: ${perf.doblePositivo}\n`;
+        if (perf.positivo > 0) reportText += `   Positivo: ${perf.positivo}\n`;
+        if (perf.neutro > 0) reportText += `   Neutro: ${perf.neutro}\n`;
+        if (perf.error > 0) reportText += `   Error: ${perf.error}\n`;
       });
 
       // Top jugadores (si no hay filtro de jugador)
       if (selectedPlayer === null && playerStats.length > 0) {
-        reportText += `\n\n👥 PARTICIPACIÓN DE JUGADORES\n`;
+        reportText += `\n\nPARTICIPACIÓN DE JUGADORES\n`;
         reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
         playerStats.slice(0, 5).forEach((player, index) => {
-          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
-          reportText += `${medal} #${player.number} ${player.name}: ${player.total} acciones\n`;
+          const position = index + 1;
+          reportText += `${position}. #${player.number} ${player.name}: ${player.total} acciones\n`;
         });
       }
 
       reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
-      reportText += `📲 Generado con VBStats`;
+      reportText += `Generado con VBStats`;
 
       // Compartir el informe
       await Share.share({

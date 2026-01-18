@@ -17,6 +17,7 @@ export interface CustomAlertButton {
   text: string;
   onPress: () => void;
   style?: 'default' | 'cancel' | 'destructive' | 'primary';
+  icon?: React.ReactNode;
 }
 
 interface CustomAlertProps {
@@ -118,7 +119,10 @@ export default function CustomAlert({
                   onPress={button.onPress}
                   activeOpacity={0.8}
                 >
-                  <Text style={getButtonTextStyle(button.style)}>{button.text}</Text>
+                  <View style={styles.buttonContent}>
+                    {button.icon && <View style={styles.buttonIcon}>{button.icon}</View>}
+                    <Text style={getButtonTextStyle(button.style)}>{button.text}</Text>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -300,5 +304,14 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  buttonIcon: {
+    marginRight: Spacing.xs,
   },
 });
