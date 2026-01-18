@@ -4,51 +4,51 @@
 
 const POSITION_STATS = {
   'Receptor': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positiva', 'Error'] },
-    { category: 'Colocación', types: ['Positiva', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Error'] },
+    { category: 'Colocación', types: ['Positivo', 'Error'] },
   ],
   'Opuesto': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positiva', 'Error'] },
-    { category: 'Colocación', types: ['Positiva', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Error'] },
+    { category: 'Colocación', types: ['Positivo', 'Error'] },
   ],
   'Colocador': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positiva', 'Error'] },
-    { category: 'Colocación', types: ['Positiva', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Error'] },
+    { category: 'Colocación', types: ['Positivo', 'Error'] },
   ],
   'Central': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positiva', 'Error'] },
-    { category: 'Colocación', types: ['Positiva', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Error'] },
+    { category: 'Colocación', types: ['Positivo', 'Error'] },
   ],
   'Líbero': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-    { category: 'Defensa', types: ['Positiva', 'Error'] },
-    { category: 'Colocación', types: ['Positiva', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Error'] },
+    { category: 'Colocación', types: ['Positivo', 'Error'] },
   ],
 };
 
+const BASIC_RECEPCION_POSITIONS = ['Receptor', 'Líbero'];
+const BASIC_DISABLED_CATEGORIES = ['Defensa', 'Colocación'];
 const BASIC_ENABLED_BY_CATEGORY = {
-  'Recepción': ['Positiva', 'Error'],
+  'Recepción': ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
   'Ataque': ['Positivo', 'Error'],
-  'Bloqueo': ['Positivo', 'Error'],
+  'Bloqueo': ['Positivo'],
   'Saque': ['Punto directo', 'Error'],
-  'Defensa': ['Positiva', 'Error'],
-  'Colocación': ['Positiva', 'Error'],
 };
 
 class StatTemplates {
@@ -86,7 +86,7 @@ class StatTemplates {
         for (const type of stat.types) {
           const enabled = template === 'advanced'
             ? true
-            : StatTemplates.isBasicEnabled(stat.category, type);
+            : StatTemplates.isBasicEnabled(stat.category, type, pos);
 
           settings.push({
             position: pos,
@@ -101,7 +101,15 @@ class StatTemplates {
     return settings;
   }
 
-  static isBasicEnabled(category, type) {
+  static isBasicEnabled(category, type, position) {
+    if (BASIC_DISABLED_CATEGORIES.includes(category)) {
+      return false;
+    }
+
+    if (category === 'Recepción' && !BASIC_RECEPCION_POSITIONS.includes(position)) {
+      return false;
+    }
+
     const enabledTypes = BASIC_ENABLED_BY_CATEGORY[category] || [];
     return enabledTypes.includes(type);
   }

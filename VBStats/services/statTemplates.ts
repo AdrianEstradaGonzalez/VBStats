@@ -15,51 +15,51 @@ export interface StatConfig {
 
 export const POSITION_STATS: Record<Position, StatConfig[]> = {
   'Receptor': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
+    { category: 'Defensa', types: ['Positivo', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Colocación', types: ['Positivo', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Opuesto': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
+    { category: 'Defensa', types: ['Positivo', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Colocación', types: ['Positivo', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Colocador': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
+    { category: 'Defensa', types: ['Positivo', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Colocación', types: ['Positivo', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Central': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
+    { category: 'Defensa', types: ['Positivo', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Colocación', types: ['Positivo', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Líbero': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Defensa', types: ['Positivo', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Colocación', types: ['Positivo', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
 };
 
+const BASIC_RECEPCION_POSITIONS: Position[] = ['Receptor', 'Líbero'];
+const BASIC_DISABLED_CATEGORIES = ['Defensa', 'Colocación'];
 const BASIC_ENABLED_BY_CATEGORY: Record<string, string[]> = {
-  'Recepción': ['Positiva', 'Error'],
+  'Recepción': ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
   'Ataque': ['Positivo', 'Error'],
-  'Bloqueo': ['Positivo', 'Error'],
+  'Bloqueo': ['Positivo'],
   'Saque': ['Punto directo', 'Error'],
-  'Defensa': ['Positiva', 'Error'],
-  'Colocación': ['Positiva', 'Error'],
 };
 
 export type TemplateMode = 'basic' | 'advanced' | 'custom';
@@ -88,7 +88,7 @@ export class StatTemplates {
           const key = `${position}|${stat.category}|${type}`;
           const enabled = mode === 'advanced'
             ? true
-            : StatTemplates.isBasicEnabled(stat.category, type);
+            : StatTemplates.isBasicEnabled(stat.category, type, position as Position);
           map[key] = enabled;
         });
       });
@@ -118,7 +118,15 @@ export class StatTemplates {
     return true;
   }
 
-  private static isBasicEnabled(category: string, type: string) {
+  private static isBasicEnabled(category: string, type: string, position: Position) {
+    if (BASIC_DISABLED_CATEGORIES.includes(category)) {
+      return false;
+    }
+
+    if (category === 'Recepción' && !BASIC_RECEPCION_POSITIONS.includes(position)) {
+      return false;
+    }
+
     const enabledTypes = BASIC_ENABLED_BY_CATEGORY[category] || [];
     return enabledTypes.includes(type);
   }
