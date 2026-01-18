@@ -343,6 +343,37 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
       {!selectedPosition ? (
         // Position selection
         <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Version Toggle Button */}
+          <View style={styles.versionSection}>
+            <Text style={styles.versionSectionTitle}>Plantillas de configuración</Text>
+            <Text style={styles.versionSectionDescription}>
+              Cambia rápidamente entre modos de estadísticas
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.versionToggleButton}
+              onPress={() => setShowVersionAlert(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.versionToggleGradient}>
+                <View style={styles.versionToggleContent}>
+                  <View style={styles.versionToggleIconContainer}>
+                    <MaterialCommunityIcons name="swap-horizontal-variant" size={28} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.versionToggleTextContainer}>
+                    <Text style={styles.versionToggleTitle}>Cambiar Configuración</Text>
+                    <Text style={styles.versionToggleSubtitle}>
+                      Básica • Avanzada
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionSeparator} />
+
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Selecciona una posición</Text>
             <Text style={styles.sectionDescription}>
@@ -372,34 +403,6 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
             </TouchableOpacity>
           ))}
 
-          {/* Version Toggle Button */}
-          <View style={styles.versionSection}>
-            <Text style={styles.versionSectionTitle}>Plantillas de configuración</Text>
-            <Text style={styles.versionSectionDescription}>
-              Cambia rápidamente entre modos de estadísticas
-            </Text>
-            
-            <TouchableOpacity
-              style={styles.versionToggleButton}
-              onPress={() => setShowVersionAlert(true)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.versionToggleGradient}>
-                <View style={styles.versionToggleContent}>
-                  <View style={styles.versionToggleIconContainer}>
-                    <MaterialCommunityIcons name="swap-horizontal-variant" size={28} color="#FFFFFF" />
-                  </View>
-                  <View style={styles.versionToggleTextContainer}>
-                    <Text style={styles.versionToggleTitle}>Cambiar Configuración</Text>
-                    <Text style={styles.versionToggleSubtitle}>
-                      Básica • Avanzada
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
-                </View>
-              </View>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       ) : (
         // Stat configuration for selected position
@@ -793,10 +796,12 @@ const styles = StyleSheet.create({
   },
   // Version toggle styles
   versionSection: {
-    marginTop: Spacing.xl,
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    marginBottom: Spacing.lg,
+  },
+  versionSeparator: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginBottom: Spacing.lg,
   },
   versionSectionTitle: {
     fontSize: FontSizes.lg,

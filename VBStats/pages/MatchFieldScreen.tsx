@@ -783,6 +783,34 @@ export default function MatchFieldScreen({
   const confirmEndMatch = async () => {
     // Guardar estadísticas pendientes
     await savePendingStats();
+
+    // Si no hay estadísticas guardadas, intentar reconstruirlas desde el historial
+    if (matchId && userId) {
+      try {
+        const existingStats = await statsService.getMatchStats(matchId);
+        if (!existingStats || existingStats.length === 0) {
+          const historyStats = actionHistory
+            .filter(a => a.type === 'add_stat' && a.data)
+            .map(a => a.data as StatAction)
+            .filter(s => s.playerId && s.statSettingId && s.statCategory && s.statType)
+            .map(s => ({
+              user_id: userId,
+              match_id: matchId,
+              player_id: s.playerId,
+              set_number: s.setNumber,
+              stat_setting_id: s.statSettingId,
+              stat_category: s.statCategory,
+              stat_type: s.statType,
+            }));
+
+          if (historyStats.length > 0) {
+            await statsService.saveMatchStatsBatch(historyStats);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error reconstruyendo estadísticas:', error);
+      }
+    }
     
     // Actualizar el partido en BD como finalizado
     if (matchId) {

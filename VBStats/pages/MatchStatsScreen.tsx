@@ -21,7 +21,7 @@ import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
-import type { Match, MatchStatsSummary } from '../services/types';
+import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
@@ -88,13 +88,45 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     loadMatchStats();
   }, [match.id]);
 
+  const buildStatsFromMatchState = (state: MatchState | null): MatchStat[] => {
+    if (!state?.action_history || !Array.isArray(state.action_history)) return [];
+    return state.action_history
+      .filter(a => a.type === 'add_stat' && a.data)
+      .map(a => a.data)
+      .filter((d): d is NonNullable<typeof d> => !!d)
+      .map(d => ({
+        user_id: match.user_id || 0,
+        match_id: match.id,
+        player_id: d.playerId || 0,
+        set_number: d.setNumber || 1,
+        stat_setting_id: d.statSettingId || 0,
+        stat_category: d.statCategory || '',
+        stat_type: d.statType || '',
+        player_name: d.playerName || '',
+        player_number: d.playerNumber || undefined,
+        created_at: d.timestamp ? new Date(d.timestamp).toISOString() : undefined,
+      }))
+      .filter(s => s.player_id && s.stat_setting_id && s.stat_category && s.stat_type);
+  };
+
   const loadMatchStats = async () => {
     setLoading(true);
     try {
       const data = await matchesService.getStats(match.id);
-      setStatsData(data);
+      if (!data?.stats?.length) {
+        const state = await matchesService.getMatchState(match.id);
+        const fallbackStats = buildStatsFromMatchState(state);
+        if (fallbackStats.length > 0) {
+          setStatsData({ stats: fallbackStats, summary: [], bySet: [] });
+        } else {
+          setStatsData({ stats: [], summary: [], bySet: [] });
+        }
+      } else {
+        setStatsData(data);
+      }
     } catch (error) {
       console.error('❌ Error cargando estadísticas:', error);
+      setStatsData({ stats: [], summary: [], bySet: [] });
     } finally {
       setLoading(false);
     }
@@ -159,6 +191,17 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     // Ordenar tipos dentro de cada categoría
     Object.keys(grouped).forEach(category => {
       grouped[category].sort((a, b) => {
+        const normalize = (v: string) => v.toLowerCase();
+        const typeWeight = (v: string) => {
+          const t = normalize(v);
+          if (t.includes('doble positiv') || t.includes('punto directo') || t.includes('ace') || t.includes('positiv') || t.includes('punto')) return 1;
+          if (t.includes('neutr')) return 2;
+          if (t.includes('error')) return 3;
+          return 9;
+        };
+        const weightA = typeWeight(a.statType);
+        const weightB = typeWeight(b.statType);
+        if (weightA !== weightB) return weightA - weightB;
         const indexA = STAT_TYPE_ORDER.findIndex(t => t.toLowerCase() === a.statType.toLowerCase());
         const indexB = STAT_TYPE_ORDER.findIndex(t => t.toLowerCase() === b.statType.toLowerCase());
         return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
@@ -331,6 +374,13 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
   };
 
   // Función para generar y compartir el informe de estadísticas
+  const getCategorySuccessPercent = (category: string): number => {
+    const categoryStats = filteredStats.filter(s => s.stat_category.toLowerCase() === category.toLowerCase());
+    if (categoryStats.length === 0) return 0;
+    const positives = categoryStats.filter(s => getStatScore(s.stat_type) > 0).length;
+    return Math.round((positives / categoryStats.length) * 100);
+  };
+
   const generateAndShareReport = async () => {
     try {
       // Generar título del informe
@@ -357,33 +407,35 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       }
 
       // Resumen general
-      let reportText = `INFORME DE ESTADÍSTICAS\n`;
+      let reportText = `◆ INFORME DE ESTADÍSTICAS\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
       reportText += `Fecha: ${dateStr}\n`;
       reportText += `Partido: ${matchInfo}${scoreStr}`;
       reportText += filterInfo ? `${filterInfo}` : '';
       reportText += `\n\n`;
 
-      // Rating general
-      reportText += `Rating general: ${totalPerformance.rating}/10\n`;
-      reportText += `G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
+      // Resumen general
+      reportText += `• G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n`;
+      reportText += `• Ataque: ${getCategorySuccessPercent('Ataque')}%\n`;
+      reportText += `• Saque: ${getCategorySuccessPercent('Saque')}%\n`;
+      reportText += `• Recepción: ${getCategorySuccessPercent('Recepción')}%\n\n`;
 
       // Estadísticas por categoría
-      reportText += `DESGLOSE POR CATEGORÍA\n`;
+      reportText += `◆ DESGLOSE POR CATEGORÍA\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
       Object.entries(categoryPerformance).forEach(([category, perf]) => {
-        reportText += `\n${category}\n`;
-        reportText += `   Rating: ${perf.rating}/10 | G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-        if (perf.doblePositivo > 0) reportText += `   Doble positivo: ${perf.doblePositivo}\n`;
-        if (perf.positivo > 0) reportText += `   Positivo: ${perf.positivo}\n`;
-        if (perf.neutro > 0) reportText += `   Neutro: ${perf.neutro}\n`;
-        if (perf.error > 0) reportText += `   Error: ${perf.error}\n`;
+        reportText += `\n• ${category}\n`;
+        reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
+        if (perf.doblePositivo > 0) reportText += `  Doble positivo: ${perf.doblePositivo}\n`;
+        if (perf.positivo > 0) reportText += `  Positivo: ${perf.positivo}\n`;
+        if (perf.neutro > 0) reportText += `  Neutro: ${perf.neutro}\n`;
+        if (perf.error > 0) reportText += `  Error: ${perf.error}\n`;
       });
 
       // Top jugadores (si no hay filtro de jugador)
       if (selectedPlayer === null && playerStats.length > 0) {
-        reportText += `\n\nPARTICIPACIÓN DE JUGADORES\n`;
+        reportText += `\n\n◆ PARTICIPACIÓN DE JUGADORES\n`;
         reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
         playerStats.slice(0, 5).forEach((player, index) => {
           const position = index + 1;
@@ -392,7 +444,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       }
 
       reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
-      reportText += `Generado con VBStats`;
+      reportText += `Generado con VBStats\n`;
+      reportText += `BlueDeBug.com`;
 
       // Compartir el informe
       await Share.share({

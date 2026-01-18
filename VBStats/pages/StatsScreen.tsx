@@ -221,6 +221,15 @@ export default function StatsScreen({
                         </>
                       )}
                     </View>
+                    {(match.score_home !== null && match.score_home !== undefined &&
+                      match.score_away !== null && match.score_away !== undefined) && (
+                      <View style={styles.matchScoreRow}>
+                        <MaterialCommunityIcons name="scoreboard-outline" size={18} color={Colors.primary} />
+                        <Text style={styles.matchScoreText}>
+                          {match.score_home} - {match.score_away}
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
                   <View style={styles.matchFooter}>
@@ -400,6 +409,17 @@ const styles = StyleSheet.create({
   },
   matchTeams: {
     flex: 1,
+  },
+  matchScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.xs,
+  },
+  matchScoreText: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
   },
   teamName: {
     fontSize: FontSizes.lg,
