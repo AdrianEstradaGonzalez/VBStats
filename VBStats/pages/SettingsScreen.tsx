@@ -39,7 +39,8 @@ import {
   StatsIcon,
 } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
-import { settingsService, StatSetting } from '../services/api';
+import { settingsService } from '../services/api';
+import { POSITION_STATS, Position, StatTemplates, TemplateMode } from '../services/statTemplates';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -51,56 +52,7 @@ interface SettingsScreenProps {
   userId?: number | null;
 }
 
-type Position = 'Receptor' | 'Opuesto' | 'Colocador' | 'Central' | 'Líbero';
-
-interface StatConfig {
-  category: string;
-  types: string[];
-  icon: string;
-  color: string;
-}
-
-const POSITION_STATS: Record<Position, StatConfig[]> = {
-  'Receptor': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
-    { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
-  ],
-  'Opuesto': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
-    { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
-  ],
-  'Colocador': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
-    { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
-  ],
-  'Central': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
-    { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
-  ],
-  'Líbero': [
-    { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
-    { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
-  ],
-};
-
-const POSITIONS: Position[] = ['Receptor', 'Opuesto', 'Colocador', 'Central', 'Líbero'];
+const POSITIONS = Object.keys(POSITION_STATS) as Position[];
 
 export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsScreenProps) {
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
@@ -112,12 +64,38 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showVersionAlert, setShowVersionAlert] = useState(false);
   const [applyingVersion, setApplyingVersion] = useState<'basic' | 'advanced' | null>(null);
+  const [activeTemplate, setActiveTemplate] = useState<TemplateMode | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   useEffect(() => {
     if (selectedPosition) {
       loadPositionSettings(selectedPosition);
     }
   }, [selectedPosition]);
+
+  useEffect(() => {
+    if (userId) {
+      loadActiveTemplate();
+    } else {
+      setActiveTemplate(null);
+    }
+  }, [userId]);
+
+  const loadActiveTemplate = async () => {
+    if (!userId) return;
+
+    setLoadingTemplate(true);
+    try {
+      const allSettings = await settingsService.getAll(userId);
+      const template = StatTemplates.detectTemplate(allSettings);
+      setActiveTemplate(template);
+    } catch (error) {
+      console.error('Error loading template status:', error);
+      setActiveTemplate('custom');
+    } finally {
+      setLoadingTemplate(false);
+    }
+  };
 
   const loadPositionSettings = async (position: Position) => {
     setLoading(true);
@@ -254,6 +232,9 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
       await settingsService.batchUpdate(settingsArray, userId ?? undefined);
       setOriginalSettings(settings);
       setShowSuccessAlert(true);
+      if (userId) {
+        await loadActiveTemplate();
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
       Alert.alert('Error', 'No se pudieron guardar las configuraciones');
@@ -310,11 +291,28 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
       }
       setShowVersionAlert(false);
       setShowSuccessAlert(true);
+      await loadActiveTemplate();
     } catch (error) {
       console.error('Error applying version:', error);
       Alert.alert('Error', `No se pudo aplicar la configuración ${version === 'basic' ? 'básica' : 'avanzada'}`);
     } finally {
       setApplyingVersion(null);
+    }
+  };
+
+  const getActiveTemplateLabel = () => {
+    if (!userId) return 'Inicia sesión para configurar';
+    if (loadingTemplate) return 'Cargando configuración...';
+
+    switch (activeTemplate) {
+      case 'basic':
+        return 'Básica activa';
+      case 'advanced':
+        return 'Avanzada activa';
+      case 'custom':
+        return 'Personalizada';
+      default:
+        return 'Personalizada';
     }
   };
 
@@ -363,7 +361,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
                   <View style={styles.versionToggleTextContainer}>
                     <Text style={styles.versionToggleTitle}>Cambiar Configuración</Text>
                     <Text style={styles.versionToggleSubtitle}>
-                      Básica • Avanzada
+                        {getActiveTemplateLabel()}
                     </Text>
                   </View>
                   <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />

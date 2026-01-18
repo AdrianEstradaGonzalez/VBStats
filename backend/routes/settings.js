@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { StatTemplates } = require('../config/statTemplates');
 
 // Get all settings for a user
 router.get('/', async (req, res) => {
@@ -157,49 +158,8 @@ router.post('/init/:position', async (req, res) => {
   try {
     const { position } = req.params;
     const { user_id } = req.body;
-    
-    // Define default stat configurations (must match frontend SettingsScreen.tsx POSITION_STATS)
-    const statConfig = {
-      'Receptor': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Opuesto': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Colocador': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Central': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Líbero': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-    };
-    
-    const positionStats = statConfig[position];
+
+    const positionStats = StatTemplates.getPositionStats()[position];
     if (!positionStats) {
       return res.status(400).json({ error: 'Invalid position' });
     }
@@ -249,7 +209,7 @@ router.post('/init/:position', async (req, res) => {
   }
 });
 
-// Apply basic configuration (copy from user_id = 1)
+// Apply basic configuration (template-defined)
 router.post('/apply-basic', async (req, res) => {
   try {
     const { user_id } = req.body;
@@ -257,15 +217,8 @@ router.post('/apply-basic', async (req, res) => {
     if (!user_id) {
       return res.status(400).json({ error: 'user_id is required' });
     }
-    
-    // Get settings from user 1 (basic configuration template)
-    const [basicSettings] = await pool.query(
-      'SELECT * FROM stat_settings WHERE user_id = 1'
-    );
-    
-    if (basicSettings.length === 0) {
-      return res.status(404).json({ error: 'Basic configuration not found' });
-    }
+
+    const basicSettings = StatTemplates.getBasicSettings();
     
     const conn = await pool.getConnection();
     try {
@@ -274,7 +227,7 @@ router.post('/apply-basic', async (req, res) => {
       // Delete existing user settings
       await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
       
-      // Copy settings from user 1
+      // Apply basic template
       for (const setting of basicSettings) {
         await conn.query(
           `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
@@ -305,47 +258,8 @@ router.post('/apply-advanced', async (req, res) => {
     if (!user_id) {
       return res.status(400).json({ error: 'user_id is required' });
     }
-    
-    // Define all stat configurations (must match frontend)
-    const statConfig = {
-      'Receptor': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Opuesto': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Colocador': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Central': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
-        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-      'Líbero': [
-        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Defensa', types: ['Positiva', 'Error'] },
-        { category: 'Colocación', types: ['Positiva', 'Error'] },
-      ],
-    };
+
+    const advancedSettings = StatTemplates.getAdvancedSettings();
     
     const conn = await pool.getConnection();
     try {
@@ -354,17 +268,13 @@ router.post('/apply-advanced', async (req, res) => {
       // Delete existing user settings
       await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
       
-      // Insert all settings with enabled = true
-      for (const [position, configs] of Object.entries(statConfig)) {
-        for (const stat of configs) {
-          for (const type of stat.types) {
-            await conn.query(
-              `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-               VALUES (?, ?, ?, TRUE, ?)`,
-              [position, stat.category, type, user_id]
-            );
-          }
-        }
+      // Insert all settings with template values
+      for (const setting of advancedSettings) {
+        await conn.query(
+          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+           VALUES (?, ?, ?, ?, ?)`,
+          [setting.position, setting.stat_category, setting.stat_type, setting.enabled, user_id]
+        );
       }
       
       await conn.commit();

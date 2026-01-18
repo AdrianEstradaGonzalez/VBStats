@@ -245,6 +245,7 @@ const styles = StyleSheet.create({
     color: '#424242',
     fontSize: FontSizes.md,
     fontWeight: '600',
+    textAlign: 'center',
   },
   defaultButton: {
     flex: 1,
@@ -259,6 +260,7 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
+    textAlign: 'center',
   },
   destructiveOutlined: {
     flex: 1,
@@ -274,6 +276,7 @@ const styles = StyleSheet.create({
     color: Colors.error,
     fontSize: FontSizes.md,
     fontWeight: '700',
+    textAlign: 'center',
   },
   deleteConfirmButton: {
     flex: 1,
@@ -290,6 +293,7 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
+    textAlign: 'center',
   },
   primaryButton: {
     flex: 1,
@@ -304,12 +308,16 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
+    textAlign: 'center',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
+    width: '100%',
+    paddingHorizontal: Spacing.sm,
+    flexWrap: 'wrap',
   },
   buttonIcon: {
     marginRight: Spacing.xs,
