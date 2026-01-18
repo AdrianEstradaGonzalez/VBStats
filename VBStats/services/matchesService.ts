@@ -61,8 +61,25 @@ export const matchesService = {
   },
 
   // Finish a match
-  finishMatch: async (id: number, totalSets: number): Promise<Match> => {
-    return matchesService.update(id, { status: 'finished', total_sets: totalSets });
+  finishMatch: async (
+    id: number, 
+    totalSets: number,
+    scoreHome?: number | null,
+    scoreAway?: number | null
+  ): Promise<Match> => {
+    const updateData: MatchUpdate = { 
+      status: 'finished', 
+      total_sets: totalSets 
+    };
+    
+    if (scoreHome !== undefined && scoreHome !== null) {
+      updateData.score_home = scoreHome;
+    }
+    if (scoreAway !== undefined && scoreAway !== null) {
+      updateData.score_away = scoreAway;
+    }
+    
+    return matchesService.update(id, updateData);
   },
 
   // Get user's finished matches

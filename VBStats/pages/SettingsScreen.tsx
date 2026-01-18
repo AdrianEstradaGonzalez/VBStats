@@ -63,32 +63,32 @@ interface StatConfig {
 const POSITION_STATS: Record<Position, StatConfig[]> = {
   'Receptor': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
     { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Opuesto': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
     { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Colocador': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
     { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Central': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
     { category: 'Defensa', types: ['Positiva', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positiva', 'Error'], icon: 'set', color: '#06b6d4' },
@@ -110,6 +110,8 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
   const [saving, setSaving] = useState(false);
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [showVersionAlert, setShowVersionAlert] = useState(false);
+  const [applyingVersion, setApplyingVersion] = useState<'basic' | 'advanced' | null>(null);
 
   useEffect(() => {
     if (selectedPosition) {
@@ -293,6 +295,29 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
     return <MaterialCommunityIcons name="circle-outline" size={iconSize} color={color} />;
   };
 
+  const handleApplyVersion = async (version: 'basic' | 'advanced') => {
+    if (!userId) {
+      Alert.alert('Error', 'Debes iniciar sesión para cambiar la configuración');
+      return;
+    }
+    
+    setApplyingVersion(version);
+    try {
+      if (version === 'basic') {
+        await settingsService.applyBasicConfig(userId);
+      } else {
+        await settingsService.applyAdvancedConfig(userId);
+      }
+      setShowVersionAlert(false);
+      setShowSuccessAlert(true);
+    } catch (error) {
+      console.error('Error applying version:', error);
+      Alert.alert('Error', `No se pudo aplicar la configuración ${version === 'basic' ? 'básica' : 'avanzada'}`);
+    } finally {
+      setApplyingVersion(null);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -346,6 +371,35 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
               <ChevronRightIcon size={24} color={Colors.textTertiary} />
             </TouchableOpacity>
           ))}
+
+          {/* Version Toggle Button */}
+          <View style={styles.versionSection}>
+            <Text style={styles.versionSectionTitle}>Plantillas de configuración</Text>
+            <Text style={styles.versionSectionDescription}>
+              Cambia rápidamente entre modos de estadísticas
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.versionToggleButton}
+              onPress={() => setShowVersionAlert(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.versionToggleGradient}>
+                <View style={styles.versionToggleContent}>
+                  <View style={styles.versionToggleIconContainer}>
+                    <MaterialCommunityIcons name="swap-horizontal-variant" size={28} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.versionToggleTextContainer}>
+                    <Text style={styles.versionToggleTitle}>Cambiar Configuración</Text>
+                    <Text style={styles.versionToggleSubtitle}>
+                      Básica • Avanzada
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       ) : (
         // Stat configuration for selected position
@@ -486,6 +540,33 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
           },
         ]}
         type="success"
+      />
+
+      {/* Version Selection Alert */}
+      <CustomAlert
+        visible={showVersionAlert}
+        icon={<MaterialCommunityIcons name="cog-sync" size={48} color={Colors.primary} />}
+        iconBackgroundColor={Colors.primary + '15'}
+        title="Selecciona una configuración"
+        message="Elige el nivel de detalle de estadísticas que deseas utilizar"
+        buttonLayout="column"
+        buttons={[
+          {
+            text: applyingVersion === 'basic' ? 'Aplicando...' : '🎯 Básica - Estadísticas esenciales',
+            onPress: () => handleApplyVersion('basic'),
+            style: 'default',
+          },
+          {
+            text: applyingVersion === 'advanced' ? 'Aplicando...' : '📊 Avanzada - Todas las estadísticas',
+            onPress: () => handleApplyVersion('advanced'),
+            style: 'default',
+          },
+          {
+            text: 'Cancelar',
+            onPress: () => setShowVersionAlert(false),
+            style: 'cancel',
+          },
+        ]}
       />
     </SafeAreaView>
   );
@@ -703,5 +784,59 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.lg,
     fontWeight: '700',
+  },
+  // Version toggle styles
+  versionSection: {
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  versionSectionTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  versionSectionDescription: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+  },
+  versionToggleButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  versionToggleGradient: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+  },
+  versionToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  versionToggleIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  versionToggleTextContainer: {
+    flex: 1,
+  },
+  versionToggleTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  versionToggleSubtitle: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });

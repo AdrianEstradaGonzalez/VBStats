@@ -7,32 +7,32 @@ const { pool } = require('../db');
 const DEFAULT_STAT_CONFIG = {
   'Receptor': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Defensa', types: ['Positiva', 'Error'] },
     { category: 'Colocación', types: ['Positiva', 'Error'] },
   ],
   'Opuesto': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Defensa', types: ['Positiva', 'Error'] },
     { category: 'Colocación', types: ['Positiva', 'Error'] },
   ],
   'Colocador': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Defensa', types: ['Positiva', 'Error'] },
     { category: 'Colocación', types: ['Positiva', 'Error'] },
   ],
   'Central': [
     { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-    { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-    { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+    { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
     { category: 'Defensa', types: ['Positiva', 'Error'] },
     { category: 'Colocación', types: ['Positiva', 'Error'] },
@@ -49,15 +49,45 @@ async function ensureUserSettings(userId) {
   try {
     await conn.beginTransaction();
 
-    for (const [position, configs] of Object.entries(DEFAULT_STAT_CONFIG)) {
-      for (const stat of configs) {
-        for (const type of stat.types) {
-          await conn.query(
-            `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-             VALUES (?, ?, ?, TRUE, ?)
-             ON DUPLICATE KEY UPDATE enabled = enabled`,
-            [position, stat.category, type, userId]
-          );
+    // Check if user already has settings
+    const [existingSettings] = await conn.query(
+      'SELECT COUNT(*) as count FROM stat_settings WHERE user_id = ?',
+      [userId]
+    );
+    
+    if (existingSettings[0].count > 0) {
+      // User already has settings, skip initialization
+      await conn.commit();
+      return;
+    }
+
+    // Try to copy settings from user 1 (basic configuration template)
+    const [basicSettings] = await conn.query(
+      'SELECT * FROM stat_settings WHERE user_id = 1'
+    );
+    
+    if (basicSettings.length > 0) {
+      // Copy settings from user 1 (basic configuration)
+      for (const setting of basicSettings) {
+        await conn.query(
+          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE enabled = enabled`,
+          [setting.position, setting.stat_category, setting.stat_type, setting.enabled, userId]
+        );
+      }
+    } else {
+      // Fallback: create default settings if user 1 doesn't have settings
+      for (const [position, configs] of Object.entries(DEFAULT_STAT_CONFIG)) {
+        for (const stat of configs) {
+          for (const type of stat.types) {
+            await conn.query(
+              `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+               VALUES (?, ?, ?, TRUE, ?)
+               ON DUPLICATE KEY UPDATE enabled = enabled`,
+              [position, stat.category, type, userId]
+            );
+          }
         }
       }
     }

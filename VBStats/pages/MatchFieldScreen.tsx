@@ -19,6 +19,7 @@ import {
   StatusBar,
   AppState,
   AppStateStatus,
+  TextInput,
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -152,6 +153,10 @@ export default function MatchFieldScreen({
   const [statsViewType, setStatsViewType] = useState<'match' | number>('match');
   const setStatsFilterScrollRef = useRef<ScrollView>(null);
   const viewTypeScrollRef = useRef<ScrollView>(null);
+
+  // Estados para el resultado del partido
+  const [scoreHome, setScoreHome] = useState<string>('');
+  const [scoreAway, setScoreAway] = useState<string>('');
 
   // Estados para el partido en BD
   const [matchId, setMatchId] = useState<number | null>(null);
@@ -781,9 +786,18 @@ export default function MatchFieldScreen({
     // Actualizar el partido en BD como finalizado
     if (matchId) {
       try {
-        const updatedMatch = await matchesService.finishMatch(matchId, currentSet);
+        // Preparar los datos del resultado (opcional)
+        const scoreHomeNum = scoreHome ? parseInt(scoreHome, 10) : null;
+        const scoreAwayNum = scoreAway ? parseInt(scoreAway, 10) : null;
+        
+        const updatedMatch = await matchesService.finishMatch(
+          matchId, 
+          currentSet,
+          scoreHomeNum,
+          scoreAwayNum
+        );
         setFinishedMatch(updatedMatch);
-        console.log('🏆 Partido finalizado y guardado');
+        console.log('🏆 Partido finalizado y guardado', { scoreHome: scoreHomeNum, scoreAway: scoreAwayNum });
         
         // Delete saved match state since match is finished
         try {
@@ -798,6 +812,9 @@ export default function MatchFieldScreen({
     }
     
     setShowEndMatchAlert(false);
+    // Limpiar los campos de resultado
+    setScoreHome('');
+    setScoreAway('');
   };
 
   const handleShowMatchStats = async () => {
@@ -1467,33 +1484,88 @@ export default function MatchFieldScreen({
         ]}
       />
 
-      {/* CustomAlert para finalizar partido */}
-      <CustomAlert
+      {/* Modal para finalizar partido con resultado */}
+      <Modal
         visible={showEndMatchAlert}
-        title="Partido Finalizado"
-        message={`El partido ha finalizado. ¿Qué deseas hacer?`}
-        buttonLayout="column"
-        buttons={[
-          {
-            text: 'Ver estadísticas',
-            onPress: handleShowMatchStats,
-            style: 'default'
-          },
-          {
-            text: 'Volver a inicio',
-            onPress: () => {
-              confirmEndMatch();
-              // TODO: Navegar a inicio
-            },
-            style: 'default'
-          },
-          {
-            text: 'Cancelar',
-            onPress: () => setShowEndMatchAlert(false),
-            style: 'cancel'
-          }
-        ]}
-      />
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowEndMatchAlert(false);
+          setScoreHome('');
+          setScoreAway('');
+        }}
+      >
+        <View style={styles.endMatchModalOverlay}>
+          <View style={styles.endMatchModalContent}>
+            <Text style={styles.endMatchModalTitle}>🏆 Partido Finalizado</Text>
+            <Text style={styles.endMatchModalSubtitle}>
+              Añade el resultado del partido (opcional)
+            </Text>
+            
+            <View style={styles.scoreInputContainer}>
+              <View style={styles.scoreInputWrapper}>
+                <Text style={styles.scoreLabel}>{matchDetails.teamName || 'Local'}</Text>
+                <TextInput
+                  style={styles.scoreInput}
+                  value={scoreHome}
+                  onChangeText={setScoreHome}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textTertiary}
+                  maxLength={2}
+                />
+              </View>
+              
+              <Text style={styles.scoreSeparator}>-</Text>
+              
+              <View style={styles.scoreInputWrapper}>
+                <Text style={styles.scoreLabel}>{matchDetails.opponent || 'Rival'}</Text>
+                <TextInput
+                  style={styles.scoreInput}
+                  value={scoreAway}
+                  onChangeText={setScoreAway}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textTertiary}
+                  maxLength={2}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.endMatchButtonsContainer}>
+              <TouchableOpacity
+                style={[styles.endMatchButton, styles.endMatchButtonPrimary]}
+                onPress={handleShowMatchStats}
+              >
+                <MaterialCommunityIcons name="chart-bar" size={20} color="#fff" />
+                <Text style={styles.endMatchButtonTextPrimary}>Ver estadísticas</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.endMatchButton, styles.endMatchButtonSecondary]}
+                onPress={() => {
+                  confirmEndMatch();
+                  // TODO: Navegar a inicio
+                }}
+              >
+                <MaterialCommunityIcons name="home" size={20} color={Colors.primary} />
+                <Text style={styles.endMatchButtonTextSecondary}>Volver a inicio</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.endMatchButton, styles.endMatchButtonCancel]}
+                onPress={() => {
+                  setShowEndMatchAlert(false);
+                  setScoreHome('');
+                  setScoreAway('');
+                }}
+              >
+                <Text style={styles.endMatchButtonTextCancel}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal selección de jugador */}
       <Modal
@@ -3067,5 +3139,110 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.success,
     textAlign: 'right',
+  },
+  // Estilos para el modal de fin de partido
+  endMatchModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  endMatchModalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    ...Shadows.lg,
+  },
+  endMatchModalTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  endMatchModalSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  scoreInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+    gap: Spacing.lg,
+  },
+  scoreInputWrapper: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  scoreLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    maxWidth: 100,
+    textAlign: 'center',
+  },
+  scoreInput: {
+    width: 70,
+    height: 70,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  scoreSeparator: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    marginTop: 20,
+  },
+  endMatchButtonsContainer: {
+    width: '100%',
+    gap: Spacing.sm,
+  },
+  endMatchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+  },
+  endMatchButtonPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  endMatchButtonSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  endMatchButtonCancel: {
+    backgroundColor: 'transparent',
+    marginTop: Spacing.xs,
+  },
+  endMatchButtonTextPrimary: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  endMatchButtonTextSecondary: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  endMatchButtonTextCancel: {
+    fontSize: FontSizes.md,
+    fontWeight: '500',
+    color: Colors.textSecondary,
   },
 });

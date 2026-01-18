@@ -29,6 +29,8 @@ export interface Match {
   location: 'home' | 'away';
   status: 'in_progress' | 'finished' | 'cancelled';
   total_sets: number;
+  score_home: number | null;
+  score_away: number | null;
   notes: string | null;
   created_at?: string;
   finished_at?: string | null;
@@ -46,6 +48,8 @@ export interface MatchCreate {
 export interface MatchUpdate {
   status?: 'in_progress' | 'finished' | 'cancelled';
   total_sets?: number;
+  score_home?: number;
+  score_away?: number;
   notes?: string;
 }
 

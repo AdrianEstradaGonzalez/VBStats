@@ -97,7 +97,7 @@ router.get('/:id', async (req, res) => {
 // Update match (e.g., finish match, update sets)
 router.put('/:id', async (req, res) => {
   try {
-    const { status, total_sets, notes } = req.body;
+    const { status, total_sets, notes, score_home, score_away } = req.body;
     const updates = [];
     const params = [];
     
@@ -111,6 +111,14 @@ router.put('/:id', async (req, res) => {
     if (total_sets !== undefined) {
       updates.push('total_sets = ?');
       params.push(total_sets);
+    }
+    if (score_home !== undefined) {
+      updates.push('score_home = ?');
+      params.push(score_home);
+    }
+    if (score_away !== undefined) {
+      updates.push('score_away = ?');
+      params.push(score_away);
     }
     if (notes !== undefined) {
       updates.push('notes = ?');

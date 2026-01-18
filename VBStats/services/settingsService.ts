@@ -59,4 +59,32 @@ export const settingsService = {
     });
     if (!response.ok) throw new Error('Failed to delete setting');
   },
+
+  // Obtener la configuración del usuario de test (id 1) como plantilla básica
+  async getBasicConfig(): Promise<StatSetting[]> {
+    const url = `${SETTINGS_URL}?userId=1`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to fetch basic config');
+    return response.json();
+  },
+
+  // Aplicar configuración básica (copiar del usuario 1)
+  async applyBasicConfig(userId: number): Promise<void> {
+    const response = await fetch(`${SETTINGS_URL}/apply-basic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!response.ok) throw new Error('Failed to apply basic config');
+  },
+
+  // Aplicar configuración avanzada (todas las opciones activadas)
+  async applyAdvancedConfig(userId: number): Promise<void> {
+    const response = await fetch(`${SETTINGS_URL}/apply-advanced`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!response.ok) throw new Error('Failed to apply advanced config');
+  },
 };

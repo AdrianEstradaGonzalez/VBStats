@@ -162,32 +162,32 @@ router.post('/init/:position', async (req, res) => {
     const statConfig = {
       'Receptor': [
         { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
         { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
         { category: 'Defensa', types: ['Positiva', 'Error'] },
         { category: 'Colocación', types: ['Positiva', 'Error'] },
       ],
       'Opuesto': [
         { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
         { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
         { category: 'Defensa', types: ['Positiva', 'Error'] },
         { category: 'Colocación', types: ['Positiva', 'Error'] },
       ],
       'Colocador': [
         { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
         { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
         { category: 'Defensa', types: ['Positiva', 'Error'] },
         { category: 'Colocación', types: ['Positiva', 'Error'] },
       ],
       'Central': [
         { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
-        { category: 'Ataque', types: ['Punto de ataque', 'Neutro', 'Error'] },
-        { category: 'Bloqueo', types: ['Punto de bloqueo', 'Neutro', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
         { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
         { category: 'Defensa', types: ['Positiva', 'Error'] },
         { category: 'Colocación', types: ['Positiva', 'Error'] },
@@ -246,6 +246,138 @@ router.post('/init/:position', async (req, res) => {
   } catch (err) {
     console.error('Error initializing settings:', err);
     res.status(500).json({ error: 'Failed to initialize settings' });
+  }
+});
+
+// Apply basic configuration (copy from user_id = 1)
+router.post('/apply-basic', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+    
+    // Get settings from user 1 (basic configuration template)
+    const [basicSettings] = await pool.query(
+      'SELECT * FROM stat_settings WHERE user_id = 1'
+    );
+    
+    if (basicSettings.length === 0) {
+      return res.status(404).json({ error: 'Basic configuration not found' });
+    }
+    
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      
+      // Delete existing user settings
+      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
+      
+      // Copy settings from user 1
+      for (const setting of basicSettings) {
+        await conn.query(
+          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+           VALUES (?, ?, ?, ?, ?)`,
+          [setting.position, setting.stat_category, setting.stat_type, setting.enabled, user_id]
+        );
+      }
+      
+      await conn.commit();
+      res.json({ message: 'Basic configuration applied successfully' });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error('Error applying basic config:', err);
+    res.status(500).json({ error: 'Failed to apply basic configuration' });
+  }
+});
+
+// Apply advanced configuration (all options enabled)
+router.post('/apply-advanced', async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+    
+    // Define all stat configurations (must match frontend)
+    const statConfig = {
+      'Receptor': [
+        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
+        { category: 'Defensa', types: ['Positiva', 'Error'] },
+        { category: 'Colocación', types: ['Positiva', 'Error'] },
+      ],
+      'Opuesto': [
+        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
+        { category: 'Defensa', types: ['Positiva', 'Error'] },
+        { category: 'Colocación', types: ['Positiva', 'Error'] },
+      ],
+      'Colocador': [
+        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
+        { category: 'Defensa', types: ['Positiva', 'Error'] },
+        { category: 'Colocación', types: ['Positiva', 'Error'] },
+      ],
+      'Central': [
+        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+        { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
+        { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
+        { category: 'Defensa', types: ['Positiva', 'Error'] },
+        { category: 'Colocación', types: ['Positiva', 'Error'] },
+      ],
+      'Líbero': [
+        { category: 'Recepción', types: ['Doble positiva', 'Positiva', 'Neutra', 'Error'] },
+        { category: 'Defensa', types: ['Positiva', 'Error'] },
+        { category: 'Colocación', types: ['Positiva', 'Error'] },
+      ],
+    };
+    
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      
+      // Delete existing user settings
+      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
+      
+      // Insert all settings with enabled = true
+      for (const [position, configs] of Object.entries(statConfig)) {
+        for (const stat of configs) {
+          for (const type of stat.types) {
+            await conn.query(
+              `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+               VALUES (?, ?, ?, TRUE, ?)`,
+              [position, stat.category, type, user_id]
+            );
+          }
+        }
+      }
+      
+      await conn.commit();
+      res.json({ message: 'Advanced configuration applied successfully' });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error('Error applying advanced config:', err);
+    res.status(500).json({ error: 'Failed to apply advanced configuration' });
   }
 });
 

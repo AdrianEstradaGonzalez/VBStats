@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
   playerModalContent: {
     width: '100%',
     maxWidth: 400,
-    maxHeight: '80%',
+    maxHeight: '85%',
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadows.lg,
@@ -1003,15 +1003,16 @@ const styles = StyleSheet.create({
   },
   playerModalContentArea: {
     backgroundColor: '#ffffff',
-    paddingTop: Spacing.xl,
+    paddingTop: Spacing.lg,
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.xl,
     alignItems: 'center',
-    maxHeight: '100%',
+    flex: 1,
   },
   playerFormScrollView: {
     width: '100%',
-    maxHeight: 280,
+    maxHeight: 220,
+    marginBottom: Spacing.lg,
   },
   playerFormScrollContent: {
     flexGrow: 1,
@@ -1065,6 +1066,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     gap: Spacing.md,
+    marginTop: 'auto',
+    paddingTop: Spacing.md,
   },
   playerCancelButton: {
     flex: 1,

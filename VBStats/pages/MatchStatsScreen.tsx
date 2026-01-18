@@ -15,6 +15,7 @@ import {
   Platform,
   StatusBar,
   Image,
+  Share,
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -67,7 +68,7 @@ const getStatColor = (statType: string): string => {
 
 // Orden fijo para tipos de estadísticas
 const STAT_TYPE_ORDER = [
-  'Doble Positiva', 'Punto Directo', 'Punto de ataque', 'Punto de bloqueo', 
+  'Doble Positiva', 'Punto Directo', 
   'Positiva', 'Positivo', 'Punto', 'Ace', '++', '+', 
   'Neutra', 'Neutro', '-', 
   'Error', 'error'
@@ -329,6 +330,80 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return `${day} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
   };
 
+  // Función para generar y compartir el informe de estadísticas
+  const generateAndShareReport = async () => {
+    try {
+      // Generar título del informe
+      const matchInfo = `${match.team_name || 'Mi equipo'}${match.opponent ? ` vs ${match.opponent}` : ''}`;
+      const dateStr = formatDate(match.date);
+      const scoreStr = (match.score_home !== null && match.score_away !== null) 
+        ? `\n🏆 Resultado: ${match.score_home} - ${match.score_away}` 
+        : '';
+      
+      // Filtros aplicados
+      let filterInfo = '';
+      if (selectedSet !== 'all') {
+        filterInfo += `📌 Set: ${selectedSet}`;
+      }
+      if (selectedPlayer !== null) {
+        const player = uniquePlayers.find(p => p.id === selectedPlayer);
+        if (player) {
+          filterInfo += filterInfo ? ' | ' : '';
+          filterInfo += `👤 Jugador: ${player.name} (#${player.number})`;
+        }
+      }
+      if (filterInfo) {
+        filterInfo = `\n${filterInfo}`;
+      }
+
+      // Resumen general
+      let reportText = `📊 INFORME DE ESTADÍSTICAS\n`;
+      reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      reportText += `📅 ${dateStr}\n`;
+      reportText += `🏐 ${matchInfo}${scoreStr}`;
+      reportText += filterInfo ? `${filterInfo}` : '';
+      reportText += `\n\n`;
+
+      // Rating general
+      reportText += `⭐ RATING GENERAL: ${totalPerformance.rating}/10\n`;
+      reportText += `📈 G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
+
+      // Estadísticas por categoría
+      reportText += `📋 DESGLOSE POR CATEGORÍA\n`;
+      reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+      Object.entries(categoryPerformance).forEach(([category, perf]) => {
+        reportText += `\n🏷️ ${category}\n`;
+        reportText += `   Rating: ${perf.rating}/10 | G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
+        if (perf.doblePositivo > 0) reportText += `   ⭐ Doble positivo: ${perf.doblePositivo}\n`;
+        if (perf.positivo > 0) reportText += `   ✅ Positivo: ${perf.positivo}\n`;
+        if (perf.neutro > 0) reportText += `   ➖ Neutro: ${perf.neutro}\n`;
+        if (perf.error > 0) reportText += `   ❌ Error: ${perf.error}\n`;
+      });
+
+      // Top jugadores (si no hay filtro de jugador)
+      if (selectedPlayer === null && playerStats.length > 0) {
+        reportText += `\n\n👥 PARTICIPACIÓN DE JUGADORES\n`;
+        reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        playerStats.slice(0, 5).forEach((player, index) => {
+          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '  ';
+          reportText += `${medal} #${player.number} ${player.name}: ${player.total} acciones\n`;
+        });
+      }
+
+      reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      reportText += `📲 Generado con VBStats`;
+
+      // Compartir el informe
+      await Share.share({
+        message: reportText,
+        title: `Estadísticas: ${matchInfo}`,
+      });
+    } catch (error) {
+      console.error('Error sharing report:', error);
+    }
+  };
+
   // Función para obtener el icono según el tipo de stat
   const getStatIcon = (statType: string, color: string, size: number = 20) => {
     const normalizedType = statType.toLowerCase();
@@ -583,6 +658,17 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         <Text style={styles.matchTeams}>
           {match.team_name} {match.opponent ? `vs ${match.opponent}` : ''}
         </Text>
+        
+        {/* Resultado del partido si está disponible */}
+        {(match.score_home !== null && match.score_home !== undefined && 
+          match.score_away !== null && match.score_away !== undefined) && (
+          <View style={styles.matchScoreContainer}>
+            <Text style={styles.matchScoreText}>
+              {match.score_home} - {match.score_away}
+            </Text>
+          </View>
+        )}
+        
         <View style={styles.matchMeta}>
           <View style={styles.matchMetaItem}>
             <MaterialCommunityIcons 
@@ -878,9 +964,19 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         </>
         )}
 
-        {/* Espacio al final */}
-        <View style={{ height: Spacing.xl }} />
+        {/* Espacio al final para el botón flotante */}
+        <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Botón flotante para compartir */}
+      <TouchableOpacity 
+        style={styles.shareButton}
+        onPress={generateAndShareReport}
+        activeOpacity={0.8}
+      >
+        <MaterialCommunityIcons name="share-variant" size={24} color="#fff" />
+        <Text style={styles.shareButtonText}>Compartir informe</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -933,6 +1029,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textOnPrimary,
     marginTop: Spacing.xs,
+  },
+  matchScoreContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.sm,
+  },
+  matchScoreText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.textOnPrimary,
+    letterSpacing: 2,
   },
   matchMeta: {
     flexDirection: 'row',
@@ -1549,5 +1658,25 @@ const styles = StyleSheet.create({
   playerRankBarFill: {
     height: '100%',
     backgroundColor: Colors.primary,
+  },
+  // Botón flotante de compartir
+  shareButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT + 20 : 20,
+    left: Spacing.lg,
+    right: Spacing.lg,
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    ...Shadows.lg,
+  },
+  shareButtonText: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
