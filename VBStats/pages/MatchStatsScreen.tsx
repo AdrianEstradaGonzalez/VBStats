@@ -20,8 +20,8 @@ import {
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
-import { matchesService } from '../services/api';
-import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
+import { matchesService, settingsService } from '../services/api';
+import type { Match, MatchStatsSummary, MatchStat, MatchState, StatSetting } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
@@ -77,6 +77,7 @@ const STAT_TYPE_ORDER = [
 export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
+  const [userSettings, setUserSettings] = useState<StatSetting[]>([]);
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
@@ -87,6 +88,22 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
   useEffect(() => {
     loadMatchStats();
   }, [match.id]);
+
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      const settingsUserId = match.user_id || statsData?.stats?.[0]?.user_id;
+      if (!settingsUserId) return;
+      try {
+        const settings = await settingsService.getAll(settingsUserId);
+        setUserSettings(settings.filter(s => s.enabled));
+      } catch (error) {
+        console.error('❌ Error cargando configuración de usuario:', error);
+        setUserSettings([]);
+      }
+    };
+
+    loadUserSettings();
+  }, [match.user_id, statsData]);
 
   const buildStatsFromMatchState = (state: MatchState | null): MatchStat[] => {
     if (!state?.action_history || !Array.isArray(state.action_history)) return [];
@@ -211,6 +228,18 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return grouped;
   }, [filteredStats]);
 
+  // Mapa de tipos configurados por categoría (según configuración del usuario)
+  const configuredTypesByCategory = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    userSettings.forEach(setting => {
+      if (!map[setting.stat_category]) {
+        map[setting.stat_category] = new Set();
+      }
+      map[setting.stat_category].add(setting.stat_type);
+    });
+    return map;
+  }, [userSettings]);
+
   // Total de acciones
   const totalActions = filteredStats.length;
 
@@ -258,19 +287,23 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       rating: number;
     }> = {};
 
-    filteredStats.forEach(stat => {
-      if (!performance[stat.stat_category]) {
-        performance[stat.stat_category] = {
-          gp: 0,
-          total: 0,
-          doblePositivo: 0,
-          positivo: 0,
-          neutro: 0,
-          error: 0,
-          rating: 0,
-        };
-      }
+    const configuredCategories = Object.keys(configuredTypesByCategory);
+    const statsCategories = filteredStats.map(stat => stat.stat_category);
+    const allCategories = new Set([...configuredCategories, ...statsCategories]);
 
+    allCategories.forEach(category => {
+      performance[category] = {
+        gp: 0,
+        total: 0,
+        doblePositivo: 0,
+        positivo: 0,
+        neutro: 0,
+        error: 0,
+        rating: 0,
+      };
+    });
+
+    filteredStats.forEach(stat => {
       const score = getStatScore(stat.stat_type);
       const normalized = stat.stat_type.toLowerCase().trim();
       
@@ -390,22 +423,41 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       puntoDirecto: false,
     };
 
-    filteredStats.forEach(stat => {
-      if (stat.stat_category.toLowerCase() !== category.toLowerCase()) return;
-      const normalized = stat.stat_type.toLowerCase().trim();
+    const configuredTypes = configuredTypesByCategory[category];
+    if (configuredTypes && configuredTypes.size > 0) {
+      configuredTypes.forEach(type => {
+        const normalized = type.toLowerCase().trim();
+        if (normalized.includes('doble positiv') || normalized === '++') {
+          flags.doblePositivo = true;
+        } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
+          flags.puntoDirecto = true;
+        } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
+          flags.positivo = true;
+        } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+          flags.neutro = true;
+        } else if (normalized.includes('error')) {
+          flags.error = true;
+        }
+      });
+    } else {
+      // Fallback si no hay configuración disponible: inferir desde estadísticas
+      filteredStats.forEach(stat => {
+        if (stat.stat_category.toLowerCase() !== category.toLowerCase()) return;
+        const normalized = stat.stat_type.toLowerCase().trim();
 
-      if (normalized.includes('doble positiv') || normalized === '++') {
-        flags.doblePositivo = true;
-      } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
-        flags.puntoDirecto = true;
-      } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
-        flags.positivo = true;
-      } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
-        flags.neutro = true;
-      } else if (normalized.includes('error')) {
-        flags.error = true;
-      }
-    });
+        if (normalized.includes('doble positiv') || normalized === '++') {
+          flags.doblePositivo = true;
+        } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
+          flags.puntoDirecto = true;
+        } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
+          flags.positivo = true;
+        } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+          flags.neutro = true;
+        } else if (normalized.includes('error')) {
+          flags.error = true;
+        }
+      });
+    }
 
     return flags;
   };
@@ -469,31 +521,65 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
       Object.entries(categoryPerformance).forEach(([category, perf]) => {
-        reportText += `\n• ${category}\n`;
+        // Normalizar nombre de categoría para comparar (soporta 'Colocación' y 'Colocacion')
+        const catKey = category.toLowerCase();
 
         const flags = getCategoryTypeFlags(category);
+
+        // Manejo especial: si es Bloqueo/Defensa y solo existe Positivo -> mostrar número
         const isSinglePositiveCategory =
-          (category.toLowerCase() === 'bloqueo' || category.toLowerCase() === 'defensa') &&
+          (catKey === 'bloqueo' || catKey === 'defensa') &&
           flags.positivo &&
           !flags.neutro &&
           !flags.error &&
           !flags.doblePositivo &&
           !flags.puntoDirecto;
 
+        // Regla para Colocación: excluir salvo dos casos
+        const isColoc = catKey.includes('coloc');
+        if (isColoc) {
+          const hasPosAndErrorOnly = flags.positivo && flags.error && !flags.neutro;
+          const hasFullMetrics = flags.positivo && flags.neutro && flags.error;
+          if (!hasPosAndErrorOnly && !hasFullMetrics) {
+            // No mostrar Colocación si no cumple ninguna de las condiciones
+            return;
+          }
+        }
+
+        // Si llegó aquí, mostrar la categoría
+        reportText += `\n• ${category}\n`;
+
         if (isSinglePositiveCategory) {
-          const label = category.toLowerCase() === 'bloqueo' ? 'Número de bloqueos' : 'Número de defensas';
+          const label = catKey === 'bloqueo' ? 'Número de bloqueos' : 'Número de defensas';
           reportText += `  ${label}: ${perf.total}\n`;
           return;
         }
 
+        const configuredTypes = configuredTypesByCategory[category];
+        const configuredCount = configuredTypes ? configuredTypes.size : 0;
+        const hasOnlyPositivoError = flags.positivo && flags.error && !flags.neutro && !flags.doblePositivo && !flags.puntoDirecto && configuredCount <= 2;
+
+        // Si solo hay Positivo+Error en la configuración, mostrar solo G-P
+        if (hasOnlyPositivoError) {
+          reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
+          return;
+        }
+
+        // Caso general (incluye Colocación con Positivo+Neutro+Error)
         reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-        if (perf.doblePositivo > 0) {
+        // Mostrar líneas por tipo configurado (incluye 0 si está configurado)
+        if (flags.doblePositivo) {
           const label = flags.puntoDirecto ? 'Punto directo' : 'Doble positivo';
           reportText += `  ${label}: ${perf.doblePositivo}\n`;
         }
-        if (perf.positivo > 0) reportText += `  Positivo: ${perf.positivo}\n`;
-        if (perf.neutro > 0) reportText += `  Neutro: ${perf.neutro}\n`;
-        if (perf.error > 0) reportText += `  Error: ${perf.error}\n`;
+        if (flags.positivo) reportText += `  Positivo: ${perf.positivo}\n`;
+        if (flags.neutro) reportText += `  Neutro: ${perf.neutro}\n`;
+        if (flags.error) reportText += `  Error: ${perf.error}\n`;
+
+        // Si la categoría tiene métricas completas, añadir porcentaje de éxito
+        if (flags.positivo && flags.neutro && flags.error) {
+          reportText += `  Éxito: ${getCategorySuccessPercent(category)}%\n`;
+        }
       });
 
       // Top jugadores (si no hay filtro de jugador)
