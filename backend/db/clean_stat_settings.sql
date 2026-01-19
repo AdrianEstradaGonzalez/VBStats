@@ -28,8 +28,10 @@ INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
 ('Receptor', 'Saque', 'Neutro', 1, NULL),
 ('Receptor', 'Saque', 'Error', 1, NULL),
 ('Receptor', 'Defensa', 'Positivo', 1, NULL),
+('Receptor', 'Defensa', 'Neutro', 1, NULL),
 ('Receptor', 'Defensa', 'Error', 1, NULL),
 ('Receptor', 'Colocación', 'Positivo', 1, NULL),
+('Receptor', 'Colocación', 'Neutro', 1, NULL),
 ('Receptor', 'Colocación', 'Error', 1, NULL);
 
 -- Opuesto
@@ -49,8 +51,10 @@ INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
 ('Opuesto', 'Saque', 'Neutro', 1, NULL),
 ('Opuesto', 'Saque', 'Error', 1, NULL),
 ('Opuesto', 'Defensa', 'Positivo', 1, NULL),
+('Opuesto', 'Defensa', 'Neutro', 1, NULL),
 ('Opuesto', 'Defensa', 'Error', 1, NULL),
 ('Opuesto', 'Colocación', 'Positivo', 1, NULL),
+('Opuesto', 'Colocación', 'Neutro', 1, NULL),
 ('Opuesto', 'Colocación', 'Error', 1, NULL);
 
 -- Colocador
@@ -70,8 +74,10 @@ INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
 ('Colocador', 'Saque', 'Neutro', 1, NULL),
 ('Colocador', 'Saque', 'Error', 1, NULL),
 ('Colocador', 'Defensa', 'Positivo', 1, NULL),
+('Colocador', 'Defensa', 'Neutro', 1, NULL),
 ('Colocador', 'Defensa', 'Error', 1, NULL),
 ('Colocador', 'Colocación', 'Positivo', 1, NULL),
+('Colocador', 'Colocación', 'Neutro', 1, NULL),
 ('Colocador', 'Colocación', 'Error', 1, NULL);
 
 -- Central
@@ -91,8 +97,10 @@ INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
 ('Central', 'Saque', 'Neutro', 1, NULL),
 ('Central', 'Saque', 'Error', 1, NULL),
 ('Central', 'Defensa', 'Positivo', 1, NULL),
+('Central', 'Defensa', 'Neutro', 1, NULL),
 ('Central', 'Defensa', 'Error', 1, NULL),
 ('Central', 'Colocación', 'Positivo', 1, NULL),
+('Central', 'Colocación', 'Neutro', 1, NULL),
 ('Central', 'Colocación', 'Error', 1, NULL);
 
 -- Líbero
@@ -102,8 +110,10 @@ INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
 ('Líbero', 'Recepción', 'Neutra', 1, NULL),
 ('Líbero', 'Recepción', 'Error', 1, NULL),
 ('Líbero', 'Defensa', 'Positivo', 1, NULL),
+('Líbero', 'Defensa', 'Neutro', 1, NULL),
 ('Líbero', 'Defensa', 'Error', 1, NULL),
 ('Líbero', 'Colocación', 'Positivo', 1, NULL),
+('Líbero', 'Colocación', 'Neutro', 1, NULL),
 ('Líbero', 'Colocación', 'Error', 1, NULL);
 
 -- Verificar

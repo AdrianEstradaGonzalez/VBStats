@@ -23,8 +23,10 @@ const DEFAULT_STATS = [
   { position: 'Receptor', stat_category: 'Saque', stat_type: 'Neutro', enabled: 1 },
   { position: 'Receptor', stat_category: 'Saque', stat_type: 'Error', enabled: 1 },
   { position: 'Receptor', stat_category: 'Defensa', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Receptor', stat_category: 'Defensa', stat_type: 'Neutro', enabled: 1 },
   { position: 'Receptor', stat_category: 'Defensa', stat_type: 'Error', enabled: 1 },
   { position: 'Receptor', stat_category: 'Colocación', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Receptor', stat_category: 'Colocación', stat_type: 'Neutro', enabled: 1 },
    { position: 'Receptor', stat_category: 'Colocación', stat_type: 'Error', enabled: 1 },
 
   // Opuesto
@@ -43,8 +45,10 @@ const DEFAULT_STATS = [
   { position: 'Opuesto', stat_category: 'Saque', stat_type: 'Neutro', enabled: 1 },
   { position: 'Opuesto', stat_category: 'Saque', stat_type: 'Error', enabled: 1 },
   { position: 'Opuesto', stat_category: 'Defensa', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Opuesto', stat_category: 'Defensa', stat_type: 'Neutro', enabled: 1 },
   { position: 'Opuesto', stat_category: 'Defensa', stat_type: 'Error', enabled: 1 },
   { position: 'Opuesto', stat_category: 'Colocación', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Opuesto', stat_category: 'Colocación', stat_type: 'Neutro', enabled: 1 },
    { position: 'Opuesto', stat_category: 'Colocación', stat_type: 'Error', enabled: 1 },
 
   // Colocador
@@ -63,8 +67,10 @@ const DEFAULT_STATS = [
   { position: 'Colocador', stat_category: 'Saque', stat_type: 'Neutro', enabled: 1 },
   { position: 'Colocador', stat_category: 'Saque', stat_type: 'Error', enabled: 1 },
   { position: 'Colocador', stat_category: 'Defensa', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Colocador', stat_category: 'Defensa', stat_type: 'Neutro', enabled: 1 },
   { position: 'Colocador', stat_category: 'Defensa', stat_type: 'Error', enabled: 1 },
   { position: 'Colocador', stat_category: 'Colocación', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Colocador', stat_category: 'Colocación', stat_type: 'Neutro', enabled: 1 },
    { position: 'Colocador', stat_category: 'Colocación', stat_type: 'Error', enabled: 1 },
 
   // Central
@@ -83,8 +89,10 @@ const DEFAULT_STATS = [
   { position: 'Central', stat_category: 'Saque', stat_type: 'Neutro', enabled: 1 },
   { position: 'Central', stat_category: 'Saque', stat_type: 'Error', enabled: 1 },
   { position: 'Central', stat_category: 'Defensa', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Central', stat_category: 'Defensa', stat_type: 'Neutro', enabled: 1 },
   { position: 'Central', stat_category: 'Defensa', stat_type: 'Error', enabled: 1 },
   { position: 'Central', stat_category: 'Colocación', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Central', stat_category: 'Colocación', stat_type: 'Neutro', enabled: 1 },
    { position: 'Central', stat_category: 'Colocación', stat_type: 'Error', enabled: 1 },
 
   // Líbero
@@ -93,8 +101,10 @@ const DEFAULT_STATS = [
   { position: 'Líbero', stat_category: 'Recepción', stat_type: 'Neutra', enabled: 1 },
   { position: 'Líbero', stat_category: 'Recepción', stat_type: 'Error', enabled: 1 },
   { position: 'Líbero', stat_category: 'Defensa', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Líbero', stat_category: 'Defensa', stat_type: 'Neutro', enabled: 1 },
   { position: 'Líbero', stat_category: 'Defensa', stat_type: 'Error', enabled: 1 },
   { position: 'Líbero', stat_category: 'Colocación', stat_type: 'Positivo', enabled: 1 },
+  { position: 'Líbero', stat_category: 'Colocación', stat_type: 'Neutro', enabled: 1 },
    { position: 'Líbero', stat_category: 'Colocación', stat_type: 'Error', enabled: 1 },
 ];
 
