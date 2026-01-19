@@ -17,6 +17,7 @@ import {
 } from "./pages";
 import { Colors } from "./styles";
 import { SideMenu } from "./components";
+import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow';
@@ -27,6 +28,9 @@ export default function App() {
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [showSessionAlert, setShowSessionAlert] = useState(false);
+  const [sessionCheckBlocked, setSessionCheckBlocked] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [menuVisible, setMenuVisible] = useState(false);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -74,6 +78,7 @@ export default function App() {
       setUserId(user.id);
       setUserName(user.name || email.split("@")[0]);
       setUserEmail(user.email);
+      setSessionToken(user.session_token || null);
       setIsLoggedIn(true);
       return true;
     } catch (error) {
@@ -93,6 +98,7 @@ export default function App() {
       setUserId(user.id);
       setUserName(user.name || email.split("@")[0]);
       setUserEmail(user.email);
+      setSessionToken(user.session_token || null);
       setIsLoggedIn(true);
       setShowSignUp(false);
       return true;
@@ -120,14 +126,56 @@ export default function App() {
     setMenuVisible(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (userId) {
+      try {
+        await usersService.logout(userId);
+      } catch (error) {
+        console.warn('Logout error (ignored):', error);
+      }
+    }
     setIsLoggedIn(false);
     setUserId(null);
     setUserName("");
     setUserEmail("");
+    setSessionToken(null);
     setCurrentScreen('home');
     setMenuVisible(false);
   };
+
+  const handleForcedLogout = async () => {
+    setShowSessionAlert(false);
+    await handleLogout();
+  };
+
+  // Session checker: enforce single active device per account
+  useEffect(() => {
+    if (!isLoggedIn || !userId || !sessionToken) return;
+    if (sessionCheckBlocked) return;
+
+    let isMounted = true;
+    const checkSession = async () => {
+      try {
+        const current = await usersService.getSession(userId);
+        if (!isMounted) return;
+        if (current.session_token && current.session_token !== sessionToken) {
+          // Another device logged in
+          setShowSessionAlert(true);
+          setSessionCheckBlocked(true);
+        }
+      } catch (error) {
+        console.warn('Session check failed:', error);
+      }
+    };
+
+    // Initial check and interval
+    checkSession();
+    const interval = setInterval(checkSession, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isLoggedIn, userId, sessionToken, sessionCheckBlocked]);
 
   const handleOpenMenu = () => {
     setMenuVisible(true);
@@ -324,6 +372,20 @@ export default function App() {
           )}
         </>
       )}
+
+      <CustomAlert
+        visible={showSessionAlert}
+        title="Sesión iniciada en otro dispositivo"
+        message="Solo se permite una sesión activa por cuenta. Cierra sesión para continuar."
+        buttons={[
+          {
+            text: 'Cerrar sesión',
+            onPress: handleForcedLogout,
+            style: 'destructive',
+          },
+        ]}
+        onClose={handleForcedLogout}
+      />
     </View>
   );
 }

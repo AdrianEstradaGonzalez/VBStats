@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { pool } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
@@ -116,15 +117,20 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Generar nuevo token de sesión y guardar (solo una sesión por usuario)
+    const sessionToken = crypto.randomUUID();
+    await pool.query('UPDATE users SET session_token = ? WHERE id = ?', [sessionToken, user.id]);
+
     // Ensure default settings exist for this user (all enabled)
     await ensureUserSettings(user.id);
 
-    // Devolver usuario sin la contraseña
+    // Devolver usuario sin la contraseña y con token de sesión
     res.json({
       id: user.id,
       email: user.email,
       name: user.name,
-      created_at: user.created_at
+      created_at: user.created_at,
+      session_token: sessionToken,
     });
   } catch (err) {
     console.error('Error during login:', err);
@@ -158,9 +164,10 @@ router.post('/register', async (req, res) => {
     // Hash password antes de guardar
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     
+    const sessionToken = crypto.randomUUID();
     const [result] = await pool.query(
-      'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-      [email, hashedPassword, name || null]
+      'INSERT INTO users (email, password, name, session_token) VALUES (?, ?, ?, ?)',
+      [email, hashedPassword, name || null, sessionToken]
     );
     
     const [rows] = await pool.query(
@@ -172,10 +179,45 @@ router.post('/register', async (req, res) => {
     // Initialize default settings for the new user
     await ensureUserSettings(user.id);
     
-    res.status(201).json(user);
+    res.status(201).json({
+      ...user,
+      session_token: sessionToken,
+    });
   } catch (err) {
     console.error('Error during registration:', err);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Get current session token for user
+router.get('/:id/session', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const [rows] = await pool.query(
+      'SELECT session_token FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ session_token: rows[0].session_token || null });
+  } catch (err) {
+    console.error('Error fetching session token:', err);
+    res.status(500).json({ error: 'Failed to fetch session token' });
+  }
+});
+
+// Logout (clear session token)
+router.post('/:id/logout', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    await pool.query('UPDATE users SET session_token = NULL WHERE id = ?', [userId]);
+    res.json({ message: 'Logged out' });
+  } catch (err) {
+    console.error('Error during logout:', err);
+    res.status(500).json({ error: 'Logout failed' });
   }
 });
 

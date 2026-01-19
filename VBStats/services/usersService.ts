@@ -90,4 +90,23 @@ export const usersService = {
       throw new Error(error.error || 'Failed to change password');
     }
   },
+
+  // Get current session token
+  getSession: async (id: number): Promise<{ session_token: string | null }> => {
+    const response = await fetch(`${USERS_URL}/${id}/session`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch session');
+    }
+    return response.json();
+  },
+
+  // Logout (clear session token)
+  logout: async (id: number): Promise<void> => {
+    const response = await fetch(`${USERS_URL}/${id}/logout`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to logout');
+    }
+  },
 };

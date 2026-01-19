@@ -119,6 +119,7 @@ async function init() {
         email VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
         name VARCHAR(255),
+        session_token VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB;
     `);
@@ -160,6 +161,17 @@ async function init() {
       `);
     } catch (err) {
       console.error('Error creating test user:', err);
+    }
+
+    // Add session_token column to users table if it doesn't exist
+    try {
+      await conn.query(`
+        ALTER TABLE users ADD COLUMN session_token VARCHAR(255) NULL AFTER name;
+      `);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding session_token column to users:', err);
+      }
     }
 
     // Add number column to players table if it doesn't exist

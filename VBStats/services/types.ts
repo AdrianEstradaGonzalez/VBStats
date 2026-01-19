@@ -132,6 +132,7 @@ export interface User {
   id: number;
   email: string;
   name?: string;
+  session_token?: string;
   created_at?: string;
 }
 
