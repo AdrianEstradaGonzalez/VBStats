@@ -528,8 +528,8 @@ export default function MatchFieldScreen({
             norm.includes('doble positiv') || norm === '++') return 1;
         
         // 2. Positivo (pero NO doble positivo)
-        if ((norm.includes('positiv') || norm === '+' || norm.includes('punto')) && 
-            !norm.includes('doble')) return 2;
+        if ((norm.includes('positiv') || norm === '+') && 
+          !norm.includes('doble')) return 2;
         
         // 3. Neutro
         if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
@@ -676,13 +676,13 @@ export default function MatchFieldScreen({
   // Helper para obtener el nombre del icono
   const getStatIconName = (statType: string): string => {
     const normalizedType = statType.toLowerCase();
-    if (normalizedType.includes('doble positiva') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
+    if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
       return 'plus-circle-multiple';
     }
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
       return 'bullseye-arrow';
     }
-    if (normalizedType.includes('positiv') || normalizedType.includes('+') || normalizedType.includes('punto')) {
+    if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return 'plus-circle';
     }
     if (normalizedType.includes('neutr')) {
@@ -995,9 +995,7 @@ export default function MatchFieldScreen({
     }
     
     // Positivo: +1
-    if (normalized.includes('positiv') || 
-        normalized.includes('punto') ||
-        normalized === '+') {
+    if (normalized.includes('positiv') || normalized === '+') {
       return 1;
     }
     
@@ -1033,12 +1031,12 @@ export default function MatchFieldScreen({
     // Ordenar tipos dentro de cada categoría: doble positivo/punto directo, positivo, neutro, error
     Object.keys(grouped).forEach(category => {
       grouped[category].sort((a, b) => {
-        const getPriority = (statType: string): number => {
+          const getPriority = (statType: string): number => {
           const norm = statType.toLowerCase().trim();
           if (norm.includes('punto directo') || norm.includes('ace') || 
-              norm.includes('doble positiv') || norm === '++') return 1;
-          if ((norm.includes('positiv') || norm === '+' || norm.includes('punto')) && 
-              !norm.includes('doble')) return 2;
+            norm.includes('doble positiv') || norm === '++') return 1;
+          if ((norm.includes('positiv') || norm === '+') && 
+            !norm.includes('doble')) return 2;
           if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
           if (norm.includes('error')) return 4;
           return 99;
@@ -1126,7 +1124,7 @@ export default function MatchFieldScreen({
   const getStatColor = (statType: string): string => {
     const normalized = statType.toLowerCase().trim();
     
-    // Doble positiva / Punto directo / Ace = Azul eléctrico
+    // Doble positivo / Punto directo / Ace = Azul eléctrico
     if (normalized.includes('doble positiv') || 
         normalized.includes('punto directo') || 
         normalized.includes('ace') ||
@@ -1134,10 +1132,8 @@ export default function MatchFieldScreen({
       return '#0ea5e9';
     }
     
-    // Positiva / Punto = Verde
-    if (normalized.includes('positiv') || 
-        normalized.includes('punto') ||
-        normalized === '+') {
+    // Positivo = Verde
+    if (normalized.includes('positiv') || normalized === '+') {
       return '#22c55e';
     }
     
@@ -1158,7 +1154,7 @@ export default function MatchFieldScreen({
     const normalizedType = statType.toLowerCase();
     
     // Doble positivo = icono de doble plus
-    if (normalizedType.includes('doble positiva') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
+    if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
       return <MaterialCommunityIcons name="plus-circle-multiple" size={size} color={color} />;
     }
     // Punto directo = Diana/Bullseye
@@ -1166,7 +1162,7 @@ export default function MatchFieldScreen({
       return <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />;
     }
     // Positivo = Plus circle
-    if (normalizedType.includes('positiv') || normalizedType.includes('+') || normalizedType.includes('punto')) {
+    if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
     }
     // Neutro = Equal sign (=)

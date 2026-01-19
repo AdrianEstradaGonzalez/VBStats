@@ -253,7 +253,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
     const normalizedType = type.toLowerCase();
     
     // Doble positivo = icono de doble plus
-    if (normalizedType.includes('doble positiva') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
+    if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
       return <MaterialCommunityIcons name="plus-circle-multiple" size={iconSize} color={color} />;
     }
     // Punto directo = Diana/Bullseye
@@ -261,7 +261,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
       return <MaterialCommunityIcons name="bullseye-arrow" size={iconSize} color={color} />;
     }
     // Positivo = Plus circle
-    if (normalizedType.includes('positiv') || normalizedType.includes('+') || normalizedType.includes('punto')) {
+    if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={iconSize} color={color} />;
     }
     // Neutro = Minus circle

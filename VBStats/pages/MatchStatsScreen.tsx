@@ -38,7 +38,7 @@ interface MatchStatsScreenProps {
 const getStatColor = (statType: string): string => {
   const normalized = statType.toLowerCase().trim();
   
-  // Doble positiva / Punto directo / Ace = Azul eléctrico
+  // Doble positivo / Punto directo / Ace = Azul eléctrico
   if (normalized.includes('doble positiv') || 
       normalized.includes('punto directo') || 
       normalized.includes('ace') ||
@@ -46,10 +46,8 @@ const getStatColor = (statType: string): string => {
     return '#0ea5e9';
   }
   
-  // Positiva / Punto = Verde
-  if (normalized.includes('positiv') || 
-      normalized.includes('punto') ||
-      normalized === '+') {
+    // Positivo = Verde
+    if (normalized.includes('positiv') || normalized === '+') {
     return '#22c55e';
   }
   
@@ -68,8 +66,8 @@ const getStatColor = (statType: string): string => {
 
 // Orden fijo para tipos de estadísticas
 const STAT_TYPE_ORDER = [
-  'Doble Positiva', 'Punto Directo', 
-  'Positiva', 'Positivo', 'Punto', 'Ace', '++', '+', 
+  'Doble Positivo', 'Punto Directo', 
+  'Positivo', 'Punto', 'Ace', '++', '+', 
   'Neutra', 'Neutro', '-', 
   'Error', 'error'
 ];
@@ -195,7 +193,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         const normalize = (v: string) => v.toLowerCase();
         const typeWeight = (v: string) => {
           const t = normalize(v);
-          if (t.includes('doble positiv') || t.includes('punto directo') || t.includes('ace') || t.includes('positiv') || t.includes('punto')) return 1;
+          if (t.includes('doble positiv') || t.includes('punto directo') || t.includes('ace') || t.includes('positiv')) return 1;
           if (t.includes('neutr')) return 2;
           if (t.includes('error')) return 3;
           return 9;
@@ -229,9 +227,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     }
     
     // Positivo: +1
-    if (normalized.includes('positiv') || 
-        normalized.includes('punto') ||
-        normalized === '+') {
+    if (normalized.includes('positiv') || normalized === '+') {
       return 1;
     }
     
@@ -281,7 +277,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       // Contar por tipo para el rating
       if (normalized.includes('doble positiv') || normalized.includes('punto directo') || normalized.includes('ace') || normalized === '++') {
         performance[stat.stat_category].doblePositivo += 1;
-      } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
+      } else if (normalized.includes('positiv') || normalized === '+') {
         performance[stat.stat_category].positivo += 1;
       } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
         performance[stat.stat_category].neutro += 1;
@@ -444,7 +440,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
 
         orderedStats.forEach(item => {
           const percentage = Math.round((item.count / total) * 100);
-          reportText += `  ${item.statType}: ${item.count} ${percentage}%\n`;
+          reportText += `  ${item.statType}: ${item.count} · ${percentage}%\n`;
         });
       });
 
@@ -477,7 +473,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     const normalizedType = statType.toLowerCase();
     
     // Doble positivo = icono de doble plus
-    if (normalizedType.includes('doble positiva') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
+    if (normalizedType.includes('doble positiv') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
       return <MaterialCommunityIcons name="plus-circle-multiple" size={size} color={color} />;
     }
     // Punto directo = Diana/Bullseye
@@ -485,7 +481,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       return <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />;
     }
     // Positivo = Plus circle
-    if (normalizedType.includes('positiv') || normalizedType.includes('+') || normalizedType.includes('punto')) {
+    if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
     }
     // Neutro = Minus circle
