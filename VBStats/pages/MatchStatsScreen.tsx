@@ -20,8 +20,8 @@ import {
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
-import { matchesService, settingsService } from '../services/api';
-import type { Match, MatchStatsSummary, MatchStat, MatchState, StatSetting } from '../services/types';
+import { matchesService } from '../services/api';
+import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
@@ -77,7 +77,6 @@ const STAT_TYPE_ORDER = [
 export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
-  const [userSettings, setUserSettings] = useState<StatSetting[]>([]);
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
@@ -89,21 +88,6 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     loadMatchStats();
   }, [match.id]);
 
-  useEffect(() => {
-    const loadUserSettings = async () => {
-      const settingsUserId = match.user_id || statsData?.stats?.[0]?.user_id;
-      if (!settingsUserId) return;
-      try {
-        const settings = await settingsService.getAll(settingsUserId);
-        setUserSettings(settings.filter(s => s.enabled));
-      } catch (error) {
-        console.error('❌ Error cargando configuración de usuario:', error);
-        setUserSettings([]);
-      }
-    };
-
-    loadUserSettings();
-  }, [match.user_id, statsData]);
 
   const buildStatsFromMatchState = (state: MatchState | null): MatchStat[] => {
     if (!state?.action_history || !Array.isArray(state.action_history)) return [];
@@ -228,17 +212,6 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return grouped;
   }, [filteredStats]);
 
-  // Mapa de tipos configurados por categoría (según configuración del usuario)
-  const configuredTypesByCategory = useMemo(() => {
-    const map: Record<string, Set<string>> = {};
-    userSettings.forEach(setting => {
-      if (!map[setting.stat_category]) {
-        map[setting.stat_category] = new Set();
-      }
-      map[setting.stat_category].add(setting.stat_type);
-    });
-    return map;
-  }, [userSettings]);
 
   // Total de acciones
   const totalActions = filteredStats.length;
@@ -287,23 +260,18 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       rating: number;
     }> = {};
 
-    const configuredCategories = Object.keys(configuredTypesByCategory);
-    const statsCategories = filteredStats.map(stat => stat.stat_category);
-    const allCategories = new Set([...configuredCategories, ...statsCategories]);
-
-    allCategories.forEach(category => {
-      performance[category] = {
-        gp: 0,
-        total: 0,
-        doblePositivo: 0,
-        positivo: 0,
-        neutro: 0,
-        error: 0,
-        rating: 0,
-      };
-    });
-
     filteredStats.forEach(stat => {
+      if (!performance[stat.stat_category]) {
+        performance[stat.stat_category] = {
+          gp: 0,
+          total: 0,
+          doblePositivo: 0,
+          positivo: 0,
+          neutro: 0,
+          error: 0,
+          rating: 0,
+        };
+      }
       const score = getStatScore(stat.stat_type);
       const normalized = stat.stat_type.toLowerCase().trim();
       
@@ -414,57 +382,9 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return Math.round((positives / categoryStats.length) * 100);
   };
 
-  const getCategoryTypeFlags = (category: string) => {
-    const flags = {
-      positivo: false,
-      neutro: false,
-      error: false,
-      doblePositivo: false,
-      puntoDirecto: false,
-    };
-
-    const configuredTypes = configuredTypesByCategory[category];
-    if (configuredTypes && configuredTypes.size > 0) {
-      configuredTypes.forEach(type => {
-        const normalized = type.toLowerCase().trim();
-        if (normalized.includes('doble positiv') || normalized === '++') {
-          flags.doblePositivo = true;
-        } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
-          flags.puntoDirecto = true;
-        } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
-          flags.positivo = true;
-        } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
-          flags.neutro = true;
-        } else if (normalized.includes('error')) {
-          flags.error = true;
-        }
-      });
-    } else {
-      // Fallback si no hay configuración disponible: inferir desde estadísticas
-      filteredStats.forEach(stat => {
-        if (stat.stat_category.toLowerCase() !== category.toLowerCase()) return;
-        const normalized = stat.stat_type.toLowerCase().trim();
-
-        if (normalized.includes('doble positiv') || normalized === '++') {
-          flags.doblePositivo = true;
-        } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
-          flags.puntoDirecto = true;
-        } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
-          flags.positivo = true;
-        } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
-          flags.neutro = true;
-        } else if (normalized.includes('error')) {
-          flags.error = true;
-        }
-      });
-    }
-
-    return flags;
-  };
-
-  const categoryHasFullMetrics = (category: string) => {
-    const flags = getCategoryTypeFlags(category);
-    return flags.positivo && flags.neutro && flags.error;
+  const getCategoryTypeOrder = (category: string) => {
+    const stats = statsByCategory[category] || [];
+    return stats.map(item => item.statType);
   };
 
   const generateAndShareReport = async () => {
@@ -503,83 +423,29 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       // Resumen general
       reportText += `• G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n`;
 
-      const summaryCategoryOrder = ['Ataque', 'Saque', 'Recepción', 'Bloqueo', 'Defensa', 'Colocación'];
-      const summaryCategories = summaryCategoryOrder.filter(category => categoryPerformance[category]);
-      const eligibleSummaryCategories = summaryCategories.filter(category => categoryHasFullMetrics(category));
-
-      if (eligibleSummaryCategories.length > 0) {
-        eligibleSummaryCategories.forEach(category => {
-          reportText += `• ${category}: ${getCategorySuccessPercent(category)}%\n`;
-        });
-        reportText += `\n`;
-      } else {
-        reportText += `\n`;
-      }
+      reportText += `\n`;
 
       // Estadísticas por categoría
       reportText += `◆ DESGLOSE POR CATEGORÍA\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-      Object.entries(categoryPerformance).forEach(([category, perf]) => {
-        // Normalizar nombre de categoría para comparar (soporta 'Colocación' y 'Colocacion')
-        const catKey = category.toLowerCase();
+      Object.entries(statsByCategory).forEach(([category, stats]) => {
+        const total = stats.reduce((sum, s) => sum + s.count, 0);
+        if (total === 0) return;
 
-        const flags = getCategoryTypeFlags(category);
-
-        // Manejo especial: si es Bloqueo/Defensa y solo existe Positivo -> mostrar número
-        const isSinglePositiveCategory =
-          (catKey === 'bloqueo' || catKey === 'defensa') &&
-          flags.positivo &&
-          !flags.neutro &&
-          !flags.error &&
-          !flags.doblePositivo &&
-          !flags.puntoDirecto;
-
-        // Regla para Colocación: excluir salvo dos casos
-        const isColoc = catKey.includes('coloc');
-        if (isColoc) {
-          const hasPosAndErrorOnly = flags.positivo && flags.error && !flags.neutro;
-          const hasFullMetrics = flags.positivo && flags.neutro && flags.error;
-          if (!hasPosAndErrorOnly && !hasFullMetrics) {
-            // No mostrar Colocación si no cumple ninguna de las condiciones
-            return;
-          }
-        }
-
-        // Si llegó aquí, mostrar la categoría
         reportText += `\n• ${category}\n`;
 
-        if (isSinglePositiveCategory) {
-          const label = catKey === 'bloqueo' ? 'Número de bloqueos' : 'Número de defensas';
-          reportText += `  ${label}: ${perf.total}\n`;
-          return;
-        }
+        const orderedTypes = getCategoryTypeOrder(category);
+        const orderedStats = orderedTypes.length > 0
+          ? orderedTypes
+              .map(type => stats.find(s => s.statType === type))
+              .filter((s): s is { statType: string; count: number; color: string } => !!s)
+          : stats;
 
-        const configuredTypes = configuredTypesByCategory[category];
-        const configuredCount = configuredTypes ? configuredTypes.size : 0;
-        const hasOnlyPositivoError = flags.positivo && flags.error && !flags.neutro && !flags.doblePositivo && !flags.puntoDirecto && configuredCount <= 2;
-
-        // Si solo hay Positivo+Error en la configuración, mostrar solo G-P
-        if (hasOnlyPositivoError) {
-          reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-          return;
-        }
-
-        // Caso general (incluye Colocación con Positivo+Neutro+Error)
-        reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-        // Mostrar líneas por tipo configurado (incluye 0 si está configurado)
-        if (flags.doblePositivo) {
-          const label = flags.puntoDirecto ? 'Punto directo' : 'Doble positivo';
-          reportText += `  ${label}: ${perf.doblePositivo}\n`;
-        }
-        if (flags.positivo) reportText += `  Positivo: ${perf.positivo}\n`;
-        if (flags.neutro) reportText += `  Neutro: ${perf.neutro}\n`;
-        if (flags.error) reportText += `  Error: ${perf.error}\n`;
-
-        // Si la categoría tiene métricas completas, añadir porcentaje de éxito
-        if (flags.positivo && flags.neutro && flags.error) {
-          reportText += `  Éxito: ${getCategorySuccessPercent(category)}%\n`;
-        }
+        orderedStats.forEach(item => {
+          const percentage = Math.round((item.count / total) * 100);
+          reportText += `  ${item.statType}: ${item.count} ${percentage}%\n`;
+        });
       });
 
       // Top jugadores (si no hay filtro de jugador)
@@ -854,43 +720,42 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         />
       </View>
 
-      {/* Info del partido */}
-      <View style={styles.matchBanner}>
-        <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
-        <Text style={styles.matchTeams}>
-          {match.team_name} {match.opponent ? `vs ${match.opponent}` : ''}
-        </Text>
-        
-        {/* Resultado del partido si está disponible */}
-        {(match.score_home !== null && match.score_home !== undefined && 
-          match.score_away !== null && match.score_away !== undefined) && (
-          <View style={styles.matchScoreContainer}>
-            <Text style={styles.matchScoreText}>
-              {match.score_home} - {match.score_away}
-            </Text>
-          </View>
-        )}
-        
-        <View style={styles.matchMeta}>
-          <View style={styles.matchMetaItem}>
-            <MaterialCommunityIcons 
-              name={match.location === 'home' ? 'home' : 'airplane'} 
-              size={16} 
-              color={Colors.textOnPrimary} 
-            />
-            <Text style={styles.matchMetaText}>
-              {match.location === 'home' ? 'Local' : 'Visitante'}
-            </Text>
-          </View>
-          <View style={styles.matchMetaDivider} />
-          <View style={styles.matchMetaItem}>
-            <MaterialCommunityIcons name="volleyball" size={16} color={Colors.textOnPrimary} />
-            <Text style={styles.matchMetaText}>{match.total_sets || 0} Sets</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Info del partido */}
+        <View style={styles.matchBanner}>
+          <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
+          <Text style={styles.matchTeams}>
+            {match.team_name} {match.opponent ? `vs ${match.opponent}` : ''}
+          </Text>
+          
+          {/* Resultado del partido si está disponible */}
+          {(match.score_home !== null && match.score_home !== undefined && 
+            match.score_away !== null && match.score_away !== undefined) && (
+            <View style={styles.matchScoreContainer}>
+              <Text style={styles.matchScoreText}>
+                {match.score_home} - {match.score_away}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.matchMeta}>
+            <View style={styles.matchMetaItem}>
+              <MaterialCommunityIcons 
+                name={match.location === 'home' ? 'home' : 'airplane'} 
+                size={14} 
+                color={Colors.textOnPrimary} 
+              />
+              <Text style={styles.matchMetaText}>
+                {match.location === 'home' ? 'Local' : 'Visitante'}
+              </Text>
+            </View>
+            <View style={styles.matchMetaDivider} />
+            <View style={styles.matchMetaItem}>
+              <MaterialCommunityIcons name="volleyball" size={14} color={Colors.textOnPrimary} />
+              <Text style={styles.matchMetaText}>{match.total_sets || 0} Sets</Text>
+            </View>
           </View>
         </View>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Filtros por Set */}
         <View style={styles.filterSection}>
           <Text style={styles.filterLabel}>Filtrar por Set</Text>
@@ -1166,19 +1031,18 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         </>
         )}
 
-        {/* Espacio al final para el botón flotante */}
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        {/* Botón para compartir al final */}
+        <TouchableOpacity 
+          style={styles.shareButtonInline}
+          onPress={generateAndShareReport}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="share-variant" size={20} color="#fff" />
+          <Text style={styles.shareButtonText}>Compartir informe</Text>
+        </TouchableOpacity>
 
-      {/* Botón flotante para compartir */}
-      <TouchableOpacity 
-        style={styles.shareButton}
-        onPress={generateAndShareReport}
-        activeOpacity={0.8}
-      >
-        <MaterialCommunityIcons name="share-variant" size={24} color="#fff" />
-        <Text style={styles.shareButtonText}>Compartir informe</Text>
-      </TouchableOpacity>
+        <View style={{ height: 24 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -1218,37 +1082,38 @@ const styles = StyleSheet.create({
   },
   matchBanner: {
     backgroundColor: Colors.primary,
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
     alignItems: 'center',
   },
   matchDate: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: Colors.textOnPrimary,
     opacity: 0.8,
   },
   matchTeams: {
-    fontSize: FontSizes.xl,
+    fontSize: FontSizes.md,
     fontWeight: '700',
     color: Colors.textOnPrimary,
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   matchScoreContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
     borderRadius: BorderRadius.lg,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
   },
   matchScoreText: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.textOnPrimary,
-    letterSpacing: 2,
+    letterSpacing: 1,
   },
   matchMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.sm,
+    marginTop: 6,
     gap: Spacing.md,
   },
   matchMetaItem: {
@@ -1257,7 +1122,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   matchMetaText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: Colors.textOnPrimary,
   },
   matchMetaDivider: {
@@ -1861,12 +1726,9 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.primary,
   },
-  // Botón flotante de compartir
-  shareButton: {
-    position: 'absolute',
-    bottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT + 20 : 20,
-    left: Spacing.lg,
-    right: Spacing.lg,
+  shareButtonInline: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
     backgroundColor: Colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1874,7 +1736,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     gap: Spacing.sm,
-    ...Shadows.lg,
+    ...Shadows.md,
   },
   shareButtonText: {
     fontSize: FontSizes.md,
