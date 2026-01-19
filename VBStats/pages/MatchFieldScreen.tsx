@@ -1434,8 +1434,18 @@ export default function MatchFieldScreen({
             disabled={currentSet === 0}
             activeOpacity={0.7}
           >
-            <Text style={styles.setLabel}>SET</Text>
-            <Text style={styles.setNumber}>{currentSet || '—'}</Text>
+            <View style={styles.setDisplayContent}>
+              <Text style={styles.setLabel}>SET</Text>
+              <Text style={styles.setNumber}>{currentSet || '—'}</Text>
+            </View>
+            {currentSet > 0 && (
+              <MaterialCommunityIcons 
+                name="chart-bar" 
+                size={14} 
+                color={Colors.textTertiary} 
+                style={styles.setStatsHint}
+              />
+            )}
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -1559,7 +1569,7 @@ export default function MatchFieldScreen({
                 <Text style={styles.scoreSeparator}>-</Text>
                 
                 <View style={styles.scoreInputWrapper}>
-                  <Text style={styles.scoreLabel}>{matchDetails.opponent || 'Rival'}</Text>
+                  <Text style={styles.scoreLabel}>{matchDetails.rivalTeam || 'Rival'}</Text>
                   <TextInput
                     style={styles.scoreInput}
                     value={scoreAway}
@@ -2180,6 +2190,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: Colors.primary,
+    position: 'relative',
+  },
+  setDisplayContent: {
+    alignItems: 'center',
+  },
+  setStatsHint: {
+    position: 'absolute',
+    bottom: 2,
+    right: 4,
+    opacity: 0.7,
   },
   setLabel: {
     fontSize: 9,

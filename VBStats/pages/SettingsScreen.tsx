@@ -553,7 +553,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
         buttonLayout="column"
         buttons={[
           {
-            text: applyingVersion === 'basic' ? 'Aplicando...' : 'Básica - Estadísticas esenciales',
+            text: applyingVersion === 'basic' ? 'Aplicando...' : 'Básica',
             icon: applyingVersion === 'basic'
               ? undefined
               : <MaterialCommunityIcons name="tune-variant" size={18} color={Colors.textOnPrimary} />,
@@ -561,7 +561,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
             style: 'default',
           },
           {
-            text: applyingVersion === 'advanced' ? 'Aplicando...' : 'Avanzada - Todas las estadísticas',
+            text: applyingVersion === 'advanced' ? 'Aplicando...' : 'Avanzada',
             icon: applyingVersion === 'advanced'
               ? undefined
               : <MaterialCommunityIcons name="chart-line" size={18} color={Colors.textOnPrimary} />,

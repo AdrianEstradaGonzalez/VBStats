@@ -76,4 +76,18 @@ export const usersService = {
       throw new Error('Failed to delete user');
     }
   },
+
+  // Change password
+  changePassword: async (id: number, currentPassword: string, newPassword: string): Promise<void> => {
+    const response = await fetch(`${USERS_URL}/${id}/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to change password');
+    }
+  },
 };

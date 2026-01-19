@@ -205,10 +205,10 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
             {/* Sign Up */}
             {onSignUp && (
               <TouchableOpacity
-                style={styles.signUpButton}
+                style={[styles.signUpButton, styles.signUpButtonDisabled]}
                 onPress={onSignUp}
                 activeOpacity={0.8}
-                disabled={isLoading}
+                disabled={true}
               >
                 <Text style={styles.signUpButtonText}>Crear Cuenta</Text>
               </TouchableOpacity>
@@ -366,5 +366,8 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: FontSizes.lg,
     fontWeight: '700',
+  },
+  signUpButtonDisabled: {
+    opacity: 0.6,
   },
 });

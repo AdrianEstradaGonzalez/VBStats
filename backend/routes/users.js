@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt');
 const { pool } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
+
+const SALT_ROUNDS = 12;
 
 async function ensureUserSettings(userId) {
   const conn = await pool.getConnection();
@@ -78,9 +81,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
     
+    // Obtener usuario con contraseña hasheada
     const [rows] = await pool.query(
-      'SELECT id, email, name, created_at FROM users WHERE email = ? AND password = ?',
-      [email, password]
+      'SELECT id, email, name, password, created_at FROM users WHERE email = ?',
+      [email]
     );
     
     if (rows.length === 0) {
@@ -88,10 +92,40 @@ router.post('/login', async (req, res) => {
     }
 
     const user = rows[0];
+    
+    // Verificar contraseña con bcrypt
+    // Si la contraseña no está hasheada (migración), comparar directamente y luego hashear
+    let isValidPassword = false;
+    
+    if (user.password.startsWith('$2')) {
+      // Password está hasheada con bcrypt
+      isValidPassword = await bcrypt.compare(password, user.password);
+    } else {
+      // Password en texto plano (migración legacy) - comparar directamente
+      isValidPassword = (password === user.password);
+      
+      // Si es válida, hashear para futuras autenticaciones
+      if (isValidPassword) {
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+        await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user.id]);
+        console.log(`Password migrada a bcrypt para usuario ${user.id}`);
+      }
+    }
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
     // Ensure default settings exist for this user (all enabled)
     await ensureUserSettings(user.id);
 
-    res.json(user);
+    // Devolver usuario sin la contraseña
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      created_at: user.created_at
+    });
   } catch (err) {
     console.error('Error during login:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -106,6 +140,10 @@ router.post('/register', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
     }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
     
     // Check if user already exists
     const [existing] = await pool.query(
@@ -117,9 +155,12 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
     
+    // Hash password antes de guardar
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    
     const [result] = await pool.query(
       'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-      [email, password, name || null]
+      [email, hashedPassword, name || null]
     );
     
     const [rows] = await pool.query(
@@ -157,8 +198,10 @@ router.put('/:id', async (req, res) => {
       params.push(name);
     }
     if (password) {
+      // Hash password antes de guardar
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
       updates.push('password = ?');
-      params.push(password);
+      params.push(hashedPassword);
     }
     
     if (updates.length === 0) {
@@ -179,6 +222,64 @@ router.put('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating user:', err);
     res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Change password (requires current password verification)
+router.post('/:id/change-password', async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.params.id;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    
+    // Obtener usuario con contraseña actual
+    const [users] = await pool.query(
+      'SELECT id, password FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+    
+    // Verificar contraseña actual
+    let isValidPassword = false;
+    
+    if (user.password.startsWith('$2')) {
+      // Password está hasheada con bcrypt
+      isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    } else {
+      // Password en texto plano (migración legacy)
+      isValidPassword = (currentPassword === user.password);
+    }
+    
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    
+    // Hash nueva contraseña
+    const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    
+    // Actualizar contraseña
+    await pool.query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [hashedNewPassword, userId]
+    );
+    
+    console.log(`Password cambiada exitosamente para usuario ${userId}`);
+    res.json({ message: 'Password changed successfully' });
+  } catch (err) {
+    console.error('Error changing password:', err);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 

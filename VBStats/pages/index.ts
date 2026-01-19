@@ -13,6 +13,7 @@ export { default as MatchFieldScreen } from './MatchFieldScreen';
 export { default as StatsScreen } from './StatsScreen';
 export { default as MatchStatsScreen } from './MatchStatsScreen';
 export { default as SettingsScreen } from './SettingsScreen';
+export { default as ProfileScreen } from './ProfileScreen';
 export type { Team, Player } from '../services/api';
 export type { MatchDetails } from './MatchDetailsScreen';
 

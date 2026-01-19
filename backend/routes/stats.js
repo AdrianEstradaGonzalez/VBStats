@@ -45,21 +45,59 @@ router.post('/match-stats/batch', async (req, res) => {
     if (!stats || !Array.isArray(stats) || stats.length === 0) {
       return res.status(400).json({ error: 'stats array is required' });
     }
+
+    // Para evitar errores de FK cuando los stat_setting_id no existen,
+    // buscamos o creamos settings válidos para cada stat
+    const processedStats = [];
     
-    const values = stats.map(s => [
-      s.user_id,
-      s.match_id,
-      s.player_id,
-      s.set_number,
-      s.stat_setting_id,
-      s.stat_category,
-      s.stat_type
-    ]);
+    for (const s of stats) {
+      // Intentar encontrar un setting válido para este user/category/type
+      const [existingSettings] = await pool.query(
+        `SELECT id FROM stat_settings 
+         WHERE user_id = ? AND stat_category = ? AND stat_type = ? 
+         LIMIT 1`,
+        [s.user_id, s.stat_category, s.stat_type]
+      );
+      
+      let validSettingId = s.stat_setting_id;
+      
+      if (existingSettings.length > 0) {
+        // Usar el setting existente
+        validSettingId = existingSettings[0].id;
+      } else {
+        // Verificar si el stat_setting_id proporcionado existe
+        const [settingExists] = await pool.query(
+          'SELECT id FROM stat_settings WHERE id = ?',
+          [s.stat_setting_id]
+        );
+        
+        if (settingExists.length === 0) {
+          // El setting no existe, crear uno nuevo
+          const [newSetting] = await pool.query(
+            `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id) 
+             VALUES ('General', ?, ?, true, ?)`,
+            [s.stat_category, s.stat_type, s.user_id]
+          );
+          validSettingId = newSetting.insertId;
+          console.log(`Created new stat_setting (id: ${validSettingId}) for ${s.stat_category}/${s.stat_type}`);
+        }
+      }
+      
+      processedStats.push([
+        s.user_id,
+        s.match_id,
+        s.player_id,
+        s.set_number,
+        validSettingId,
+        s.stat_category,
+        s.stat_type
+      ]);
+    }
     
     const [result] = await pool.query(
       `INSERT INTO match_stats (user_id, match_id, player_id, set_number, stat_setting_id, stat_category, stat_type) 
        VALUES ?`,
-      [values]
+      [processedStats]
     );
     
     res.status(201).json({ 

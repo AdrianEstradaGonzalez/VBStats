@@ -11,6 +11,7 @@ import {
   SelectTeamScreen,
   MatchDetailsScreen,
   MatchFieldScreen,
+  ProfileScreen,
   Team,
   MatchDetails,
 } from "./pages";
@@ -265,6 +266,15 @@ export default function App() {
           <SettingsScreen 
             onOpenMenu={handleOpenMenu}
             userId={userId}
+          />
+        );
+      case 'profile':
+        return (
+          <ProfileScreen 
+            onOpenMenu={handleOpenMenu}
+            userId={userId}
+            userName={userName}
+            userEmail={userEmail}
           />
         );
       default:
