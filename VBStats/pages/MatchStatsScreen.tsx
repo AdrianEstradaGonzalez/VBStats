@@ -381,6 +381,40 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return Math.round((positives / categoryStats.length) * 100);
   };
 
+  const getCategoryTypeFlags = (category: string) => {
+    const flags = {
+      positivo: false,
+      neutro: false,
+      error: false,
+      doblePositivo: false,
+      puntoDirecto: false,
+    };
+
+    filteredStats.forEach(stat => {
+      if (stat.stat_category.toLowerCase() !== category.toLowerCase()) return;
+      const normalized = stat.stat_type.toLowerCase().trim();
+
+      if (normalized.includes('doble positiv') || normalized === '++') {
+        flags.doblePositivo = true;
+      } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
+        flags.puntoDirecto = true;
+      } else if (normalized.includes('positiv') || normalized.includes('punto') || normalized === '+') {
+        flags.positivo = true;
+      } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+        flags.neutro = true;
+      } else if (normalized.includes('error')) {
+        flags.error = true;
+      }
+    });
+
+    return flags;
+  };
+
+  const categoryHasFullMetrics = (category: string) => {
+    const flags = getCategoryTypeFlags(category);
+    return flags.positivo && flags.neutro && flags.error;
+  };
+
   const generateAndShareReport = async () => {
     try {
       // Generar título del informe
@@ -416,9 +450,19 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
 
       // Resumen general
       reportText += `• G-P: ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n`;
-      reportText += `• Ataque: ${getCategorySuccessPercent('Ataque')}%\n`;
-      reportText += `• Saque: ${getCategorySuccessPercent('Saque')}%\n`;
-      reportText += `• Recepción: ${getCategorySuccessPercent('Recepción')}%\n\n`;
+
+      const summaryCategoryOrder = ['Ataque', 'Saque', 'Recepción', 'Bloqueo', 'Defensa', 'Colocación'];
+      const summaryCategories = summaryCategoryOrder.filter(category => categoryPerformance[category]);
+      const eligibleSummaryCategories = summaryCategories.filter(category => categoryHasFullMetrics(category));
+
+      if (eligibleSummaryCategories.length > 0) {
+        eligibleSummaryCategories.forEach(category => {
+          reportText += `• ${category}: ${getCategorySuccessPercent(category)}%\n`;
+        });
+        reportText += `\n`;
+      } else {
+        reportText += `\n`;
+      }
 
       // Estadísticas por categoría
       reportText += `◆ DESGLOSE POR CATEGORÍA\n`;
@@ -426,8 +470,27 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
 
       Object.entries(categoryPerformance).forEach(([category, perf]) => {
         reportText += `\n• ${category}\n`;
+
+        const flags = getCategoryTypeFlags(category);
+        const isSinglePositiveCategory =
+          (category.toLowerCase() === 'bloqueo' || category.toLowerCase() === 'defensa') &&
+          flags.positivo &&
+          !flags.neutro &&
+          !flags.error &&
+          !flags.doblePositivo &&
+          !flags.puntoDirecto;
+
+        if (isSinglePositiveCategory) {
+          const label = category.toLowerCase() === 'bloqueo' ? 'Número de bloqueos' : 'Número de defensas';
+          reportText += `  ${label}: ${perf.total}\n`;
+          return;
+        }
+
         reportText += `  G-P: ${perf.gp >= 0 ? '+' : ''}${perf.gp}\n`;
-        if (perf.doblePositivo > 0) reportText += `  Doble positivo: ${perf.doblePositivo}\n`;
+        if (perf.doblePositivo > 0) {
+          const label = flags.puntoDirecto ? 'Punto directo' : 'Doble positivo';
+          reportText += `  ${label}: ${perf.doblePositivo}\n`;
+        }
         if (perf.positivo > 0) reportText += `  Positivo: ${perf.positivo}\n`;
         if (perf.neutro > 0) reportText += `  Neutro: ${perf.neutro}\n`;
         if (perf.error > 0) reportText += `  Error: ${perf.error}\n`;
@@ -437,7 +500,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       if (selectedPlayer === null && playerStats.length > 0) {
         reportText += `\n\n◆ PARTICIPACIÓN DE JUGADORES\n`;
         reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        playerStats.slice(0, 5).forEach((player, index) => {
+        playerStats.forEach((player, index) => {
           const position = index + 1;
           reportText += `${position}. #${player.number} ${player.name}: ${player.total} acciones\n`;
         });
