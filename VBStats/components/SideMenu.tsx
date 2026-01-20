@@ -160,6 +160,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: DRAWER_WIDTH,
     backgroundColor: Colors.background,
+    borderRightWidth: 2,
+    borderRightColor: '#FFFFFF',
     ...Shadows.lg,
   },
   profileSection: {
