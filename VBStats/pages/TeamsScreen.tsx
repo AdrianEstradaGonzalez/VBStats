@@ -16,6 +16,7 @@ import {
   Platform,
   StatusBar,
   Image,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { 
@@ -435,7 +436,11 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
       {/* Modal para añadir jugador */}
       <Modal visible={showPlayerModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.playerModalContent}>
+          <KeyboardAvoidingView
+            style={styles.playerModalKeyboardContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.playerModalContent}>
             {/* Modern Header with Logo and App Name */}
             <View style={styles.playerModalHeader}>
               <View style={styles.logoWrapper}>
@@ -555,6 +560,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
               </View>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -993,6 +999,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadows.lg,
+  },
+  playerModalKeyboardContainer: {
+    width: '100%',
+    maxWidth: 400,
   },
   playerModalHeader: {
     backgroundColor: Colors.primary,

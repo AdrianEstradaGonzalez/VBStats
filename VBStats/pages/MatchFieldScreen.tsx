@@ -1554,7 +1554,11 @@ export default function MatchFieldScreen({
               
               <View style={styles.scoreInputContainer}>
                 <View style={styles.scoreInputWrapper}>
-                  <Text style={styles.scoreLabel}>{matchDetails.teamName || 'Local'}</Text>
+                  <View style={styles.scoreLabelContainer}>
+                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                      {matchDetails.teamName || 'Local'}
+                    </Text>
+                  </View>
                   <TextInput
                     style={styles.scoreInput}
                     value={scoreHome}
@@ -1569,7 +1573,11 @@ export default function MatchFieldScreen({
                 <Text style={styles.scoreSeparator}>-</Text>
                 
                 <View style={styles.scoreInputWrapper}>
-                  <Text style={styles.scoreLabel}>{matchDetails.rivalTeam || 'Rival'}</Text>
+                  <View style={styles.scoreLabelContainer}>
+                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                      {matchDetails.rivalTeam || 'Rival'}
+                    </Text>
+                  </View>
                   <TextInput
                     style={styles.scoreInput}
                     value={scoreAway}
@@ -3277,19 +3285,28 @@ const styles = StyleSheet.create({
   scoreInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing.xl,
-    gap: Spacing.lg,
+    width: '100%',
   },
   scoreInputWrapper: {
+    flex: 1,
     alignItems: 'center',
     gap: Spacing.xs,
+    height: 130,
+    justifyContent: 'flex-start',
+  },
+  scoreLabelContainer: {
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   scoreLabel: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
     color: '#4a4a4a',
-    maxWidth: 100,
+    width: '100%',
     textAlign: 'center',
   },
   scoreInput: {
@@ -3308,7 +3325,9 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: '#9e9e9e',
-    marginTop: 20,
+    alignSelf: 'center',
+    width: 28,
+    textAlign: 'center',
   },
   endMatchButtonsContainer: {
     width: '100%',

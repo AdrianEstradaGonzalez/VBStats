@@ -1,24 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- Pink circle like the login screen -->
-  <item
-    android:left="8dp"
-    android:top="8dp"
-    android:right="8dp"
-    android:bottom="8dp">
-    <shape android:shape="oval">
-      <solid android:color="#e21d66" />
-    </shape>
-  </item>
-
-  <!-- Logo inset to reduce pixelation on device -->
-  <item
-    android:left="20dp"
-    android:top="20dp"
-    android:right="20dp"
-    android:bottom="20dp">
+  <item>
     <bitmap
-      android:src="@drawable/assets_logo_sinfondo"
+      android:src="@mipmap/ic_launcher_adaptive_fore"
       android:gravity="center" />
   </item>
 </layer-list>
