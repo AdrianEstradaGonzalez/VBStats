@@ -313,34 +313,79 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
 // Cancel subscription
 router.post('/:userId/cancel', async (req, res) => {
+  console.log('📛 Cancel subscription request for userId:', req.params.userId);
+  
   if (!stripe) {
+    console.error('❌ Stripe not configured');
     return res.status(503).json({ error: 'Payment service not available' });
   }
 
   try {
     const [users] = await pool.query(
-      'SELECT stripe_subscription_id FROM users WHERE id = ?',
+      'SELECT stripe_subscription_id, stripe_customer_id, subscription_type FROM users WHERE id = ?',
       [req.params.userId]
     );
 
     if (users.length === 0) {
+      console.error('❌ User not found:', req.params.userId);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const subscriptionId = users[0].stripe_subscription_id;
+    const user = users[0];
+    console.log('👤 User data:', { 
+      subscriptionId: user.stripe_subscription_id, 
+      customerId: user.stripe_customer_id,
+      type: user.subscription_type 
+    });
+
+    let subscriptionId = user.stripe_subscription_id;
+    
+    // If no subscription ID stored, try to find it from customer
+    if (!subscriptionId && user.stripe_customer_id) {
+      console.log('🔍 No subscription ID stored, fetching from Stripe customer...');
+      try {
+        const subscriptions = await stripe.subscriptions.list({
+          customer: user.stripe_customer_id,
+          status: 'active',
+          limit: 1,
+        });
+        
+        if (subscriptions.data.length > 0) {
+          subscriptionId = subscriptions.data[0].id;
+          console.log('✅ Found subscription from customer:', subscriptionId);
+          
+          // Update the user record with the subscription ID
+          await pool.query(
+            'UPDATE users SET stripe_subscription_id = ? WHERE id = ?',
+            [subscriptionId, req.params.userId]
+          );
+        }
+      } catch (stripeErr) {
+        console.error('Error fetching subscriptions from Stripe:', stripeErr.message);
+      }
+    }
+
     if (!subscriptionId) {
-      return res.status(400).json({ error: 'No active subscription' });
+      console.error('❌ No active subscription found');
+      // If still no subscription, just update the user to free
+      await pool.query(
+        'UPDATE users SET subscription_type = ?, subscription_expires_at = NULL, stripe_subscription_id = NULL WHERE id = ?',
+        ['free', req.params.userId]
+      );
+      return res.json({ message: 'Subscription cancelled (no active Stripe subscription found)' });
     }
 
     // Cancel at period end (user can use until expiration)
+    console.log('🚫 Cancelling subscription:', subscriptionId);
     await stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
     });
 
+    console.log('✅ Subscription marked for cancellation at period end');
     res.json({ message: 'Subscription will be cancelled at period end' });
   } catch (error) {
-    console.error('Error cancelling subscription:', error);
-    res.status(500).json({ error: 'Failed to cancel subscription' });
+    console.error('❌ Error cancelling subscription:', error.message);
+    res.status(500).json({ error: 'Failed to cancel subscription', details: error.message });
   }
 });
 

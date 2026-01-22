@@ -55,7 +55,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Equipos ilimitados (Pro)',
       'Informes completos (Pro)',
     ],
-    stripePriceId: 'price_basic_monthly',
+    stripePriceId: 'price_1SsS4aJAUMhTgnDDHPblpB1L',
   },
   {
     id: 'pro',
@@ -70,7 +70,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Marcador de partido',
       'Sin limitaciones',
     ],
-    stripePriceId: 'price_pro_monthly',
+    stripePriceId: 'price_1SsS8CJAUMhTgnDDPWo9z33Z',
     recommended: true,
   },
 ];
@@ -256,6 +256,41 @@ export const subscriptionService = {
       console.error('Error searching by code:', error);
       return { error: 'Error de conexión' };
     }
+  },
+
+  // Cancel subscription
+  cancelSubscription: async (userId: number): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.message || 'Error al cancelar la suscripción' };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      return { success: false, error: 'Error de conexión' };
+    }
+  },
+
+  // Get available upgrade plans based on current plan
+  getAvailableUpgrades: (currentPlan: SubscriptionType): SubscriptionPlan[] => {
+    const upgrades: SubscriptionPlan[] = [];
+    for (let i = 0; i < SUBSCRIPTION_PLANS.length; i++) {
+      const plan = SUBSCRIPTION_PLANS[i];
+      if (currentPlan === 'free' && (plan.id === 'basic' || plan.id === 'pro')) {
+        upgrades.push(plan);
+      } else if (currentPlan === 'basic' && plan.id === 'pro') {
+        upgrades.push(plan);
+      }
+      // If pro, no upgrades available
+    }
+    return upgrades;
   },
 };
 

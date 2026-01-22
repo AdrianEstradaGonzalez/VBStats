@@ -43,10 +43,14 @@ export default function SelectPlanScreen({
   currentPlan,
   userId 
 }: SelectPlanScreenProps) {
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionType>(currentPlan || 'basic');
+  // Default selected plan should be the next upgrade
+  const defaultSelectedPlan = currentPlan === 'basic' ? 'pro' : 'basic';
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionType>(defaultSelectedPlan);
   const [isLoading, setIsLoading] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [paymentPending, setPaymentPending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
@@ -82,13 +86,13 @@ export default function SelectPlanScreen({
 
       if (result.sessionUrl) {
         // Open Stripe checkout in browser
-        const canOpen = await Linking.canOpenURL(result.sessionUrl);
-        if (canOpen) {
+        try {
           await Linking.openURL(result.sessionUrl);
-          // After payment, the webhook will update the subscription
-          onPlanSelected(selectedPlan);
-        } else {
-          setErrorMessage('No se pudo abrir el navegador para el pago');
+          // Show the "I already paid" button
+          setPaymentPending(true);
+        } catch (linkError) {
+          console.error('Error opening URL:', linkError);
+          setErrorMessage('No se pudo abrir el navegador para el pago. Copia este enlace: ' + result.sessionUrl);
           setShowErrorAlert(true);
         }
       }
@@ -101,6 +105,28 @@ export default function SelectPlanScreen({
     }
   };
 
+  const handleVerifyPayment = async () => {
+    if (!userId) return;
+
+    setIsVerifying(true);
+    try {
+      const subscription = await subscriptionService.getSubscription(userId);
+      
+      if (subscription && subscription.type !== 'free') {
+        // Payment was successful
+        onPlanSelected(subscription.type);
+      } else {
+        setErrorMessage('No hemos detectado el pago todavía. Si acabas de pagar, espera unos segundos e inténtalo de nuevo.');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      setErrorMessage('Error al verificar el pago. Inténtalo de nuevo.');
+      setShowErrorAlert(true);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
   const getFeatureIcon = (feature: string, isLimitation: boolean = false) => {
     if (isLimitation) {
       return <MaterialCommunityIcons name="close" size={16} color={Colors.textTertiary} />;
@@ -209,9 +235,18 @@ export default function SelectPlanScreen({
           </Text>
         </View>
 
-        {/* Plans */}
+        {/* Plans - filtered based on current plan */}
         <View style={styles.plansContainer}>
-          {SUBSCRIPTION_PLANS.map(renderPlanCard)}
+          {SUBSCRIPTION_PLANS.filter(plan => {
+            // Show only upgrade options
+            if (currentPlan === 'free') {
+              return plan.id === 'basic' || plan.id === 'pro';
+            } else if (currentPlan === 'basic') {
+              return plan.id === 'pro';
+            }
+            // If pro, show nothing (shouldn't reach this screen)
+            return false;
+          }).map(renderPlanCard)}
         </View>
 
         {/* Payment Methods */}
@@ -243,22 +278,50 @@ export default function SelectPlanScreen({
         )}
 
         {/* Continue Button */}
-        <TouchableOpacity
-          style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
-          onPress={handleContinue}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.continueButtonText}>
-                {selectedPlan === 'free' ? 'Continuar gratis' : 'Continuar al pago'}
-              </Text>
-              <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
-            </>
-          )}
-        </TouchableOpacity>
+        {!paymentPending ? (
+          <TouchableOpacity
+            style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+            onPress={handleContinue}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.continueButtonText}>
+                  {selectedPlan === 'free' ? 'Continuar gratis' : 'Continuar al pago'}
+                </Text>
+                <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
+              </>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.paymentPendingContainer}>
+            <Text style={styles.paymentPendingText}>
+              ¿Ya has completado el pago?
+            </Text>
+            <TouchableOpacity
+              style={[styles.continueButton, styles.verifyButton, isVerifying && styles.continueButtonDisabled]}
+              onPress={handleVerifyPayment}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                  <Text style={styles.continueButtonText}>Ya he pagado</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.retryPaymentButton}
+              onPress={() => setPaymentPending(false)}
+            >
+              <Text style={styles.retryPaymentText}>Volver a intentar el pago</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Terms */}
         <Text style={styles.termsText}>
@@ -484,5 +547,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.lg,
     lineHeight: 18,
+  },
+  paymentPendingContainer: {
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  paymentPendingText: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  verifyButton: {
+    backgroundColor: '#22c55e',
+  },
+  retryPaymentButton: {
+    paddingVertical: Spacing.sm,
+  },
+  retryPaymentText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    textDecorationLine: 'underline',
   },
 });

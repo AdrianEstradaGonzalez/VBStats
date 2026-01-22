@@ -2,7 +2,7 @@
  * Pantalla principal / Dashboard
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
-import SideMenu from '../components/SideMenu';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -26,6 +25,7 @@ interface HomeScreenProps {
   userEmail?: string;
   onNavigate?: (screen: string) => void;
   onLogout?: () => void;
+  onOpenMenu?: () => void;
 }
 
 export default function HomeScreen({ 
@@ -33,8 +33,8 @@ export default function HomeScreen({
   userEmail = 'usuario@vbstats.com',
   onNavigate,
   onLogout,
+  onOpenMenu,
 }: HomeScreenProps) {
-  const [menuVisible, setMenuVisible] = useState(false);
 
   const mainOptions = [
     { 
@@ -61,11 +61,6 @@ export default function HomeScreen({
     onNavigate?.(screen);
   };
 
-  const handleLogout = () => {
-    setMenuVisible(false);
-    onLogout?.();
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -74,7 +69,7 @@ export default function HomeScreen({
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.menuButton}
-          onPress={() => setMenuVisible(true)}
+          onPress={onOpenMenu}
           activeOpacity={0.7}
         >
           <MenuIcon size={28} color={Colors.text} />
@@ -116,16 +111,6 @@ export default function HomeScreen({
           ))}
         </View>
       </View>
-
-      {/* Menú lateral */}
-      <SideMenu
-        visible={menuVisible}
-        onClose={() => setMenuVisible(false)}
-        onNavigate={handleNavigate}
-        onLogout={handleLogout}
-        userName={userName}
-        userEmail={userEmail}
-      />
     </SafeAreaView>
   );
 }

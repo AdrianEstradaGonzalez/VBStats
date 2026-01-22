@@ -20,6 +20,7 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, UserIcon } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
 import { usersService } from '../services/api';
+import { subscriptionService, SubscriptionType } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -31,7 +32,9 @@ interface ProfileScreenProps {
   userId: number | null;
   userName: string;
   userEmail: string;
+  subscriptionType?: SubscriptionType;
   onUserUpdate?: (name: string, email: string) => void;
+  onSubscriptionCancelled?: () => void;
 }
 
 export default function ProfileScreen({
@@ -40,7 +43,9 @@ export default function ProfileScreen({
   userId,
   userName,
   userEmail,
+  subscriptionType = 'free',
   onUserUpdate,
+  onSubscriptionCancelled,
 }: ProfileScreenProps) {
   // Estados para el formulario de cambio de contraseña
   const [currentPassword, setCurrentPassword] = useState('');
@@ -62,6 +67,44 @@ export default function ProfileScreen({
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  
+  // Estados para cancelación de suscripción
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
+
+  const handleCancelSubscription = async () => {
+    if (!userId) return;
+    
+    setIsCancelling(true);
+    setShowCancelConfirm(false);
+    
+    try {
+      const result = await subscriptionService.cancelSubscription(userId);
+      
+      if (result.success) {
+        setShowCancelSuccessAlert(true);
+        if (onSubscriptionCancelled) {
+          onSubscriptionCancelled();
+        }
+      } else {
+        setErrorMessage(result.error || 'Error al cancelar la suscripción');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      setErrorMessage('Error al cancelar la suscripción');
+      setShowErrorAlert(true);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const getSubscriptionName = (type: SubscriptionType): string => {
+    if (type === 'basic') return 'Básica';
+    if (type === 'pro') return 'Pro';
+    return 'Gratuita';
+  };
 
   const validatePasswords = (): string | null => {
     if (!currentPassword.trim()) {
@@ -199,6 +242,44 @@ export default function ProfileScreen({
         {/* Divider */}
         <View style={styles.divider} />
 
+        {/* Sección de suscripción */}
+        <View style={styles.subscriptionSection}>
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="credit-card-outline" size={24} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>Mi Suscripción</Text>
+          </View>
+          
+          <View style={styles.subscriptionInfo}>
+            <Text style={styles.subscriptionLabel}>Plan actual:</Text>
+            <View style={styles.subscriptionBadge}>
+              <Text style={styles.subscriptionBadgeText}>
+                {getSubscriptionName(subscriptionType)}
+              </Text>
+            </View>
+          </View>
+
+          {subscriptionType !== 'free' && (
+            <TouchableOpacity
+              style={[styles.cancelButton, isCancelling && styles.buttonDisabled]}
+              onPress={() => setShowCancelConfirm(true)}
+              disabled={isCancelling}
+              activeOpacity={0.8}
+            >
+              {isCancelling ? (
+                <ActivityIndicator size="small" color="#ef4444" />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="cancel" size={20} color="#ef4444" />
+                  <Text style={styles.cancelButtonText}>Cancelar Suscripción</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
         {/* Sección de cambio de contraseña */}
         <View style={styles.passwordSection}>
           <View style={styles.sectionHeader}>
@@ -297,6 +378,43 @@ export default function ProfileScreen({
         ]}
         onClose={() => setShowErrorAlert(false)}
         icon={<MaterialCommunityIcons name="alert-circle" size={48} color="#ef4444" />}
+      />
+
+      {/* Alerta de confirmación de cancelación */}
+      <CustomAlert
+        visible={showCancelConfirm}
+        title="¿Cancelar Suscripción?"
+        message="Tu suscripción se cancelará al final del período actual. Perderás acceso a las funciones premium."
+        buttons={[
+          {
+            text: 'No, mantener',
+            onPress: () => setShowCancelConfirm(false),
+            style: 'default',
+          } as CustomAlertButton,
+          {
+            text: 'Sí, cancelar',
+            onPress: handleCancelSubscription,
+            style: 'destructive',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => setShowCancelConfirm(false)}
+        icon={<MaterialCommunityIcons name="alert" size={48} color="#f59e0b" />}
+      />
+
+      {/* Alerta de éxito de cancelación */}
+      <CustomAlert
+        visible={showCancelSuccessAlert}
+        title="Suscripción Cancelada"
+        message="Tu suscripción no se renovará. Podrás seguir usando las funciones premium hasta el final del período de facturación actual."
+        buttons={[
+          {
+            text: 'Entendido',
+            onPress: () => setShowCancelSuccessAlert(false),
+            style: 'default',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => setShowCancelSuccessAlert(false)}
+        icon={<MaterialCommunityIcons name="check-circle" size={48} color="#22c55e" />}
       />
     </SafeAreaView>
   );
@@ -458,5 +576,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FontSizes.md,
     fontWeight: '700',
+  },
+  subscriptionSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    ...Shadows.sm,
+  },
+  subscriptionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  subscriptionLabel: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+  },
+  subscriptionBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  subscriptionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  cancelButtonText: {
+    color: '#ef4444',
+    fontSize: FontSizes.md,
+    fontWeight: '600',
   },
 });

@@ -37,6 +37,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>('free');
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const [showSessionAlert, setShowSessionAlert] = useState(false);
   const [sessionCheckBlocked, setSessionCheckBlocked] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -63,9 +64,11 @@ export default function App() {
     try {
       const subscription = await subscriptionService.getSubscription(userId);
       setSubscriptionType(subscription.type);
+      setSubscriptionLoaded(true);
     } catch (error) {
       console.error('Error loading subscription:', error);
       setSubscriptionType('free');
+      setSubscriptionLoaded(true);
     }
   };
 
@@ -102,6 +105,18 @@ export default function App() {
       setUserName(user.name || email.split("@")[0]);
       setUserEmail(user.email);
       setSessionToken(user.session_token || null);
+      
+      // Load subscription BEFORE marking as logged in
+      try {
+        const subscription = await subscriptionService.getSubscription(user.id);
+        setSubscriptionType(subscription.type);
+        setSubscriptionLoaded(true);
+      } catch (subError) {
+        console.error('Error loading subscription during login:', subError);
+        setSubscriptionType('free');
+        setSubscriptionLoaded(true);
+      }
+      
       setIsLoggedIn(true);
       return true;
     } catch (error) {
@@ -185,6 +200,8 @@ export default function App() {
     setUserName("");
     setUserEmail("");
     setSessionToken(null);
+    setSubscriptionType('free');
+    setSubscriptionLoaded(false);
     setCurrentScreen('home');
     setMenuVisible(false);
   };
@@ -238,18 +255,16 @@ export default function App() {
       });
 
       if (response.ok) {
-        // Update to free plan
-        await subscriptionService.updateSubscription(userId, 'free');
-        setSubscriptionType('free');
         setShowCancelSubscriptionAlert(false);
         Alert.alert(
           'Suscripción cancelada',
-          'Tu suscripción ha sido cancelada. Ahora tienes acceso al plan gratuito.',
+          'Tu suscripción no se renovará. Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago.',
           [{ text: 'Entendido' }]
         );
-        // Navigate to search by code screen for free users
-        setCurrentScreen('searchByCode');
+        // Don't change to free immediately - user keeps access until period ends
       } else {
+        const errorData = await response.json();
+        console.error('Cancel error:', errorData);
         Alert.alert('Error', 'No se pudo cancelar la suscripción. Inténtalo de nuevo.');
       }
     } catch (error) {
@@ -431,6 +446,12 @@ export default function App() {
             userId={userId}
             userName={userName}
             userEmail={userEmail}
+            subscriptionType={subscriptionType}
+            onSubscriptionCancelled={() => {
+              // Don't change to free immediately - user keeps access until expiration
+              // Just show a message, the subscription type stays the same
+              loadSubscription();
+            }}
           />
         );
       default:
@@ -452,6 +473,7 @@ export default function App() {
             userEmail={userEmail}
             onNavigate={handleNavigate}
             onLogout={handleLogout}
+            onOpenMenu={handleOpenMenu}
           />
         );
     }
@@ -490,7 +512,7 @@ export default function App() {
       ) : (
         <>
           {renderCurrentScreen()}
-          {currentScreen !== 'selectPlan' && (
+          {currentScreen !== 'selectPlan' && subscriptionLoaded && (
             <SideMenu
               visible={menuVisible}
               onClose={() => setMenuVisible(false)}
@@ -523,7 +545,7 @@ export default function App() {
       <CustomAlert
         visible={showCancelSubscriptionAlert}
         title="Cancelar Suscripción"
-        message={`¿Estás seguro de que quieres cancelar tu plan ${subscriptionType === 'pro' ? 'PRO' : 'BÁSICO'}? Perderás acceso a todas las funciones premium y pasarás al plan gratuito.`}
+        message={`¿Estás seguro de que quieres cancelar tu plan ${subscriptionType === 'pro' ? 'PRO' : 'BÁSICO'}? Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago. Después pasarás automáticamente al plan gratuito.`}
         type="warning"
         icon={<MaterialCommunityIcons name="alert" size={32} color={Colors.warning} />}
         buttons={[
