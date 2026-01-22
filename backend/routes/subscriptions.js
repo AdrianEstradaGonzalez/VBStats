@@ -67,11 +67,23 @@ router.get('/:userId', async (req, res) => {
       user.subscription_type = 'free';
     }
 
+    // Check if subscription is marked for cancellation in Stripe
+    let cancelAtPeriodEnd = false;
+    if (stripe && user.stripe_subscription_id) {
+      try {
+        const subscription = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+        cancelAtPeriodEnd = subscription.cancel_at_period_end || false;
+      } catch (stripeErr) {
+        console.error('Error fetching Stripe subscription status:', stripeErr.message);
+      }
+    }
+
     res.json({
       type: user.subscription_type || 'free',
       expiresAt: user.subscription_expires_at,
       stripeCustomerId: user.stripe_customer_id,
       stripeSubscriptionId: user.stripe_subscription_id,
+      cancelAtPeriodEnd: cancelAtPeriodEnd,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);

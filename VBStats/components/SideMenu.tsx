@@ -46,6 +46,7 @@ interface SideMenuProps {
   userName?: string;
   userEmail?: string;
   subscriptionType?: SubscriptionType;
+  subscriptionCancelledPending?: boolean;
 }
 
 export default function SideMenu({
@@ -58,6 +59,7 @@ export default function SideMenu({
   userName = 'Usuario',
   userEmail = 'usuario@vbstats.com',
   subscriptionType = 'free',
+  subscriptionCancelledPending = false,
 }: SideMenuProps) {
   // Define menu items based on subscription type
   const getMenuItems = (): MenuItem[] => {

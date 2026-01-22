@@ -37,6 +37,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>('free');
+  const [subscriptionCancelledPending, setSubscriptionCancelledPending] = useState(false);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const [showSessionAlert, setShowSessionAlert] = useState(false);
   const [sessionCheckBlocked, setSessionCheckBlocked] = useState(false);
@@ -49,6 +50,7 @@ export default function App() {
   const [resumeMatchId, setResumeMatchId] = useState<number | null>(null);
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null);
   const [showCancelSubscriptionAlert, setShowCancelSubscriptionAlert] = useState(false);
+  const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
   // Load teams and subscription from backend when user logs in
@@ -64,10 +66,12 @@ export default function App() {
     try {
       const subscription = await subscriptionService.getSubscription(userId);
       setSubscriptionType(subscription.type);
+      setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
       setSubscriptionLoaded(true);
     } catch (error) {
       console.error('Error loading subscription:', error);
       setSubscriptionType('free');
+      setSubscriptionCancelledPending(false);
       setSubscriptionLoaded(true);
     }
   };
@@ -110,10 +114,12 @@ export default function App() {
       try {
         const subscription = await subscriptionService.getSubscription(user.id);
         setSubscriptionType(subscription.type);
+        setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
         setSubscriptionLoaded(true);
       } catch (subError) {
         console.error('Error loading subscription during login:', subError);
         setSubscriptionType('free');
+        setSubscriptionCancelledPending(false);
         setSubscriptionLoaded(true);
       }
       
@@ -256,11 +262,8 @@ export default function App() {
 
       if (response.ok) {
         setShowCancelSubscriptionAlert(false);
-        Alert.alert(
-          'Suscripción cancelada',
-          'Tu suscripción no se renovará. Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago.',
-          [{ text: 'Entendido' }]
-        );
+        setShowCancelSuccessAlert(true);
+        setSubscriptionCancelledPending(true);
         // Don't change to free immediately - user keeps access until period ends
       } else {
         const errorData = await response.json();
@@ -523,6 +526,7 @@ export default function App() {
               userName={userName}
               userEmail={userEmail}
               subscriptionType={subscriptionType}
+              subscriptionCancelledPending={subscriptionCancelledPending}
             />
           )}
         </>
@@ -565,6 +569,22 @@ export default function App() {
           },
         ]}
         onClose={() => setShowCancelSubscriptionAlert(false)}
+      />
+
+      <CustomAlert
+        visible={showCancelSuccessAlert}
+        title="Suscripción Cancelada"
+        message="Tu suscripción no se renovará. Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago."
+        type="success"
+        icon={<MaterialCommunityIcons name="check-circle" size={32} color="#22c55e" />}
+        buttons={[
+          {
+            text: 'Entendido',
+            onPress: () => setShowCancelSuccessAlert(false),
+            style: 'default',
+          },
+        ]}
+        onClose={() => setShowCancelSuccessAlert(false)}
       />
     </View>
   );

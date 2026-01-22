@@ -97,6 +97,7 @@ export interface UserSubscription {
   expiresAt?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  cancelAtPeriodEnd?: boolean;
 }
 
 export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
