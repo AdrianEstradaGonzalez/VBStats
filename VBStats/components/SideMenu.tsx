@@ -175,8 +175,8 @@ export default function SideMenu({
           {/* Spacer */}
           <View style={styles.spacer} />
 
-          {/* Subscription Management Section */}
-          {subscriptionType !== 'pro' && onUpgradePlan && (
+          {/* Subscription Management Section - show if not pro OR if cancelled pending (to reactivate) */}
+          {(subscriptionType !== 'pro' || subscriptionCancelledPending) && onUpgradePlan && (
             <View style={styles.subscriptionSection}>
               <View style={styles.divider} />
               <TouchableOpacity
@@ -188,31 +188,22 @@ export default function SideMenu({
                 activeOpacity={0.7}
               >
                 <View style={styles.menuIconContainer}>
-                  <MaterialCommunityIcons name="arrow-up-bold" size={24} color="#f59e0b" />
+                  <MaterialCommunityIcons name={subscriptionCancelledPending ? "refresh" : "arrow-up-bold"} size={24} color="#f59e0b" />
                 </View>
-                <Text style={styles.upgradeText}>Mejorar Plan</Text>
+                <Text style={styles.upgradeText}>{subscriptionCancelledPending ? 'Reactivar/Cambiar Plan' : 'Mejorar Plan'}</Text>
                 <MaterialCommunityIcons name="chevron-right" size={20} color="#f59e0b" />
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Cancel Subscription Section */}
-          {subscriptionType !== 'free' && onCancelSubscription && (
+          {/* Subscription pending cancellation notice */}
+          {subscriptionType !== 'free' && subscriptionCancelledPending && (
             <View style={styles.cancelSection}>
-              {subscriptionType === 'pro' && <View style={styles.divider} />}
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  onClose();
-                  onCancelSubscription();
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.menuIconContainer}>
-                  <MaterialCommunityIcons name="cancel" size={24} color={Colors.textSecondary} />
-                </View>
-                <Text style={styles.cancelText}>Cancelar Suscripción</Text>
-              </TouchableOpacity>
+              <View style={styles.divider} />
+              <View style={styles.pendingCancelNotice}>
+                <MaterialCommunityIcons name="clock-outline" size={20} color="#f59e0b" />
+                <Text style={styles.pendingCancelText}>Suscripción cancelada (activa hasta fin de período)</Text>
+              </View>
             </View>
           )}
 
@@ -376,6 +367,22 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     marginLeft: Spacing.md,
+  },
+  pendingCancelNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: BorderRadius.md,
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  pendingCancelText: {
+    fontSize: FontSizes.sm,
+    color: '#f59e0b',
+    marginLeft: Spacing.sm,
+    flex: 1,
   },
   logoutSection: {
     paddingBottom: Spacing.xl,

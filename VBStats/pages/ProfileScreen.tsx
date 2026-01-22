@@ -257,24 +257,6 @@ export default function ProfileScreen({
               </Text>
             </View>
           </View>
-
-          {subscriptionType !== 'free' && (
-            <TouchableOpacity
-              style={[styles.cancelButton, isCancelling && styles.buttonDisabled]}
-              onPress={() => setShowCancelConfirm(true)}
-              disabled={isCancelling}
-              activeOpacity={0.8}
-            >
-              {isCancelling ? (
-                <ActivityIndicator size="small" color="#ef4444" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="cancel" size={20} color="#ef4444" />
-                  <Text style={styles.cancelButtonText}>Cancelar Suscripción</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
         </View>
 
         {/* Divider */}
@@ -346,6 +328,37 @@ export default function ProfileScreen({
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Sección de cancelar suscripción - al final */}
+        {subscriptionType !== 'free' && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.dangerZone}>
+              <View style={styles.dangerZoneHeader}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={Colors.textTertiary} />
+                <Text style={styles.dangerZoneTitle}>Zona de gestión</Text>
+              </View>
+              <Text style={styles.dangerZoneDescription}>
+                Si cancelas tu suscripción, mantendrás acceso a las funciones premium hasta el final del período de facturación actual.
+              </Text>
+              <TouchableOpacity
+                style={[styles.cancelSubscriptionButton, isCancelling && styles.buttonDisabled]}
+                onPress={() => setShowCancelConfirm(true)}
+                disabled={isCancelling}
+                activeOpacity={0.7}
+              >
+                {isCancelling ? (
+                  <ActivityIndicator size="small" color={Colors.textTertiary} />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="cancel" size={18} color={Colors.textTertiary} />
+                    <Text style={styles.cancelSubscriptionText}>Cancelar suscripción</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Alerta de éxito */}
@@ -604,20 +617,42 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '600',
   },
-  cancelButton: {
+  dangerZone: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+  },
+  dangerZoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  dangerZoneTitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textTertiary,
+    fontWeight: '500',
+  },
+  dangerZoneDescription: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    lineHeight: 18,
+    marginBottom: Spacing.md,
+  },
+  cancelSubscriptionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderWidth: 1,
-    borderColor: '#ef4444',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: 'transparent',
+    gap: Spacing.xs,
   },
-  cancelButtonText: {
-    color: '#ef4444',
-    fontSize: FontSizes.md,
-    fontWeight: '600',
+  cancelSubscriptionText: {
+    color: Colors.textTertiary,
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
   },
 });
