@@ -6,14 +6,15 @@ const { pool } = require('../db');
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 let stripe;
 
-if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY === 'sk_test_placeholder' || STRIPE_SECRET_KEY === 'sk_test_tu_clave_secreta_aqui') {
+if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.startsWith('sk_test_tu_clave') || STRIPE_SECRET_KEY === 'sk_test_placeholder') {
   console.error('⚠️  STRIPE_SECRET_KEY no está configurada correctamente en las variables de entorno');
   console.error('⚠️  Configura STRIPE_SECRET_KEY en Render Dashboard > Environment');
   stripe = null;
 } else {
   try {
     stripe = require('stripe')(STRIPE_SECRET_KEY);
-    console.log('✅ Stripe configurado correctamente');
+    const keyType = STRIPE_SECRET_KEY.startsWith('sk_live_') ? 'LIVE (Producción)' : 'TEST (Pruebas)';
+    console.log(`✅ Stripe configurado correctamente - Modo: ${keyType}`);
   } catch (e) {
     console.error('❌ Error al inicializar Stripe:', e.message);
     stripe = null;
