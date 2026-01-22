@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, StatusBar, Alert, Platform } from "react-native";
+import { View, StatusBar, Alert, Platform, ActivityIndicator } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { 
   LoginScreen,
@@ -27,7 +28,20 @@ import { SubscriptionType, subscriptionService } from "./services/subscriptionSe
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan';
 
+// Keys for AsyncStorage
+const STORAGE_KEYS = {
+  USER_SESSION: '@VBStats:userSession',
+};
+
+interface StoredSession {
+  userId: number;
+  userName: string;
+  userEmail: string;
+  sessionToken: string | null;
+}
+
 export default function App() {
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showSelectPlan, setShowSelectPlan] = useState(false);
@@ -52,6 +66,63 @@ export default function App() {
   const [showCancelSubscriptionAlert, setShowCancelSubscriptionAlert] = useState(false);
   const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Load saved session on app start
+  useEffect(() => {
+    loadSavedSession();
+  }, []);
+
+  const loadSavedSession = async () => {
+    try {
+      const savedSession = await AsyncStorage.getItem(STORAGE_KEYS.USER_SESSION);
+      if (savedSession) {
+        const session: StoredSession = JSON.parse(savedSession);
+        // Verify session is still valid on server
+        try {
+          const currentSession = await usersService.getSession(session.userId);
+          // Check if session token matches (session still valid)
+          if (currentSession.session_token === session.sessionToken) {
+            setUserId(session.userId);
+            setUserName(session.userName);
+            setUserEmail(session.userEmail);
+            setSessionToken(session.sessionToken);
+            setIsLoggedIn(true);
+          } else {
+            // Session invalidated (logged in elsewhere), clear stored session
+            await AsyncStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+          }
+        } catch (error) {
+          console.warn('Error verifying session, keeping local session:', error);
+          // If server check fails, still use local session (offline support)
+          setUserId(session.userId);
+          setUserName(session.userName);
+          setUserEmail(session.userEmail);
+          setSessionToken(session.sessionToken);
+          setIsLoggedIn(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading saved session:', error);
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
+
+  const saveSession = async (session: StoredSession) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(session));
+    } catch (error) {
+      console.error('Error saving session:', error);
+    }
+  };
+
+  const clearSession = async () => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+    } catch (error) {
+      console.error('Error clearing session:', error);
+    }
+  };
 
   // Load teams and subscription from backend when user logs in
   useEffect(() => {
@@ -105,10 +176,20 @@ export default function App() {
   const handleLogin = async (email: string, password: string): Promise<boolean> => {
     try {
       const user = await usersService.login({ email, password });
+      const name = user.name || email.split("@")[0];
+      
       setUserId(user.id);
-      setUserName(user.name || email.split("@")[0]);
+      setUserName(name);
       setUserEmail(user.email);
       setSessionToken(user.session_token || null);
+      
+      // Save session to persist login
+      await saveSession({
+        userId: user.id,
+        userName: name,
+        userEmail: user.email,
+        sessionToken: user.session_token || null,
+      });
       
       // Load subscription BEFORE marking as logged in
       try {
@@ -194,6 +275,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    // Clear saved session first
+    await clearSession();
+    
     if (userId) {
       try {
         await usersService.logout(userId);
@@ -207,6 +291,7 @@ export default function App() {
     setUserEmail("");
     setSessionToken(null);
     setSubscriptionType('free');
+    setSubscriptionCancelledPending(false);
     setSubscriptionLoaded(false);
     setCurrentScreen('home');
     setMenuVisible(false);
@@ -489,7 +574,12 @@ export default function App() {
         backgroundColor={Colors.background}
         translucent={false}
       />
-      {!isLoggedIn ? (
+      {isLoadingSession ? (
+        // Pantalla de carga mientras se verifica la sesión
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : !isLoggedIn ? (
         showSelectPlan ? (
           <SelectPlanScreen
             onPlanSelected={handlePlanSelected}

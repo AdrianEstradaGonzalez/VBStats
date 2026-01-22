@@ -179,12 +179,31 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     if (!selectedPosition) return;
     
     const newSettings: Record<string, boolean> = {};
+    let blockedStats: string[] = [];
+    
     POSITION_STATS[selectedPosition].forEach(statConfig => {
       statConfig.types.forEach(type => {
         const key = `${statConfig.category}|${type}`;
+        
+        // Check if user is trying to enable a setting not available in basic plan
+        if (isBasicSubscription && enable) {
+          if (!subscriptionService.canEnableStatInBasic(statConfig.category, type)) {
+            blockedStats.push(`${statConfig.category} - ${type}`);
+            newSettings[key] = false; // Keep disabled
+            return;
+          }
+        }
+        
         newSettings[key] = enable;
       });
     });
+    
+    // If some stats were blocked, show upgrade alert
+    if (blockedStats.length > 0) {
+      setBlockedFeature(`${blockedStats.length} estadísticas bloqueadas`);
+      setShowProUpgradeAlert(true);
+    }
+    
     setSettings(newSettings);
   };
 
@@ -194,14 +213,32 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     const categoryStats = POSITION_STATS[selectedPosition].find(s => s.category === category);
     if (!categoryStats) return;
 
+    let blockedStats: string[] = [];
+
     setSettings(prev => {
       const newSettings = { ...prev };
       categoryStats.types.forEach(type => {
         const key = `${category}|${type}`;
+        
+        // Check if user is trying to enable a setting not available in basic plan
+        if (isBasicSubscription && enable) {
+          if (!subscriptionService.canEnableStatInBasic(category, type)) {
+            blockedStats.push(`${category} - ${type}`);
+            // Keep the current value (don't enable)
+            return;
+          }
+        }
+        
         newSettings[key] = enable;
       });
       return newSettings;
     });
+    
+    // If some stats were blocked, show upgrade alert
+    if (blockedStats.length > 0) {
+      setBlockedFeature(`Algunas estadísticas de ${category}`);
+      setShowProUpgradeAlert(true);
+    }
   };
 
   const areAllEnabled = () => {
