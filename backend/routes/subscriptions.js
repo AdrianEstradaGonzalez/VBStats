@@ -103,35 +103,48 @@ router.put('/:userId', async (req, res) => {
 
 // Create Stripe checkout session
 router.post('/create-checkout', async (req, res) => {
+  console.log('📦 Create checkout request:', req.body);
+  
   if (!stripe) {
-    return res.status(503).json({ error: 'Payment service not available' });
+    console.error('❌ Stripe not configured');
+    return res.status(503).json({ 
+      error: 'Servicio de pago no disponible. Configura STRIPE_SECRET_KEY en el servidor.' 
+    });
   }
 
   try {
     const { userId, priceId, platform } = req.body;
 
     if (!userId || !priceId) {
-      return res.status(400).json({ error: 'userId and priceId are required' });
+      return res.status(400).json({ error: 'userId y priceId son requeridos' });
     }
 
+    console.log('🔍 Getting user:', userId);
+    
     // Get user email
     const [users] = await pool.query('SELECT email, stripe_customer_id FROM users WHERE id = ?', [userId]);
     if (users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     const user = users[0];
     let customerId = user.stripe_customer_id;
 
+    console.log('👤 User:', user.email, 'Customer ID:', customerId);
+
     // Create Stripe customer if doesn't exist
     if (!customerId) {
+      console.log('➕ Creating Stripe customer...');
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: { userId: userId.toString() },
       });
       customerId = customer.id;
       await pool.query('UPDATE users SET stripe_customer_id = ? WHERE id = ?', [customerId, userId]);
+      console.log('✅ Customer created:', customerId);
     }
+
+    console.log('💳 Creating checkout session with priceId:', priceId);
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -151,10 +164,23 @@ router.post('/create-checkout', async (req, res) => {
       },
     });
 
+    console.log('✅ Checkout session created:', session.id);
     res.json({ url: session.url, sessionId: session.id });
   } catch (error) {
-    console.error('Error creating checkout session:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
+    console.error('❌ Error creating checkout session:', error.message);
+    console.error('Error details:', error);
+    
+    let errorMessage = 'Error al crear sesión de pago';
+    if (error.code === 'resource_missing') {
+      errorMessage = 'Price ID no válido. Configura los productos en Stripe Dashboard.';
+    } else if (error.type === 'StripeAuthenticationError') {
+      errorMessage = 'Clave de Stripe inválida. Verifica STRIPE_SECRET_KEY.';
+    }
+    
+    res.status(500).json({ 
+      error: errorMessage,
+      details: error.message 
+    });
   }
 });
 

@@ -99,9 +99,11 @@ export interface UserSubscription {
   stripeSubscriptionId?: string;
 }
 
-const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
+export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
 
 export const subscriptionService = {
+  SUBSCRIPTIONS_URL,
+  
   // Get user's current subscription
   getSubscription: async (userId: number): Promise<UserSubscription> => {
     try {

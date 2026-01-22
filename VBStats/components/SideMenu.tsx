@@ -41,6 +41,8 @@ interface SideMenuProps {
   onClose: () => void;
   onNavigate: (screen: string) => void;
   onLogout: () => void;
+  onUpgradePlan?: () => void;
+  onCancelSubscription?: () => void;
   userName?: string;
   userEmail?: string;
   subscriptionType?: SubscriptionType;
@@ -51,6 +53,8 @@ export default function SideMenu({
   onClose,
   onNavigate,
   onLogout,
+  onUpgradePlan,
+  onCancelSubscription,
   userName = 'Usuario',
   userEmail = 'usuario@vbstats.com',
   subscriptionType = 'free',
@@ -168,6 +172,47 @@ export default function SideMenu({
 
           {/* Spacer */}
           <View style={styles.spacer} />
+
+          {/* Subscription Management Section */}
+          {subscriptionType !== 'pro' && onUpgradePlan && (
+            <View style={styles.subscriptionSection}>
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={styles.upgradeButton}
+                onPress={() => {
+                  onClose();
+                  onUpgradePlan();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconContainer}>
+                  <MaterialCommunityIcons name="arrow-up-bold" size={24} color="#f59e0b" />
+                </View>
+                <Text style={styles.upgradeText}>Mejorar Plan</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#f59e0b" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Cancel Subscription Section */}
+          {subscriptionType !== 'free' && onCancelSubscription && (
+            <View style={styles.cancelSection}>
+              {subscriptionType === 'pro' && <View style={styles.divider} />}
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  onClose();
+                  onCancelSubscription();
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconContainer}>
+                  <MaterialCommunityIcons name="cancel" size={24} color={Colors.textSecondary} />
+                </View>
+                <Text style={styles.cancelText}>Cancelar Suscripción</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Cerrar sesión */}
           <View style={styles.logoutSection}>
@@ -298,6 +343,37 @@ const styles = StyleSheet.create({
   },
   spacer: {
     flex: 1,
+  },
+  subscriptionSection: {
+    paddingBottom: Spacing.sm,
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+  },
+  upgradeText: {
+    flex: 1,
+    fontSize: FontSizes.md,
+    color: '#f59e0b',
+    fontWeight: '600',
+    marginLeft: Spacing.md,
+  },
+  cancelSection: {
+    paddingBottom: Spacing.sm,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  cancelText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.md,
   },
   logoutSection: {
     paddingBottom: Spacing.xl,

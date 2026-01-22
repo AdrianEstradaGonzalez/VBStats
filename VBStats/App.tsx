@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, StatusBar, Alert, Platform } from "react-native";
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { 
   LoginScreen,
   SignUpScreen,
@@ -46,6 +47,8 @@ export default function App() {
   const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
   const [resumeMatchId, setResumeMatchId] = useState<number | null>(null);
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null);
+  const [showCancelSubscriptionAlert, setShowCancelSubscriptionAlert] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Load teams and subscription from backend when user logs in
   useEffect(() => {
@@ -222,6 +225,39 @@ export default function App() {
 
   const handleOpenMenu = () => {
     setMenuVisible(true);
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!userId) return;
+    
+    setIsCancelling(true);
+    try {
+      const response = await fetch(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        // Update to free plan
+        await subscriptionService.updateSubscription(userId, 'free');
+        setSubscriptionType('free');
+        setShowCancelSubscriptionAlert(false);
+        Alert.alert(
+          'Suscripción cancelada',
+          'Tu suscripción ha sido cancelada. Ahora tienes acceso al plan gratuito.',
+          [{ text: 'Entendido' }]
+        );
+        // Navigate to search by code screen for free users
+        setCurrentScreen('searchByCode');
+      } else {
+        Alert.alert('Error', 'No se pudo cancelar la suscripción. Inténtalo de nuevo.');
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      Alert.alert('Error', 'Error al cancelar la suscripción.');
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const renderCurrentScreen = () => {
@@ -454,12 +490,14 @@ export default function App() {
       ) : (
         <>
           {renderCurrentScreen()}
-          {currentScreen !== 'home' && currentScreen !== 'selectPlan' && (
+          {currentScreen !== 'selectPlan' && (
             <SideMenu
               visible={menuVisible}
               onClose={() => setMenuVisible(false)}
               onNavigate={handleNavigate}
               onLogout={handleLogout}
+              onUpgradePlan={handleUpgradeToPro}
+              onCancelSubscription={() => setShowCancelSubscriptionAlert(true)}
               userName={userName}
               userEmail={userEmail}
               subscriptionType={subscriptionType}
@@ -480,6 +518,31 @@ export default function App() {
           },
         ]}
         onClose={handleForcedLogout}
+      />
+
+      <CustomAlert
+        visible={showCancelSubscriptionAlert}
+        title="Cancelar Suscripción"
+        message={`¿Estás seguro de que quieres cancelar tu plan ${subscriptionType === 'pro' ? 'PRO' : 'BÁSICO'}? Perderás acceso a todas las funciones premium y pasarás al plan gratuito.`}
+        type="warning"
+        icon={<MaterialCommunityIcons name="alert" size={32} color={Colors.warning} />}
+        buttons={[
+          {
+            text: 'No, mantener',
+            onPress: () => setShowCancelSubscriptionAlert(false),
+            style: 'cancel',
+          },
+          {
+            text: isCancelling ? 'Cancelando...' : 'Sí, cancelar',
+            onPress: () => {
+              if (!isCancelling) {
+                handleCancelSubscription();
+              }
+            },
+            style: 'destructive',
+          },
+        ]}
+        onClose={() => setShowCancelSubscriptionAlert(false)}
       />
     </View>
   );
