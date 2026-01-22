@@ -32,6 +32,7 @@ export interface Match {
   score_home: number | null;
   score_away: number | null;
   notes: string | null;
+  share_code?: string | null;
   created_at?: string;
   finished_at?: string | null;
 }

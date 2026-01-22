@@ -15,20 +15,27 @@ import {
   Team,
   MatchDetails,
 } from "./pages";
+import SelectPlanScreen from "./pages/SelectPlanScreen";
+import SearchByCodeScreen from "./pages/SearchByCodeScreen";
+import ScoreboardScreen from "./pages/ScoreboardScreen";
 import { Colors } from "./styles";
 import { SideMenu } from "./components";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
+import { SubscriptionType, subscriptionService } from "./services/subscriptionService";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [showSelectPlan, setShowSelectPlan] = useState(false);
+  const [pendingRegistration, setPendingRegistration] = useState<{ email: string; password: string; name?: string } | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>('free');
   const [showSessionAlert, setShowSessionAlert] = useState(false);
   const [sessionCheckBlocked, setSessionCheckBlocked] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -38,13 +45,26 @@ export default function App() {
   const [selectedTeamName, setSelectedTeamName] = useState<string>("");
   const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
   const [resumeMatchId, setResumeMatchId] = useState<number | null>(null);
+  const [viewingMatch, setViewingMatch] = useState<Match | null>(null);
 
-  // Load teams from backend when user logs in
+  // Load teams and subscription from backend when user logs in
   useEffect(() => {
     if (isLoggedIn && userId) {
       loadTeams();
+      loadSubscription();
     }
   }, [isLoggedIn, userId]);
+
+  const loadSubscription = async () => {
+    if (!userId) return;
+    try {
+      const subscription = await subscriptionService.getSubscription(userId);
+      setSubscriptionType(subscription.type);
+    } catch (error) {
+      console.error('Error loading subscription:', error);
+      setSubscriptionType('free');
+    }
+  };
 
   const loadTeams = async () => {
     if (!userId) return;
@@ -94,18 +114,41 @@ export default function App() {
   const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
     try {
       const user = await usersService.register({ email, password, name });
-      // Después de registrar exitosamente, iniciamos sesión automáticamente
+      // Después de registrar exitosamente, guardamos datos y mostramos selección de plan
       setUserId(user.id);
       setUserName(user.name || email.split("@")[0]);
       setUserEmail(user.email);
       setSessionToken(user.session_token || null);
-      setIsLoggedIn(true);
+      setPendingRegistration({ email, password, name });
       setShowSignUp(false);
+      setShowSelectPlan(true);
       return true;
     } catch (error) {
       console.error('Sign up error:', error);
       return false;
     }
+  };
+
+  const handlePlanSelected = async (plan: SubscriptionType) => {
+    if (userId) {
+      try {
+        await subscriptionService.updateSubscription(userId, plan);
+        setSubscriptionType(plan);
+      } catch (error) {
+        console.error('Error updating subscription:', error);
+      }
+    }
+    setShowSelectPlan(false);
+    setPendingRegistration(null);
+    setIsLoggedIn(true);
+    // Free users go to searchByCode screen
+    if (plan === 'free') {
+      setCurrentScreen('searchByCode');
+    }
+  };
+
+  const handleUpgradeToPro = () => {
+    setCurrentScreen('selectPlan');
   };
 
   const handleShowSignUp = () => {
@@ -183,6 +226,31 @@ export default function App() {
 
   const renderCurrentScreen = () => {
     switch (currentScreen) {
+      case 'selectPlan':
+        return (
+          <SelectPlanScreen
+            onPlanSelected={handlePlanSelected}
+            onBack={() => setCurrentScreen('home')}
+            currentPlan={subscriptionType}
+            userId={userId}
+          />
+        );
+      case 'searchByCode':
+        return (
+          <SearchByCodeScreen
+            onOpenMenu={handleOpenMenu}
+            onMatchFound={(match) => {
+              setViewingMatch(match);
+              setCurrentScreen('stats');
+            }}
+          />
+        );
+      case 'scoreboard':
+        return (
+          <ScoreboardScreen
+            onOpenMenu={handleOpenMenu}
+          />
+        );
       case 'teams':
         return (
           <TeamsScreen 
@@ -190,6 +258,8 @@ export default function App() {
             teams={teams}
             onTeamsChange={setTeams}
             userId={userId}
+            subscriptionType={subscriptionType}
+            onUpgradeToPro={handleUpgradeToPro}
           />
         );
       case 'selectTeam':
@@ -314,6 +384,8 @@ export default function App() {
           <SettingsScreen 
             onOpenMenu={handleOpenMenu}
             userId={userId}
+            subscriptionType={subscriptionType}
+            onUpgradeToPro={handleUpgradeToPro}
           />
         );
       case 'profile':
@@ -326,6 +398,18 @@ export default function App() {
           />
         );
       default:
+        // Free users see search by code screen as home
+        if (subscriptionType === 'free') {
+          return (
+            <SearchByCodeScreen
+              onOpenMenu={handleOpenMenu}
+              onMatchFound={(match) => {
+                setViewingMatch(match);
+                setCurrentScreen('stats');
+              }}
+            />
+          );
+        }
         return (
           <HomeScreen 
             userName={userName}
@@ -345,7 +429,17 @@ export default function App() {
         translucent={false}
       />
       {!isLoggedIn ? (
-        showSignUp ? (
+        showSelectPlan ? (
+          <SelectPlanScreen
+            onPlanSelected={handlePlanSelected}
+            onBack={() => {
+              setShowSelectPlan(false);
+              setShowSignUp(true);
+            }}
+            currentPlan="free"
+            userId={userId}
+          />
+        ) : showSignUp ? (
           <SignUpScreen
             onSignUp={handleSignUp}
             onBackToLogin={handleBackToLogin}
@@ -360,7 +454,7 @@ export default function App() {
       ) : (
         <>
           {renderCurrentScreen()}
-          {currentScreen !== 'home' && (
+          {currentScreen !== 'home' && currentScreen !== 'selectPlan' && (
             <SideMenu
               visible={menuVisible}
               onClose={() => setMenuVisible(false)}
@@ -368,6 +462,7 @@ export default function App() {
               onLogout={handleLogout}
               userName={userName}
               userEmail={userEmail}
+              subscriptionType={subscriptionType}
             />
           )}
         </>

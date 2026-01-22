@@ -8,6 +8,7 @@ export const Colors = {
   primary: '#e21d66',
   secondary: '#010000',
   tertiary: '#51313d',
+  accent: '#f59e0b',
   
   // Variantes del primario
   primaryLight: '#ff4d8f',

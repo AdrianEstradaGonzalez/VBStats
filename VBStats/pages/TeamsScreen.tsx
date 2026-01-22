@@ -29,8 +29,10 @@ import {
   MenuIcon,
   VolleyballIcon,
 } from '../components/VectorIcons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CustomAlert } from '../components';
 import { teamsService, playersService, Team, Player } from '../services/api';
+import { SubscriptionType, subscriptionService, BASIC_MAX_TEAMS } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -42,6 +44,8 @@ interface TeamsScreenProps {
   teams: Team[];
   onTeamsChange: (teams: Team[]) => void;
   userId: number | null;
+  subscriptionType?: SubscriptionType;
+  onUpgradeToPro?: () => void;
 }
 
 const POSITIONS = ['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'] as const;
@@ -70,12 +74,13 @@ const sortPlayers = (players: Player[]): Player[] => {
   });
 };
 
-export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, userId }: TeamsScreenProps) {
+export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, userId, subscriptionType = 'pro', onUpgradeToPro }: TeamsScreenProps) {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [showEditPlayerModal, setShowEditPlayerModal] = useState(false);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showTeamLimitAlert, setShowTeamLimitAlert] = useState(false);
   const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
   const [newTeamName, setNewTeamName] = useState('');
   const [newPlayer, setNewPlayer] = useState<{
@@ -307,7 +312,14 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
 
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => setShowTeamModal(true)}
+            onPress={() => {
+              // Check team limit for basic subscription
+              if (!subscriptionService.canCreateTeam(subscriptionType, teams.length)) {
+                setShowTeamLimitAlert(true);
+                return;
+              }
+              setShowTeamModal(true);
+            }}
             activeOpacity={0.7}
           >
             <AddIcon size={24} color={Colors.textOnPrimary} />
@@ -677,6 +689,33 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
             text: 'Eliminar',
             onPress: confirmDeleteTeam,
             style: 'destructive',
+          },
+        ]}
+      />
+
+      {/* Modal de límite de equipos para cuenta básica */}
+      <CustomAlert
+        visible={showTeamLimitAlert}
+        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        title="Límite de equipos alcanzado"
+        message={`Con la cuenta Básica puedes crear hasta ${BASIC_MAX_TEAMS} equipos. Actualmente tienes ${teams.length} equipos.`}
+        warning="Mejora a VBStats Pro para crear equipos ilimitados."
+        buttonLayout="column"
+        buttons={[
+          {
+            text: 'Obtener VBStats Pro',
+            icon: <MaterialCommunityIcons name="crown" size={18} color="#fff" />,
+            onPress: () => {
+              setShowTeamLimitAlert(false);
+              onUpgradeToPro?.();
+            },
+            style: 'primary',
+          },
+          {
+            text: 'Cancelar',
+            onPress: () => setShowTeamLimitAlert(false),
+            style: 'cancel',
           },
         ]}
       />

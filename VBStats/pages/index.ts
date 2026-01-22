@@ -14,6 +14,9 @@ export { default as StatsScreen } from './StatsScreen';
 export { default as MatchStatsScreen } from './MatchStatsScreen';
 export { default as SettingsScreen } from './SettingsScreen';
 export { default as ProfileScreen } from './ProfileScreen';
+export { default as SelectPlanScreen } from './SelectPlanScreen';
+export { default as SearchByCodeScreen } from './SearchByCodeScreen';
+export { default as ScoreboardScreen } from './ScoreboardScreen';
 export type { Team, Player } from '../services/api';
 export type { MatchDetails } from './MatchDetailsScreen';
 

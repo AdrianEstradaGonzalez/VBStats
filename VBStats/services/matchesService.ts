@@ -126,4 +126,21 @@ export const matchesService = {
       throw new Error('Failed to delete match state');
     }
   },
+
+  // Generate a share code for the match
+  generateShareCode: async (matchId: number): Promise<{ share_code: string }> => {
+    const response = await fetch(`${API_ENDPOINTS.matches}/${matchId}/generate-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error('Failed to generate share code');
+    return response.json();
+  },
+
+  // Get match by share code
+  getByShareCode: async (code: string): Promise<Match> => {
+    const response = await fetch(`${API_ENDPOINTS.matches}/by-code/${code}`);
+    if (!response.ok) throw new Error('Failed to fetch match by code');
+    return response.json();
+  },
 };

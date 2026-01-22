@@ -12,9 +12,14 @@ const stats = require('./routes/stats');
 const settings = require('./routes/settings');
 const users = require('./routes/users');
 const migrate = require('./routes/migrate');
+const subscriptions = require('./routes/subscriptions');
 
 const app = express();
 app.use(cors());
+
+// Stripe webhook needs raw body - must be before json middleware
+app.use('/api/subscriptions/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -34,6 +39,7 @@ app.use('/api/stats', stats);
 app.use('/api/settings', settings);
 app.use('/api/users', users);
 app.use('/api/migrate', migrate);
+app.use('/api/subscriptions', subscriptions);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

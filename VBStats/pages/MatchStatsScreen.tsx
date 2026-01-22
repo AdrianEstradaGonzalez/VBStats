@@ -23,6 +23,7 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
+import { SubscriptionType } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -32,6 +33,7 @@ interface MatchStatsScreenProps {
   match: Match;
   onBack: () => void;
   onOpenMenu?: () => void;
+  subscriptionType?: SubscriptionType;
 }
 
 // Función para obtener color según el tipo de stat
@@ -94,15 +96,19 @@ const sortCategories = (categories: string[]): string[] => {
   });
 };
 
-export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchStatsScreenProps) {
+export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscriptionType = 'pro' }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
+  const [shareCode, setShareCode] = useState<string | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const playerFilterScrollRef = useRef<ScrollView>(null);
+
+  const isBasicSubscription = subscriptionType === 'basic';
 
   useEffect(() => {
     loadMatchStats();
@@ -409,15 +415,84 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
     return stats.map(item => item.statType);
   };
 
+  // Generate or get share code for the match
+  const generateShareCode = async (): Promise<string> => {
+    // If match already has a share code, use it
+    if (match.share_code) {
+      return match.share_code;
+    }
+    
+    // If we already generated a code in this session, use it
+    if (shareCode) {
+      return shareCode;
+    }
+    
+    // Generate new code via API
+    setGeneratingCode(true);
+    try {
+      const response = await matchesService.generateShareCode(match.id);
+      setShareCode(response.share_code);
+      return response.share_code;
+    } catch (error) {
+      console.error('Error generating share code:', error);
+      // Generate local code as fallback
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
   const generateAndShareReport = async () => {
     try {
+      // Get or generate share code
+      const code = await generateShareCode();
+      
       // Generar título del informe
       const matchInfo = `${match.team_name || 'Mi equipo'}${match.opponent ? ` vs ${match.opponent}` : ''}`;
       const dateStr = formatDate(match.date);
       const scoreStr = (match.score_home !== null && match.score_away !== null) 
         ? `\nResultado: ${match.score_home} - ${match.score_away}` 
         : '';
+
+      // For basic subscriptions, generate a summary report
+      if (isBasicSubscription) {
+        let reportText = `◆ RESUMEN DE PARTIDO\n`;
+        reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        reportText += `Fecha: ${dateStr}\n`;
+        reportText += `Partido: ${matchInfo}${scoreStr}\n\n`;
+
+        // Summary performance
+        reportText += `📊 Resumen: G-P ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
+
+        // Simple category breakdown (just totals)
+        reportText += `◆ POR CATEGORÍA\n`;
+        orderedCategoryKeys.slice(0, 4).forEach((category) => {
+          const stats = statsByCategory[category] || [];
+          const total = stats.reduce((sum, s) => sum + s.count, 0);
+          if (total === 0) return;
+          reportText += `• ${category}: ${total} acciones\n`;
+        });
+
+        reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        reportText += `📱 CÓDIGO DEL PARTIDO: ${code}\n`;
+        reportText += `\nDescarga VBStats para ver el informe completo\n`;
+        reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        reportText += `Generado con VBStats\n`;
+        reportText += `BlueDeBug.com`;
+
+        await Share.share({
+          message: reportText,
+          title: `Estadísticas: ${matchInfo}`,
+        });
+        return;
+      }
       
+      // Full report for pro users
       // Filtros aplicados
       let filterInfo = '';
       if (selectedSet !== 'all') {
@@ -482,6 +557,9 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       }
 
       reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      reportText += `📱 CÓDIGO: ${code}\n`;
+      reportText += `Ver informe en la app con cuenta gratuita\n`;
+      reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
       reportText += `Generado con VBStats\n`;
       reportText += `BlueDeBug.com`;
 

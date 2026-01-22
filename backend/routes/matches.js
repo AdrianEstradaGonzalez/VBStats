@@ -94,6 +94,66 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// Get match by share code (for free account users)
+router.get('/by-code/:code', async (req, res) => {
+  try {
+    const code = req.params.code.toUpperCase();
+    
+    const [matches] = await pool.query(`
+      SELECT m.*, t.name as team_name 
+      FROM matches m 
+      LEFT JOIN teams t ON m.team_id = t.id 
+      WHERE m.share_code = ?
+    `, [code]);
+    
+    if (!matches.length) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+    
+    res.json(matches[0]);
+  } catch (error) {
+    console.error('Error fetching match by code:', error);
+    res.status(500).json({ error: 'Failed to fetch match' });
+  }
+});
+
+// Generate share code for a match
+router.post('/:id/generate-code', async (req, res) => {
+  try {
+    const matchId = req.params.id;
+    
+    // Generate unique code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code;
+    let isUnique = false;
+    
+    while (!isUnique) {
+      code = '';
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      
+      // Check if code is unique
+      const [existing] = await pool.query(
+        'SELECT id FROM matches WHERE share_code = ?',
+        [code]
+      );
+      isUnique = existing.length === 0;
+    }
+    
+    // Update match with new code
+    await pool.query(
+      'UPDATE matches SET share_code = ? WHERE id = ?',
+      [code, matchId]
+    );
+    
+    res.json({ share_code: code });
+  } catch (error) {
+    console.error('Error generating share code:', error);
+    res.status(500).json({ error: 'Failed to generate share code' });
+  }
+});
+
 // Update match (e.g., finish match, update sets)
 router.put('/:id', async (req, res) => {
   try {

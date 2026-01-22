@@ -41,6 +41,7 @@ import {
 import { CustomAlert, CustomAlertButton } from '../components';
 import { settingsService } from '../services/api';
 import { POSITION_STATS, Position, StatTemplates, TemplateMode } from '../services/statTemplates';
+import { SubscriptionType, subscriptionService, BASIC_ENABLED_STATS } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -50,11 +51,13 @@ interface SettingsScreenProps {
   onBack?: () => void;
   onOpenMenu?: () => void;
   userId?: number | null;
+  subscriptionType?: SubscriptionType;
+  onUpgradeToPro?: () => void;
 }
 
 const POSITIONS = Object.keys(POSITION_STATS) as Position[];
 
-export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsScreenProps) {
+export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptionType = 'pro', onUpgradeToPro }: SettingsScreenProps) {
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [settings, setSettings] = useState<Record<string, boolean>>({});
   const [originalSettings, setOriginalSettings] = useState<Record<string, boolean>>({});
@@ -63,9 +66,13 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
   const [showUnsavedAlert, setShowUnsavedAlert] = useState(false);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showVersionAlert, setShowVersionAlert] = useState(false);
+  const [showProUpgradeAlert, setShowProUpgradeAlert] = useState(false);
+  const [blockedFeature, setBlockedFeature] = useState<string>('');
   const [applyingVersion, setApplyingVersion] = useState<'basic' | 'advanced' | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<TemplateMode | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+
+  const isBasicSubscription = subscriptionType === 'basic';
 
   useEffect(() => {
     if (selectedPosition) {
@@ -150,14 +157,22 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
 
   const toggleSetting = (category: string, type: string) => {
     const key = `${category}|${type}`;
-    setSettings(prev => {
-      const currentValue = prev[key];
-      const newValue = currentValue === true ? false : true; // Strict boolean toggle
-      return {
-        ...prev,
-        [key]: newValue,
-      };
-    });
+    const currentValue = settings[key];
+    const newValue = currentValue === true ? false : true;
+
+    // Check if user is trying to enable a setting not available in basic plan
+    if (isBasicSubscription && newValue === true) {
+      if (!subscriptionService.canEnableStatInBasic(category, type)) {
+        setBlockedFeature(`${category} - ${type}`);
+        setShowProUpgradeAlert(true);
+        return;
+      }
+    }
+
+    setSettings(prev => ({
+      ...prev,
+      [key]: newValue,
+    }));
   };
 
   const toggleAllSettings = (enable: boolean) => {
@@ -560,17 +575,44 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId }: SettingsS
             onPress: () => handleApplyVersion('basic'),
             style: 'default',
           },
-          {
+          ...(isBasicSubscription ? [] : [{
             text: applyingVersion === 'advanced' ? 'Aplicando...' : 'Avanzada',
             icon: applyingVersion === 'advanced'
               ? undefined
               : <MaterialCommunityIcons name="chart-line" size={18} color={Colors.textOnPrimary} />,
             onPress: () => handleApplyVersion('advanced'),
-            style: 'default',
-          },
+            style: 'default' as const,
+          }]),
           {
             text: 'Cancelar',
             onPress: () => setShowVersionAlert(false),
+            style: 'cancel',
+          },
+        ]}
+      />
+
+      {/* Pro Upgrade Alert */}
+      <CustomAlert
+        visible={showProUpgradeAlert}
+        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        title="Función VBStats Pro"
+        message={`"${blockedFeature}" es una función de estadísticas avanzadas disponible solo en VBStats Pro.`}
+        warning="Mejora tu plan para acceder a todas las estadísticas y configuraciones."
+        buttonLayout="column"
+        buttons={[
+          {
+            text: 'Obtener VBStats Pro',
+            icon: <MaterialCommunityIcons name="crown" size={18} color="#fff" />,
+            onPress: () => {
+              setShowProUpgradeAlert(false);
+              onUpgradeToPro?.();
+            },
+            style: 'primary',
+          },
+          {
+            text: 'Cancelar',
+            onPress: () => setShowProUpgradeAlert(false),
             style: 'cancel',
           },
         ]}

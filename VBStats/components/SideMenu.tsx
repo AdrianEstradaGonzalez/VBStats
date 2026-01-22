@@ -13,6 +13,7 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { 
   CloseIcon, 
@@ -24,6 +25,7 @@ import {
   HomeIcon,
   SettingsIcon,
 } from './VectorIcons';
+import type { SubscriptionType } from '../services/subscriptionService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.8;
@@ -41,6 +43,7 @@ interface SideMenuProps {
   onLogout: () => void;
   userName?: string;
   userEmail?: string;
+  subscriptionType?: SubscriptionType;
 }
 
 export default function SideMenu({
@@ -50,14 +53,49 @@ export default function SideMenu({
   onLogout,
   userName = 'Usuario',
   userEmail = 'usuario@vbstats.com',
+  subscriptionType = 'free',
 }: SideMenuProps) {
-  const menuItems: MenuItem[] = [
-    { id: 'home', title: 'Inicio', icon: <HomeIcon size={24} color={Colors.text} /> },
-    { id: 'teams', title: 'Mis Equipos', icon: <TeamIcon size={24} color={Colors.text} /> },
-    { id: 'startMatch', title: 'Comenzar Partido', icon: <PlayIcon size={24} color={Colors.text} /> },
-    { id: 'stats', title: 'Estadísticas', icon: <StatsIcon size={24} color={Colors.text} /> },
-    { id: 'settings', title: 'Configuración', icon: <SettingsIcon size={24} color={Colors.text} /> },
-  ];
+  // Define menu items based on subscription type
+  const getMenuItems = (): MenuItem[] => {
+    const items: MenuItem[] = [];
+
+    // Free account: only search by code and scoreboard
+    if (subscriptionType === 'free') {
+      items.push(
+        { id: 'searchByCode', title: 'Buscar Partido', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
+        { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
+      );
+      return items;
+    }
+
+    // Basic and Pro accounts
+    items.push(
+      { id: 'home', title: 'Inicio', icon: <HomeIcon size={24} color={Colors.text} /> },
+      { id: 'teams', title: 'Mis Equipos', icon: <TeamIcon size={24} color={Colors.text} /> },
+      { id: 'startMatch', title: 'Comenzar Partido', icon: <PlayIcon size={24} color={Colors.text} /> },
+      { id: 'stats', title: 'Estadísticas', icon: <StatsIcon size={24} color={Colors.text} /> },
+      { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
+      { id: 'settings', title: 'Configuración', icon: <SettingsIcon size={24} color={Colors.text} /> },
+    );
+
+    return items;
+  };
+
+  const menuItems = getMenuItems();
+
+  // Get subscription badge
+  const getSubscriptionBadge = () => {
+    switch (subscriptionType) {
+      case 'pro':
+        return { text: 'PRO', color: '#f59e0b' };
+      case 'basic':
+        return { text: 'BÁSICA', color: '#3b82f6' };
+      default:
+        return { text: 'GRATIS', color: Colors.textSecondary };
+    }
+  };
+
+  const badge = getSubscriptionBadge();
 
   const handleNavigate = (screen: string) => {
     onClose();
@@ -92,6 +130,13 @@ export default function SideMenu({
             
             <Text style={styles.userName}>{userName}</Text>
             <Text style={styles.userEmail}>{userEmail}</Text>
+            
+            {/* Subscription Badge */}
+            <View style={[styles.subscriptionBadge, { backgroundColor: badge.color + '20' }]}>
+              <Text style={[styles.subscriptionBadgeText, { color: badge.color }]}>
+                {badge.text}
+              </Text>
+            </View>
             
             <TouchableOpacity 
               style={styles.editProfileButton}
@@ -215,6 +260,18 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.primary,
     fontWeight: '600',
+  },
+  subscriptionBadge: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+  },
+  subscriptionBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   divider: {
     height: 1,
