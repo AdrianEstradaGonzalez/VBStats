@@ -72,6 +72,28 @@ const STAT_TYPE_ORDER = [
   'Error', 'error'
 ];
 
+// Orden fijo para categorías
+const CATEGORY_ORDER = ['ataque', 'recepcion', 'saque', 'bloqueo', 'defensa', 'colocacion'];
+
+const normalizeCategory = (value: string): string => {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+};
+
+const sortCategories = (categories: string[]): string[] => {
+  return categories.slice().sort((a, b) => {
+    const aIndex = CATEGORY_ORDER.indexOf(normalizeCategory(a));
+    const bIndex = CATEGORY_ORDER.indexOf(normalizeCategory(b));
+    const rankA = aIndex === -1 ? 999 : aIndex;
+    const rankB = bIndex === -1 ? 999 : bIndex;
+    if (rankA !== rankB) return rankA - rankB;
+    return a.localeCompare(b, 'es', { sensitivity: 'base' });
+  });
+};
+
 export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
@@ -209,6 +231,10 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
 
     return grouped;
   }, [filteredStats]);
+
+  const orderedCategoryKeys = useMemo(() => {
+    return sortCategories(Object.keys(statsByCategory));
+  }, [statsByCategory]);
 
 
   // Total de acciones
@@ -425,7 +451,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
       reportText += `◆ DESGLOSE POR CATEGORÍA\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-      Object.entries(statsByCategory).forEach(([category, stats]) => {
+      orderedCategoryKeys.forEach((category) => {
+        const stats = statsByCategory[category] || [];
         const total = stats.reduce((sum, s) => sum + s.count, 0);
         if (total === 0) return;
 
@@ -953,11 +980,12 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu }: MatchSta
         </View>
 
         {/* Estadísticas por Categoría */}
-        {Object.keys(statsByCategory).length > 0 && (
+        {orderedCategoryKeys.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Desglose por Categoría</Text>
           
-          {Object.entries(statsByCategory).map(([category, stats]) => {
+          {orderedCategoryKeys.map((category) => {
+            const stats = statsByCategory[category] || [];
             const total = stats.reduce((sum, s) => sum + s.count, 0);
             const isExpanded = expandedCategories.has(category);
             

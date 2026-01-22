@@ -13,6 +13,9 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Image,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -50,6 +53,10 @@ export default function StartMatchScreen({
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [ongoingMatches, setOngoingMatches] = useState<Match[]>([]);
   const [loadingOngoing, setLoadingOngoing] = useState(true);
+  const [showFinishMatchModal, setShowFinishMatchModal] = useState(false);
+  const [matchToFinish, setMatchToFinish] = useState<Match | null>(null);
+  const [scoreHome, setScoreHome] = useState('');
+  const [scoreAway, setScoreAway] = useState('');
 
   // Check for ongoing matches when component mounts
   useEffect(() => {
@@ -78,23 +85,39 @@ export default function StartMatchScreen({
     checkOngoingMatches();
   }, [userId]);
 
-  const handleFinishOngoingMatch = async (matchId: number) => {
+  const handleFinishOngoingMatch = (matchId: number) => {
+    const match = ongoingMatches.find(m => m.id === matchId) || null;
+    if (!match) return;
+    setMatchToFinish(match);
+    setScoreHome('');
+    setScoreAway('');
+    setShowFinishMatchModal(true);
+  };
+
+  const confirmFinishOngoingMatch = async () => {
+    if (!matchToFinish) return;
     try {
-      const matchToFinish = ongoingMatches.find(m => m.id === matchId);
-      if (!matchToFinish) return;
-      
-      await matchesService.finishMatch(matchId, matchToFinish.total_sets || 0);
-      // Also delete any saved match state
+      const scoreHomeNum = scoreHome ? parseInt(scoreHome, 10) : null;
+      const scoreAwayNum = scoreAway ? parseInt(scoreAway, 10) : null;
+      await matchesService.finishMatch(
+        matchToFinish.id,
+        matchToFinish.total_sets || 0,
+        scoreHomeNum,
+        scoreAwayNum
+      );
       try {
-        await matchesService.deleteMatchState(matchId);
+        await matchesService.deleteMatchState(matchToFinish.id);
       } catch (stateError) {
-        // Ignore if no state exists
         console.log('No state to delete');
       }
-      // Remove from array
-      setOngoingMatches(prev => prev.filter(m => m.id !== matchId));
+      setOngoingMatches(prev => prev.filter(m => m.id !== matchToFinish.id));
     } catch (error) {
       console.error('Error finishing match:', error);
+    } finally {
+      setShowFinishMatchModal(false);
+      setMatchToFinish(null);
+      setScoreHome('');
+      setScoreAway('');
     }
   };
 
@@ -259,6 +282,105 @@ export default function StartMatchScreen({
           </>
         )}
       </ScrollView>
+
+      {/* Modal para finalizar partido con resultado */}
+      <Modal
+        visible={showFinishMatchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowFinishMatchModal(false);
+          setMatchToFinish(null);
+          setScoreHome('');
+          setScoreAway('');
+        }}
+      >
+        <View style={styles.endMatchModalOverlay}>
+          <View style={styles.endMatchModalContent}>
+            <View style={styles.endMatchHeader}>
+              <View style={styles.endMatchLogoWrapper}>
+                <Image
+                  source={require('../assets/VBStats_logo_sinfondo.png')}
+                  style={styles.endMatchLogo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.endMatchAppName}>VBStats</Text>
+            </View>
+
+            <View style={styles.endMatchContentArea}>
+              <View style={styles.endMatchIconContainer}>
+                <MaterialCommunityIcons name="trophy-outline" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.endMatchModalTitle}>Partido finalizado</Text>
+              <Text style={styles.endMatchModalSubtitle}>
+                Añade el resultado del partido (opcional)
+              </Text>
+              
+              <View style={styles.scoreInputContainer}>
+                <View style={styles.scoreInputWrapper}>
+                  <View style={styles.scoreLabelContainer}>
+                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                      {matchToFinish?.team_name || 'Local'}
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.scoreInput}
+                    value={scoreHome}
+                    onChangeText={setScoreHome}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    maxLength={2}
+                  />
+                </View>
+                
+                <Text style={styles.scoreSeparator}>-</Text>
+                
+                <View style={styles.scoreInputWrapper}>
+                  <View style={styles.scoreLabelContainer}>
+                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                      {matchToFinish?.opponent || 'Rival'}
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={styles.scoreInput}
+                    value={scoreAway}
+                    onChangeText={setScoreAway}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    maxLength={2}
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.endMatchButtonsContainer}>
+                <TouchableOpacity
+                  style={[styles.endMatchButton, styles.endMatchButtonPrimary]}
+                  onPress={confirmFinishOngoingMatch}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.endMatchButtonTextPrimary}>Finalizar partido</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.endMatchButton, styles.endMatchButtonCancel]}
+                  onPress={() => {
+                    setShowFinishMatchModal(false);
+                    setMatchToFinish(null);
+                    setScoreHome('');
+                    setScoreAway('');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.endMatchButtonTextCancel}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {selectedTeam && (
         <View style={styles.footer}>
@@ -534,5 +656,155 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     marginLeft: Spacing.sm,
+  },
+  // Estilos para el modal de fin de partido
+  endMatchModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  endMatchModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  endMatchHeader: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  endMatchLogoWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  endMatchLogo: {
+    width: 28,
+    height: 28,
+  },
+  endMatchAppName: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+    letterSpacing: 0.5,
+  },
+  endMatchContentArea: {
+    backgroundColor: '#ffffff',
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  endMatchIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  endMatchModalTitle: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  endMatchModalSubtitle: {
+    fontSize: FontSizes.md,
+    color: '#4a4a4a',
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  scoreInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xl,
+    width: '100%',
+  },
+  scoreInputWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    gap: Spacing.xs,
+    height: 130,
+    justifyContent: 'flex-start',
+  },
+  scoreLabelContainer: {
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  scoreLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#4a4a4a',
+    width: '100%',
+    textAlign: 'center',
+  },
+  scoreInput: {
+    width: 70,
+    height: 70,
+    backgroundColor: '#ffffff',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    textAlign: 'center',
+  },
+  scoreSeparator: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#9e9e9e',
+    alignSelf: 'center',
+    width: 28,
+    textAlign: 'center',
+  },
+  endMatchButtonsContainer: {
+    width: '100%',
+    gap: Spacing.sm,
+  },
+  endMatchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md + 2,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  endMatchButtonPrimary: {
+    backgroundColor: Colors.primary,
+    ...Shadows.md,
+  },
+  endMatchButtonCancel: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  endMatchButtonTextPrimary: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+  },
+  endMatchButtonTextCancel: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#424242',
   },
 });

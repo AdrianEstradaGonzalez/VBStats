@@ -1012,6 +1012,28 @@ export default function MatchFieldScreen({
     return 0;
   };
 
+  // Orden fijo para categorías
+  const CATEGORY_ORDER = ['ataque', 'recepcion', 'saque', 'bloqueo', 'defensa', 'colocacion'];
+
+  const normalizeCategory = (value: string): string => {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  };
+
+  const sortCategories = (categories: string[]): string[] => {
+    return categories.slice().sort((a, b) => {
+      const aIndex = CATEGORY_ORDER.indexOf(normalizeCategory(a));
+      const bIndex = CATEGORY_ORDER.indexOf(normalizeCategory(b));
+      const rankA = aIndex === -1 ? 999 : aIndex;
+      const rankB = bIndex === -1 ? 999 : bIndex;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.localeCompare(b, 'es', { sensitivity: 'base' });
+    });
+  };
+
   // Agrupar estadísticas por categoría
   const getStatsByCategory = (stats: StatAction[]) => {
     const grouped: Record<string, { statType: string; count: number }[]> = {};
@@ -2008,6 +2030,7 @@ export default function MatchFieldScreen({
             {(() => {
               const stats = getSetStats(true);
               const statsByCategory = getStatsByCategory(stats);
+              const orderedCategoryKeys = sortCategories(Object.keys(statsByCategory));
               const totalActions = stats.length;
 
               if (totalActions === 0) {
@@ -2043,7 +2066,8 @@ export default function MatchFieldScreen({
                   {/* Desglose por Categoría */}
                   <View style={styles.setStatsCategories}>
                     <Text style={styles.setStatsCategoriesTitle}>Desglose por Categoría</Text>
-                    {Object.entries(statsByCategory).map(([category, catStats]) => {
+                    {orderedCategoryKeys.map((category) => {
+                      const catStats = statsByCategory[category] || [];
                       const total = catStats.reduce((sum, s) => sum + s.count, 0);
                       const categoryColor = STAT_COLORS[category] || Colors.primary;
                       // Prepare data for pie chart
