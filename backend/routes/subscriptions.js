@@ -13,8 +13,23 @@ if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY.startsWith('sk_test_tu_clave') || ST
 } else {
   try {
     stripe = require('stripe')(STRIPE_SECRET_KEY);
-    const keyType = STRIPE_SECRET_KEY.startsWith('sk_live_') ? 'LIVE (Producción)' : 'TEST (Pruebas)';
-    console.log(`✅ Stripe configurado correctamente - Modo: ${keyType}`);
+
+    console.log('--- Stripe Initialization ---');
+    const secretKey = process.env.STRIPE_SECRET_KEY;
+    const priceBasic = process.env.STRIPE_PRICE_BASIC;
+    const pricePro = process.env.STRIPE_PRICE_PRO;
+
+    console.log('Stripe Secret Key loaded:', secretKey ? `sk...${secretKey.slice(-4)}` : 'NOT FOUND or empty');
+    console.log('Stripe Price ID (Basic):', priceBasic || 'NOT FOUND or empty');
+    console.log('Stripe Price ID (Pro):', pricePro || 'NOT FOUND or empty');
+
+    if (!secretKey || !priceBasic || !pricePro) {
+      console.error('CRITICAL: One or more Stripe environment variables are missing. Please check your Render dashboard.');
+    }
+
+    const mode = secretKey && secretKey.startsWith('sk_live_') ? 'LIVE' : 'TEST';
+    console.log('Running in mode:', mode);
+    console.log('--------------------------');
   } catch (e) {
     console.error('❌ Error al inicializar Stripe:', e.message);
     stripe = null;
