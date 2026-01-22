@@ -3,13 +3,21 @@ const router = express.Router();
 const { pool } = require('../db');
 
 // Stripe configuration (use live key in production, test key in development)
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder';
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 let stripe;
-try {
-  stripe = require('stripe')(STRIPE_SECRET_KEY);
-} catch (e) {
-  console.warn('Stripe not configured. Payment features disabled.');
+
+if (!STRIPE_SECRET_KEY || STRIPE_SECRET_KEY === 'sk_test_placeholder' || STRIPE_SECRET_KEY === 'sk_test_tu_clave_secreta_aqui') {
+  console.error('⚠️  STRIPE_SECRET_KEY no está configurada correctamente en las variables de entorno');
+  console.error('⚠️  Configura STRIPE_SECRET_KEY en Render Dashboard > Environment');
   stripe = null;
+} else {
+  try {
+    stripe = require('stripe')(STRIPE_SECRET_KEY);
+    console.log('✅ Stripe configurado correctamente');
+  } catch (e) {
+    console.error('❌ Error al inicializar Stripe:', e.message);
+    stripe = null;
+  }
 }
 
 // Price IDs for Stripe (configure these in your Stripe dashboard)
