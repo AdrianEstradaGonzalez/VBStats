@@ -1,4 +1,4 @@
-package com.actavirtual
+package com.vbstats
 
 import android.app.Application
 import com.facebook.react.PackageList
