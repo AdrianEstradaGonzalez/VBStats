@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, StatusBar, Alert, Platform, ActivityIndicator } from "react-native";
+import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { 
@@ -14,6 +14,7 @@ import {
   MatchDetailsScreen,
   MatchFieldScreen,
   ProfileScreen,
+  GuideScreen,
   Team,
   MatchDetails,
 } from "./pages";
@@ -25,8 +26,9 @@ import { SideMenu } from "./components";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
 import { SubscriptionType, subscriptionService } from "./services/subscriptionService";
+import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide';
 
 // Keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -66,6 +68,20 @@ export default function App() {
   const [showCancelSubscriptionAlert, setShowCancelSubscriptionAlert] = useState(false);
   const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showUpdateAlert, setShowUpdateAlert] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<VersionCheckResult | null>(null);
+
+  // Check app version on start
+  useEffect(() => {
+    const checkVersion = async () => {
+      const result = await checkAppVersion();
+      if (result.needsUpdate) {
+        setUpdateInfo(result);
+        setShowUpdateAlert(true);
+      }
+    };
+    checkVersion();
+  }, []);
 
   // Load saved session on app start
   useEffect(() => {
@@ -516,6 +532,9 @@ export default function App() {
           <StatsScreen 
             onOpenMenu={handleOpenMenu}
             userId={userId}
+            teams={teams}
+            subscriptionType={subscriptionType}
+            onUpgradeToPro={handleUpgradeToPro}
           />
         );
       case 'settings':
@@ -540,6 +559,13 @@ export default function App() {
               // Just show a message, the subscription type stays the same
               loadSubscription();
             }}
+          />
+        );
+      case 'guide':
+        return (
+          <GuideScreen 
+            onBack={() => setCurrentScreen('home')}
+            onSelectPlan={handleUpgradeToPro}
           />
         );
       default:
@@ -587,13 +613,17 @@ export default function App() {
               setShowSelectPlan(false);
               setShowSignUp(true);
             }}
-            currentPlan="free"
+            currentPlan={undefined}
             userId={userId}
           />
         ) : showSignUp ? (
           <SignUpScreen
             onSignUp={handleSignUp}
             onBackToLogin={handleBackToLogin}
+            onViewPlans={() => {
+              setShowSignUp(false);
+              setShowSelectPlan(true);
+            }}
           />
         ) : (
           <LoginScreen
@@ -675,6 +705,33 @@ export default function App() {
           },
         ]}
         onClose={() => setShowCancelSuccessAlert(false)}
+      />
+
+      {/* Update Required Alert */}
+      <CustomAlert
+        visible={showUpdateAlert}
+        title="Actualización Requerida"
+        message={updateInfo?.message || 'Hay una nueva versión disponible. Por favor, actualiza la aplicación para continuar.'}
+        type="warning"
+        icon={<MaterialCommunityIcons name="cellphone-arrow-down" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        buttons={[
+          {
+            text: 'Actualizar ahora',
+            icon: <MaterialCommunityIcons name={Platform.OS === 'ios' ? 'apple' : 'google-play'} size={18} color="#FFFFFF" />,
+            onPress: () => {
+              if (updateInfo?.storeUrl) {
+                Linking.openURL(updateInfo.storeUrl).catch(err => {
+                  console.error('Error opening store URL:', err);
+                });
+              }
+            },
+            style: 'primary',
+          },
+        ]}
+        onClose={() => {
+          // No permitir cerrar - es obligatorio actualizar
+        }}
       />
     </View>
   );

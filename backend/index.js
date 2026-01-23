@@ -43,6 +43,20 @@ app.use('/api/subscriptions', subscriptions);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+// Version check endpoint
+app.get('/api/version', (req, res) => {
+  const minVersion = process.env.MIN_APP_VERSION || '1.0';
+  const storeUrls = {
+    android: process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.vbstats',
+    ios: process.env.APP_STORE_URL || 'https://apps.apple.com/app/vbstats/id123456789'
+  };
+  res.json({ 
+    minVersion, 
+    storeUrls,
+    message: process.env.UPDATE_MESSAGE || 'Hay una nueva versión disponible. Por favor, actualiza la aplicación para continuar.'
+  });
+});
+
 const PORT = process.env.PORT || 4000;
 
 init()

@@ -26,6 +26,7 @@ import {
   SubscriptionPlan,
   subscriptionService 
 } from '../services/subscriptionService';
+import GuideScreen from './GuideScreen';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -51,6 +52,7 @@ export default function SelectPlanScreen({
   const [errorMessage, setErrorMessage] = useState('');
   const [paymentPending, setPaymentPending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
@@ -204,6 +206,15 @@ export default function SelectPlanScreen({
     );
   };
 
+  // If showing guide, render GuideScreen
+  if (showGuide) {
+    return (
+      <GuideScreen
+        onBack={() => setShowGuide(false)}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -233,12 +244,24 @@ export default function SelectPlanScreen({
           <Text style={styles.subtitle}>
             Selecciona el plan que mejor se adapte a tus necesidades
           </Text>
+          <TouchableOpacity
+            style={styles.viewDetailsButton}
+            onPress={() => setShowGuide(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="information-outline" size={16} color={Colors.primary} />
+            <Text style={styles.viewDetailsText}>Ver qué incluye cada plan</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Plans - filtered based on current plan */}
         <View style={styles.plansContainer}>
           {SUBSCRIPTION_PLANS.filter(plan => {
-            // Show only upgrade options
+            // If no current plan (new registration), show all plans including free
+            if (!currentPlan || currentPlan === undefined) {
+              return true; // Show all plans: free, basic, pro
+            }
+            // Show only upgrade options for existing users
             if (currentPlan === 'free') {
               return plan.id === 'basic' || plan.id === 'pro';
             } else if (currentPlan === 'basic') {
@@ -396,6 +419,23 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  viewDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '10',
+    gap: Spacing.xs,
+  },
+  viewDetailsText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   plansContainer: {
     gap: Spacing.md,
