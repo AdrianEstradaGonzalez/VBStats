@@ -102,10 +102,35 @@ export interface UserSubscription {
 
 export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
 
+// Validate subscription from server (to prevent local tampering)
+const validateSubscriptionFromServer = async (userId: number): Promise<SubscriptionType> => {
+  try {
+    const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`);
+    if (!response.ok) {
+      return 'free';
+    }
+    const data = await response.json();
+    
+    // Check if subscription has expired
+    if (data.expiresAt) {
+      const expirationDate = new Date(data.expiresAt);
+      if (expirationDate < new Date()) {
+        console.log('⚠️ Subscription expired, returning free');
+        return 'free';
+      }
+    }
+    
+    return data.type || 'free';
+  } catch (error) {
+    console.error('Error validating subscription:', error);
+    return 'free';
+  }
+};
+
 export const subscriptionService = {
   SUBSCRIPTIONS_URL,
   
-  // Get user's current subscription
+  // Get user's current subscription with server validation
   getSubscription: async (userId: number): Promise<UserSubscription> => {
     try {
       const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`);
@@ -113,15 +138,45 @@ export const subscriptionService = {
         // Default to free if no subscription found
         return { type: 'free' };
       }
-      return response.json();
+      const data = await response.json();
+      
+      // Validate expiration client-side as well
+      if (data.expiresAt) {
+        const expirationDate = new Date(data.expiresAt);
+        if (expirationDate < new Date() && data.type !== 'free') {
+          console.log('⚠️ Subscription expired locally');
+          return { type: 'free', expiresAt: data.expiresAt };
+        }
+      }
+      
+      return data;
     } catch (error) {
       console.error('Error fetching subscription:', error);
       return { type: 'free' };
     }
   },
 
-  // Update subscription type (for free plan or after payment)
+  // Validate subscription with server (force re-check from backend)
+  // Use this before critical operations to ensure subscription is valid
+  validateSubscription: async (userId: number): Promise<SubscriptionType> => {
+    return validateSubscriptionFromServer(userId);
+  },
+
+  // Check if a subscription type allows a specific feature with server validation
+  validateFeatureAccess: async (userId: number, feature: string): Promise<boolean> => {
+    const validatedType = await validateSubscriptionFromServer(userId);
+    return subscriptionService.isFeatureAvailable(validatedType, feature);
+  },
+
+  // Update subscription type - NOTE: This will be rejected by server for paid upgrades
+  // Only use for downgrade to free (cancellation). Upgrades must go through Stripe checkout
   updateSubscription: async (userId: number, subscriptionType: SubscriptionType): Promise<boolean> => {
+    // Only allow downgrade to free via direct API call
+    if (subscriptionType !== 'free') {
+      console.warn('⚠️ Direct subscription upgrade not allowed. Use createCheckoutSession instead.');
+      return false;
+    }
+    
     try {
       const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`, {
         method: 'PUT',

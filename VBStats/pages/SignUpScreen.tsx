@@ -28,9 +28,10 @@ const ANDROID_NAV_BAR_HEIGHT = 48;
 interface SignUpScreenProps {
   onSignUp: (email: string, password: string, name?: string) => Promise<boolean>;
   onBackToLogin: () => void;
+  onViewPlans?: () => void;
 }
 
-export default function SignUpScreen({ onSignUp, onBackToLogin }: SignUpScreenProps) {
+export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: SignUpScreenProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -291,6 +292,19 @@ export default function SignUpScreen({ onSignUp, onBackToLogin }: SignUpScreenPr
               )}
             </TouchableOpacity>
 
+            {/* View Plans Button */}
+            {onViewPlans && (
+              <TouchableOpacity
+                style={styles.viewPlansButton}
+                onPress={onViewPlans}
+                activeOpacity={0.8}
+                disabled={isLoading}
+              >
+                <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
+                <Text style={styles.viewPlansText}>Ver qué incluye cada plan</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Back to Login */}
             <TouchableOpacity
               style={styles.backToLoginButton}
@@ -433,6 +447,23 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.lg,
     fontWeight: '700',
+  },
+  viewPlansButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '10',
+    gap: Spacing.sm,
+  },
+  viewPlansText: {
+    fontSize: FontSizes.md,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   backToLoginButton: {
     flexDirection: 'row',

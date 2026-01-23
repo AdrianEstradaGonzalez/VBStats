@@ -511,6 +511,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                     // Ensure we always have a strict boolean value - default to true if not in settings
                     const rawValue = settings.hasOwnProperty(key) ? settings[key] : true;
                     const isEnabled = rawValue === true; // Strict comparison to true
+                    const isProOnly = isBasicSubscription && !subscriptionService.canEnableStatInBasic(statConfig.category, type);
 
                     return (
                       <View key={type} style={styles.statTypeRow}>
@@ -518,7 +519,12 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                           <View style={[styles.typeIconContainer, { backgroundColor: statConfig.color + '15' }]}>
                             {renderStatTypeIcon(type, statConfig.color)}
                           </View>
-                          <Text style={styles.statTypeName}>{type}</Text>
+                          <Text style={[styles.statTypeName, isProOnly && styles.statTypeNamePro]}>{type}</Text>
+                          {isProOnly && (
+                            <View style={styles.proIconBadge}>
+                              <MaterialCommunityIcons name="crown" size={14} color="#f59e0b" />
+                            </View>
+                          )}
                         </View>
                         <Switch
                           value={isEnabled}
@@ -612,14 +618,22 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
             onPress: () => handleApplyVersion('basic'),
             style: 'default',
           },
-          ...(isBasicSubscription ? [] : [{
-            text: applyingVersion === 'advanced' ? 'Aplicando...' : 'Avanzada',
+          {
+            text: applyingVersion === 'advanced' ? 'Aplicando...' : (isBasicSubscription ? 'Avanzada (Pro)' : 'Avanzada'),
             icon: applyingVersion === 'advanced'
               ? undefined
-              : <MaterialCommunityIcons name="chart-line" size={18} color={Colors.textOnPrimary} />,
-            onPress: () => handleApplyVersion('advanced'),
+              : <MaterialCommunityIcons name={isBasicSubscription ? "crown" : "chart-line"} size={18} color={isBasicSubscription ? "#f59e0b" : Colors.textOnPrimary} />,
+            onPress: () => {
+              if (isBasicSubscription) {
+                setShowVersionAlert(false);
+                setBlockedFeature('Configuración Avanzada');
+                setShowProUpgradeAlert(true);
+              } else {
+                handleApplyVersion('advanced');
+              }
+            },
             style: 'default' as const,
-          }]),
+          },
           {
             text: 'Cancelar',
             onPress: () => setShowVersionAlert(false),
@@ -844,6 +858,16 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.text,
     flex: 1,
+  },
+  statTypeNamePro: {
+    flex: 0,
+    marginRight: Spacing.xs,
+  },
+  proIconBadge: {
+    backgroundColor: '#f59e0b15',
+    borderRadius: 10,
+    padding: 4,
+    marginLeft: Spacing.xs,
   },
   footer: {
     paddingHorizontal: Spacing.lg,

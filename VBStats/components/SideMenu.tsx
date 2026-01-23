@@ -12,6 +12,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -70,6 +71,7 @@ export default function SideMenu({
       items.push(
         { id: 'searchByCode', title: 'Buscar Partido', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
         { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
+        { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
       );
       return items;
     }
@@ -82,6 +84,7 @@ export default function SideMenu({
       { id: 'stats', title: 'Estadísticas', icon: <StatsIcon size={24} color={Colors.text} /> },
       { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
       { id: 'settings', title: 'Configuración', icon: <SettingsIcon size={24} color={Colors.text} /> },
+      { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
     );
 
     return items;
@@ -122,6 +125,12 @@ export default function SideMenu({
           onPress={onClose}
         />
         <Animated.View style={styles.drawer}>
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={false}
+            bounces={true}
+          >
           {/* Header del perfil */}
           <View style={styles.profileSection}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -221,6 +230,7 @@ export default function SideMenu({
               <Text style={styles.logoutText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </View>
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
@@ -246,6 +256,12 @@ const styles = StyleSheet.create({
     borderRightWidth: 2,
     borderRightColor: '#FFFFFF',
     ...Shadows.lg,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
   },
   profileSection: {
     padding: Spacing.lg,

@@ -24,6 +24,7 @@ import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 import { SubscriptionType } from '../services/subscriptionService';
+import CustomAlert from '../components/CustomAlert';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -101,6 +102,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [showExportAlert, setShowExportAlert] = useState(false);
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
@@ -109,6 +111,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const playerFilterScrollRef = useRef<ScrollView>(null);
 
   const isBasicSubscription = subscriptionType === 'basic';
+  const isProSubscription = subscriptionType === 'pro';
 
   useEffect(() => {
     loadMatchStats();
@@ -570,6 +573,86 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       });
     } catch (error) {
       console.error('Error sharing report:', error);
+    }
+  };
+
+  // Función para exportar a Excel (CSV)
+  const exportToExcel = async () => {
+    try {
+      const matchInfo = `${match.team_name || 'Mi equipo'}${match.opponent ? ` vs ${match.opponent}` : ''}`;
+      const dateStr = formatDate(match.date);
+      
+      let csv = 'INFORME DE ESTADÍSTICAS - VBStats Pro\n\n';
+      csv += `Fecha,${dateStr}\n`;
+      csv += `Partido,${matchInfo}\n`;
+      if (match.score_home !== null && match.score_away !== null) {
+        csv += `Resultado,${match.score_home} - ${match.score_away}\n`;
+      }
+      csv += `Localización,${match.location === 'home' ? 'Local' : 'Visitante'}\n`;
+      csv += `Total Sets,${match.total_sets || 0}\n\n`;
+
+      // Filtros aplicados
+      if (selectedSet !== 'all') {
+        csv += `Filtro Set,${selectedSet}\n`;
+      }
+      if (selectedPlayer !== null) {
+        const player = uniquePlayers.find(p => p.id === selectedPlayer);
+        if (player) csv += `Filtro Jugador,${player.name} (#${player.number})\n`;
+      }
+      csv += '\n';
+
+      // Resumen general
+      csv += 'RESUMEN GENERAL\n';
+      csv += `G-P Total,${totalPerformance.gp}\n`;
+      csv += `Total Acciones,${totalPerformance.total}\n`;
+      csv += `Valoración,${totalPerformance.rating}\n\n`;
+
+      // Rendimiento por categoría
+      csv += 'RENDIMIENTO POR CATEGORÍA\n';
+      csv += 'Categoría,G-P,Total Acciones,Doble Positivo,Positivo,Neutro,Error\n';
+      Object.entries(categoryPerformance).forEach(([category, perf]) => {
+        csv += `${category},${perf.gp},${perf.total},${perf.doblePositivo},${perf.positivo},${perf.neutro},${perf.error}\n`;
+      });
+      csv += '\n';
+
+      // Desglose detallado por categoría
+      csv += 'DESGLOSE POR TIPO DE ESTADÍSTICA\n';
+      csv += 'Categoría,Tipo,Cantidad,Porcentaje\n';
+      orderedCategoryKeys.forEach(category => {
+        const stats = statsByCategory[category] || [];
+        const total = stats.reduce((sum, s) => sum + s.count, 0);
+        stats.forEach(item => {
+          const percentage = total > 0 ? Math.round((item.count / total) * 100) : 0;
+          csv += `${category},${item.statType},${item.count},${percentage}%\n`;
+        });
+      });
+      csv += '\n';
+
+      // Participación de jugadores
+      if (selectedPlayer === null && playerStats.length > 0) {
+        csv += 'PARTICIPACIÓN DE JUGADORES\n';
+        csv += 'Posición,Número,Nombre,Acciones\n';
+        playerStats.forEach((player, index) => {
+          csv += `${index + 1},${player.number},${player.name},${player.total}\n`;
+        });
+        csv += '\n';
+      }
+
+      // Estadísticas detalladas
+      csv += 'ESTADÍSTICAS DETALLADAS\n';
+      csv += 'Set,Jugador,Número,Categoría,Tipo\n';
+      filteredStats.forEach(stat => {
+        csv += `${stat.set_number},${stat.player_name || ''},${stat.player_number || ''},${stat.stat_category},${stat.stat_type}\n`;
+      });
+
+      csv += '\nGenerado con VBStats Pro - BlueDeBug.com';
+
+      await Share.share({
+        message: csv,
+        title: `Estadisticas_${match.team_name || 'Partido'}_${dateStr}.csv`,
+      });
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
     }
   };
 
@@ -1133,18 +1216,59 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         </>
         )}
 
-        {/* Botón para compartir al final */}
-        <TouchableOpacity 
-          style={styles.shareButtonInline}
-          onPress={generateAndShareReport}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="share-variant" size={20} color="#fff" />
-          <Text style={styles.shareButtonText}>Compartir informe</Text>
-        </TouchableOpacity>
+        {/* Botones de exportación */}
+        <View style={styles.exportButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.shareButtonInline}
+            onPress={() => isProSubscription ? setShowExportAlert(true) : generateAndShareReport()}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="share-variant" size={20} color="#fff" />
+            <Text style={styles.shareButtonText}>
+              {isProSubscription ? 'Exportar informe' : 'Compartir informe'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Alert de exportación PRO */}
+      {isProSubscription && (
+        <CustomAlert
+          visible={showExportAlert}
+          icon={<MaterialCommunityIcons name="export-variant" size={48} color={Colors.primary} />}
+          iconBackgroundColor={Colors.primary + '15'}
+          title="Exportar Informe"
+          message="Elige el formato de exportación del informe de estadísticas"
+          buttonLayout="column"
+          buttons={[
+            {
+              text: 'Compartir por WhatsApp/Redes',
+              icon: <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />,
+              onPress: () => {
+                setShowExportAlert(false);
+                generateAndShareReport();
+              },
+              style: 'primary',
+            },
+            {
+              text: 'Exportar a Excel (CSV)',
+              icon: <MaterialCommunityIcons name="microsoft-excel" size={18} color="#fff" />,
+              onPress: () => {
+                setShowExportAlert(false);
+                exportToExcel();
+              },
+              style: 'default',
+            },
+            {
+              text: 'Cancelar',
+              onPress: () => setShowExportAlert(false),
+              style: 'cancel',
+            },
+          ]}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -1827,6 +1951,9 @@ const styles = StyleSheet.create({
   playerRankBarFill: {
     height: '100%',
     backgroundColor: Colors.primary,
+  },
+  exportButtonsContainer: {
+    paddingHorizontal: 0,
   },
   shareButtonInline: {
     marginHorizontal: Spacing.lg,

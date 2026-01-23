@@ -91,10 +91,33 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// Update subscription type (for manual updates or webhook handling)
+// Update subscription type (ONLY via webhook or internal calls - NOT for direct API calls)
+// This endpoint is PROTECTED and should only be called by Stripe webhooks
 router.put('/:userId', async (req, res) => {
   try {
-    const { subscription_type, expires_at, stripe_customer_id, stripe_subscription_id } = req.body;
+    const { subscription_type, expires_at, stripe_customer_id, stripe_subscription_id, internal_key } = req.body;
+    
+    // SECURITY: Prevent direct subscription type changes without proper authorization
+    // Only allow changes if:
+    // 1. Internal key is provided (for webhook/server-side calls)
+    // 2. Or if downgrading to 'free' (cancellation)
+    // 3. Or if only updating Stripe IDs (not subscription_type)
+    const INTERNAL_SECRET = process.env.SUBSCRIPTION_INTERNAL_KEY || 'vbstats_internal_secure_key_2024';
+    
+    const isInternalCall = internal_key === INTERNAL_SECRET;
+    const isDowngradeToFree = subscription_type === 'free';
+    const isOnlyStripeUpdate = !subscription_type && (stripe_customer_id || stripe_subscription_id || expires_at !== undefined);
+    
+    // If trying to upgrade to paid plan without internal authorization, reject
+    if (subscription_type && (subscription_type === 'basic' || subscription_type === 'pro')) {
+      if (!isInternalCall) {
+        console.warn(`⚠️ SECURITY: Rejected direct subscription upgrade attempt for user ${req.params.userId} to ${subscription_type}`);
+        return res.status(403).json({ 
+          error: 'Cambio de suscripción no autorizado. Use el proceso de pago de la aplicación.',
+          code: 'UNAUTHORIZED_SUBSCRIPTION_CHANGE'
+        });
+      }
+    }
     
     const validTypes = ['free', 'basic', 'pro'];
     if (subscription_type && !validTypes.includes(subscription_type)) {
@@ -130,6 +153,8 @@ router.put('/:userId', async (req, res) => {
     params.push(req.params.userId);
 
     await pool.query(query, params);
+    
+    console.log(`✅ Subscription updated for user ${req.params.userId}: ${subscription_type || 'no type change'}`);
     res.json({ message: 'Subscription updated' });
   } catch (error) {
     console.error('Error updating subscription:', error);

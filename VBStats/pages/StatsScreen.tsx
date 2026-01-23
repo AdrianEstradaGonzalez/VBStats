@@ -17,9 +17,11 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
-import type { Match } from '../services/types';
+import type { Match, Team } from '../services/types';
 import CustomAlert from '../components/CustomAlert';
 import MatchStatsScreen from './MatchStatsScreen';
+import TeamTrackingScreen from './TeamTrackingScreen';
+import { SubscriptionType } from '../services/subscriptionService';
 import { 
   MenuIcon, 
   StatsIcon, 
@@ -51,6 +53,9 @@ interface StatsScreenProps {
   onBack?: () => void;
   onOpenMenu?: () => void;
   onViewMatch?: (match: Match) => void;
+  subscriptionType?: SubscriptionType;
+  onUpgradeToPro?: () => void;
+  teams?: Team[];
 }
 
 export default function StatsScreen({ 
@@ -58,12 +63,19 @@ export default function StatsScreen({
   onBack, 
   onOpenMenu,
   onViewMatch,
+  subscriptionType = 'pro',
+  onUpgradeToPro,
+  teams = [],
 }: StatsScreenProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [showTracking, setShowTracking] = useState(false);
+  const [showProAlert, setShowProAlert] = useState(false);
+
+  const isProSubscription = subscriptionType === 'pro';
 
   useEffect(() => {
     loadFinishedMatches();
@@ -122,7 +134,27 @@ export default function StatsScreen({
     setSelectedMatch(match);
     onViewMatch?.(match);
   };
+
+  const handleTrackingPress = () => {
+    if (isProSubscription) {
+      setShowTracking(true);
+    } else {
+      setShowProAlert(true);
+    }
+  };
   
+  // If showing tracking screen
+  if (showTracking && userId) {
+    return (
+      <TeamTrackingScreen
+        userId={userId}
+        teams={teams}
+        onBack={() => setShowTracking(false)}
+        onOpenMenu={onOpenMenu}
+      />
+    );
+  }
+
   // If a match is selected, show the detailed stats screen
   if (selectedMatch) {
     return (
@@ -130,6 +162,7 @@ export default function StatsScreen({
         match={selectedMatch} 
         onBack={() => setSelectedMatch(null)} 
         onOpenMenu={onOpenMenu}
+        subscriptionType={subscriptionType}
       />
     );
   }
@@ -169,6 +202,34 @@ export default function StatsScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Botón de Seguimiento PRO */}
+        <TouchableOpacity
+          style={styles.trackingButton}
+          onPress={handleTrackingPress}
+          activeOpacity={0.8}
+        >
+          <View style={styles.trackingButtonContent}>
+            <View style={styles.trackingIconContainer}>
+              <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#fff" />
+            </View>
+            <View style={styles.trackingTextContainer}>
+              <View style={styles.trackingTitleRow}>
+                <Text style={styles.trackingTitle}>Seguimiento de Equipos</Text>
+                {!isProSubscription && (
+                  <View style={styles.proBadge}>
+                    <MaterialCommunityIcons name="crown" size={12} color="#f59e0b" />
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.trackingSubtitle}>
+                Analiza el progreso con gráficas comparativas
+              </Text>
+            </View>
+            <ChevronRightIcon size={24} color="rgba(255,255,255,0.7)" />
+          </View>
+        </TouchableOpacity>
+
         {matches.length === 0 ? (
           <View style={styles.emptyState}>
             <StatsIcon size={80} color={Colors.textTertiary} />
@@ -277,6 +338,33 @@ export default function StatsScreen({
           }
         ]}
       />
+
+      {/* CustomAlert for PRO upgrade */}
+      <CustomAlert
+        visible={showProAlert}
+        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        title="Función VBStats Pro"
+        message="El Seguimiento de Equipos es una función exclusiva de VBStats Pro que te permite analizar el progreso con gráficas detalladas."
+        warning="Mejora tu plan para acceder a esta función y muchas más."
+        buttonLayout="column"
+        buttons={[
+          {
+            text: 'Obtener VBStats Pro',
+            icon: <MaterialCommunityIcons name="crown" size={18} color="#fff" />,
+            onPress: () => {
+              setShowProAlert(false);
+              onUpgradeToPro?.();
+            },
+            style: 'primary',
+          },
+          {
+            text: 'Cancelar',
+            onPress: () => setShowProAlert(false),
+            style: 'cancel',
+          },
+        ]}
+      />
     </SafeAreaView>
   );
 }
@@ -326,6 +414,59 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.lg,
     flexGrow: 1,
+  },
+  trackingButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.lg,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  trackingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  trackingIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  trackingTextContainer: {
+    flex: 1,
+  },
+  trackingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  trackingTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  trackingSubtitle: {
+    fontSize: FontSizes.sm,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f59e0b20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    gap: 4,
+  },
+  proBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: '#f59e0b',
   },
   emptyState: {
     flex: 1,
