@@ -103,6 +103,9 @@ export default function TeamTrackingScreen({
   const [matchesData, setMatchesData] = useState<{ match: Match; stats: MatchStat[] }[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const [teamSelectionConfirmed, setTeamSelectionConfirmed] = useState(false);
+  const [infoAlertVisible, setInfoAlertVisible] = useState(false);
+  const [infoAlertTitle, setInfoAlertTitle] = useState('');
+  const [infoAlertContent, setInfoAlertContent] = useState<string>('');
 
   useEffect(() => {
     if (selectedTeam && teamSelectionConfirmed) {
@@ -377,7 +380,8 @@ export default function TeamTrackingScreen({
                   y1={y}
                   x2={chartWidth}
                   y2={y}
-                  stroke="#e5e7eb"
+                  stroke="#94a3b8"
+                  strokeOpacity={0.25}
                   strokeWidth="1"
                 />
               );
@@ -410,8 +414,8 @@ export default function TeamTrackingScreen({
                 key={`label-${i}`}
                 x={point.x}
                 y={chartHeight + 18}
-                fontSize="10"
-                fill="#6b7280"
+                fontSize="9"
+                fill={Colors.textSecondary}
                 textAnchor="middle"
               >
                 {point.label}
@@ -453,7 +457,8 @@ export default function TeamTrackingScreen({
     legend1: string,
     legend2: string,
     unit1: string = '%',
-    unit2: string = ''
+    unit2: string = '',
+    infoText?: string
   ) => {
     if (data1.length < 2) {
       return (
@@ -510,7 +515,21 @@ export default function TeamTrackingScreen({
 
     return (
       <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>{title}</Text>
+        <View style={styles.chartHeaderRow}>
+          <Text style={styles.chartTitle}>{title}</Text>
+          {infoText ? (
+            <TouchableOpacity
+              style={styles.chartInfoButton}
+              onPress={() => {
+                setInfoAlertTitle('Cálculo de porcentajes');
+                setInfoAlertContent(String(infoText));
+                setInfoAlertVisible(true);
+              }}
+            >
+              <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={{ marginLeft: 40, marginTop: 10 }}>
           <Svg width={chartWidth + 20} height={chartHeight + 30}>
             {/* Grid lines */}
@@ -523,7 +542,8 @@ export default function TeamTrackingScreen({
                   y1={y}
                   x2={chartWidth}
                   y2={y}
-                  stroke="#e5e7eb"
+                  stroke="#94a3b8"
+                  strokeOpacity={0.25}
                   strokeWidth="1"
                 />
               );
@@ -574,8 +594,8 @@ export default function TeamTrackingScreen({
                 key={`label-${i}`}
                 x={point.x}
                 y={chartHeight + 18}
-                fontSize="10"
-                fill="#6b7280"
+                fontSize="9"
+                fill={Colors.textSecondary}
                 textAnchor="middle"
               >
                 {point.label}
@@ -617,7 +637,8 @@ export default function TeamTrackingScreen({
     data: { label: string; value: number; color: string }[],
     title: string,
     legendLabel: string = 'Serie',
-    legendColor: string = Colors.text
+    legendColor: string = Colors.text,
+    showLegend: boolean = true
   ) => {
     if (data.length === 0) return null;
     
@@ -647,7 +668,8 @@ export default function TeamTrackingScreen({
                   y1={y}
                   x2={chartWidth}
                   y2={y}
-                  stroke="#e5e7eb"
+                  stroke="#94a3b8"
+                  strokeOpacity={0.25}
                   strokeWidth="1"
                 />
               );
@@ -686,8 +708,8 @@ export default function TeamTrackingScreen({
                   <SvgText
                     x={x + barWidth / 2}
                     y={chartHeight + 18}
-                    fontSize="10"
-                    fill="#6b7280"
+                    fontSize="9"
+                    fill={Colors.textSecondary}
                     textAnchor="middle"
                   >
                     {item.label}
@@ -711,12 +733,14 @@ export default function TeamTrackingScreen({
           </View>
         </View>
         
-        <View style={styles.chartLegendImproved}>
-          <View style={styles.legendItemImproved}>
-            <View style={[styles.legendDot, { backgroundColor: legendColor }]} />
-            <Text style={[styles.legendTextImproved, { color: legendColor }]}>{legendLabel}</Text>
+        {showLegend && (
+          <View style={styles.chartLegendImproved}>
+            <View style={styles.legendItemImproved}>
+              <View style={[styles.legendDot, { backgroundColor: legendColor }]} />
+              <Text style={[styles.legendTextImproved, { color: legendColor }]}>{legendLabel}</Text>
+            </View>
           </View>
-        </View>
+        )}
       </View>
     );
   };
@@ -784,7 +808,8 @@ export default function TeamTrackingScreen({
                   y1={y}
                   x2={chartWidth}
                   y2={y}
-                  stroke="#e5e7eb"
+                  stroke="#94a3b8"
+                  strokeOpacity={0.25}
                   strokeWidth="1"
                 />
               );
@@ -817,8 +842,8 @@ export default function TeamTrackingScreen({
                 key={`label-${i}`}
                 x={point.x}
                 y={chartHeight + 18}
-                fontSize="10"
-                fill="#6b7280"
+                fontSize="9"
+                fill={Colors.textSecondary}
                 textAnchor="middle"
               >
                 {point.label}
@@ -955,14 +980,16 @@ export default function TeamTrackingScreen({
       };
     });
 
-    // Datos para Ataque (ambas medidas en porcentaje)
+    // Datos para Ataque: anotación (acciones positivas) + eficacia/eficiencia
     const ataqueData = getDetailedCategoryStats.map(m => {
       const a = m.categoryDetails['Ataque'];
-      const denom = a ? (a.neutro + a.error) : 0;
-      const anotacionPct = denom > 0 ? (a!.positivo / denom) * 100 : (a?.positivo ? 100 : 0);
+      const denom = a ? (a.positivo + a.neutro + a.error) : 0;
+      const eficaciaPct = denom > 0 ? (a!.positivo / denom) * 100 : 0;
+      const eficienciaPct = denom > 0 ? ((a!.positivo - a!.error) / denom) * 100 : 0;
       return {
-        eficacia: a?.eficacia || 0,
-        anotacionPct: Math.max(0, Math.min(100, Math.round(anotacionPct))),
+        positivos: a?.positivo || 0,
+        eficacia: Math.max(0, Math.min(100, Math.round(eficaciaPct))),
+        eficiencia: Math.max(0, Math.min(100, Math.round(eficienciaPct))),
         label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
       };
     });
@@ -986,7 +1013,7 @@ export default function TeamTrackingScreen({
     }));
 
     const hasRecepcion = recepcionData.some(d => d.eficacia !== 0 || d.doblePosPct !== 0);
-    const hasAtaque = ataqueData.some(d => d.eficacia !== 0 || d.anotacionPct !== 0);
+    const hasAtaque = ataqueData.some(d => d.eficacia !== 0 || d.eficiencia !== 0 || d.positivos !== 0);
     const hasBloqueo = bloqueoData.some(d => d.value !== 0);
     const hasDefensa = defensaData.some(d => d.value !== 0);
     const hasSaque = saqueData.some(d => d.value !== 0);
@@ -1011,20 +1038,30 @@ export default function TeamTrackingScreen({
           'Eficacia %',
           'Doble Pos %',
           '%',
-          '%'
+          '%',
+          'Recepción: (doble positivo + positivo) / (doble positivo + positivo + neutro + error) × 100.'
         )}
 
-        {/* Ataque: Eficacia + Puntos */}
+        {/* Ataque: Anotación (acciones positivas) */}
+        {hasAtaque && renderSimpleLineChart(
+          ataqueData.map(d => ({ value: d.positivos, label: d.label })),
+          categoryColor('Ataque'),
+          'Ataque - Anotación',
+          'Acciones positivas'
+        )}
+
+        {/* Ataque: Eficacia + Eficiencia */}
         {hasAtaque && renderDualLineChart(
           ataqueData.map(d => ({ value: d.eficacia, label: d.label })),
-          ataqueData.map(d => ({ value: d.anotacionPct, label: d.label })),
+          ataqueData.map(d => ({ value: d.eficiencia, label: d.label })),
           categoryColor('Ataque'),
-          '#f59e0b',
-          'Ataque',
+          '#f97316',
+          'Ataque - Eficacia y Eficiencia',
           'Eficacia %',
-          'Anotación %',
+          'Eficiencia %',
           '%',
-          '%'
+          '%',
+          'Eficacia: positivo / (positivo + neutro + error) × 100.\nEficiencia: (positivo - error) / (positivo + neutro + error) × 100.'
         )}
 
         {/* Bloqueo: Acciones positivas */}
@@ -1032,7 +1069,7 @@ export default function TeamTrackingScreen({
           bloqueoData,
           categoryColor('Bloqueo'),
           'Bloqueo',
-          'Acciones'
+          'Número de bloqueos'
         )}
 
         {/* Defensa: Acciones positivas */}
@@ -1040,7 +1077,7 @@ export default function TeamTrackingScreen({
           defensaData,
           categoryColor('Defensa'),
           'Defensa',
-          'Acciones'
+          'Número de defensas'
         )}
 
         {/* Saque: Puntos directos */}
@@ -1048,7 +1085,7 @@ export default function TeamTrackingScreen({
           saqueData,
           categoryColor('Saque'),
           'Saque',
-          'Acciones'
+          'Puntos directos'
         )}
       </View>
     );
@@ -1497,7 +1534,8 @@ export default function TeamTrackingScreen({
                   })),
                 'G-P Promedio por Categoría',
                 'G-P Promedio',
-                Colors.text
+                Colors.text,
+                false
               )}
             </View>
 
@@ -1590,6 +1628,26 @@ export default function TeamTrackingScreen({
           },
         ]}
       />
+
+      {/* Info formulas alert */}
+      <CustomAlert
+        visible={infoAlertVisible}
+        icon={<MaterialCommunityIcons name="information-outline" size={48} color={Colors.primary} />}
+        iconBackgroundColor={Colors.primary + '15'}
+        title={infoAlertTitle}
+        // use contentComponent for rich formula display
+        contentComponent={<View style={styles.formulaContainer}>
+          <Text style={styles.formulaText}>{infoAlertContent}</Text>
+          <View style={styles.formulaDivider} />
+          <Text style={styles.formulaNote}>Las fórmulas usan: positivo = acciones con resultado favorable, neutro = acciones neutrales, error = acciones con error.</Text>
+        </View>}
+        buttons={[
+          {
+            text: 'Cerrar',
+            onPress: () => setInfoAlertVisible(false),
+            style: 'primary',
+          },
+        ]} message={''}      />
     </SafeAreaView>
   );
 }
@@ -1754,32 +1812,42 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontWeight: '600',
   },
+  chartHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chartInfoButton: {
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary + '15',
+  },
   chartContainer: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.border,
     shadowColor: '#0f172a',
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    elevation: 3,
   },
   chartTitle: {
-    fontSize: 16,
+    fontSize: FontSizes.md,
     fontWeight: '800',
-    color: '#0f172a',
+    color: Colors.text,
     marginBottom: Spacing.md,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   chartAxisText: {
     fontSize: 11,
-    color: '#334155',
-    fontWeight: '500',
+    color: Colors.textSecondary,
+    fontWeight: '600',
   },
   barValueLabel: {
     fontSize: 11,
@@ -2100,13 +2168,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: Colors.border,
     marginHorizontal: Spacing.md,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
@@ -2131,6 +2199,28 @@ const styles = StyleSheet.create({
   },
   legendTextImproved: {
     fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
+  formulaContainer: {
+    width: '100%',
+    alignItems: 'flex-start',
+    paddingHorizontal: Spacing.md,
+  },
+  formulaText: {
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
     fontWeight: '600',
+  },
+  formulaDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    width: '100%',
+    marginVertical: Spacing.sm,
+  },
+  formulaNote: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
   },
 });

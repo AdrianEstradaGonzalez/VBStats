@@ -32,6 +32,8 @@ interface CustomAlertProps {
   type?: 'default' | 'success' | 'error' | 'warning';
   /** Layout de botones: 'row' para horizontal, 'column' para vertical */
   buttonLayout?: 'row' | 'column';
+  /** Optional rich content component to render inside the alert */
+  contentComponent?: React.ReactNode;
 }
 
 export default function CustomAlert({
@@ -45,6 +47,7 @@ export default function CustomAlert({
   onClose,
   type = 'default',
   buttonLayout = 'row',
+  contentComponent,
 }: CustomAlertProps) {
   const getButtonStyle = (style: CustomAlertButton['style'], isColumn: boolean) => {
     const baseStyle = (() => {
@@ -96,14 +99,19 @@ export default function CustomAlert({
           {/* Content Area - White Background */}
           <View style={styles.contentArea}>
             {icon && (
-              <View style={[styles.confirmIconContainer, { backgroundColor: iconBackgroundColor }]}>
+              <View style={[styles.confirmIconContainer, { backgroundColor: iconBackgroundColor }]}> 
                 {icon}
               </View>
             )}
-            
+
             <Text style={styles.confirmTitle}>{title}</Text>
-            <Text style={styles.confirmMessage}>{message}</Text>
-            
+
+            {contentComponent ? (
+              <View style={styles.customContentWrapper}>{contentComponent}</View>
+            ) : (
+              <Text style={styles.confirmMessage}>{message}</Text>
+            )}
+
             {warning && (
               <Text style={styles.confirmWarning}>{warning}</Text>
             )}
@@ -321,5 +329,9 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     marginRight: Spacing.xs,
+  },
+  customContentWrapper: {
+    width: '100%',
+    marginBottom: Spacing.md,
   },
 });
