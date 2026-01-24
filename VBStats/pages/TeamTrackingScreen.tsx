@@ -105,7 +105,7 @@ export default function TeamTrackingScreen({
   const [teamSelectionConfirmed, setTeamSelectionConfirmed] = useState(false);
   const [infoAlertVisible, setInfoAlertVisible] = useState(false);
   const [infoAlertTitle, setInfoAlertTitle] = useState('');
-  const [infoAlertContent, setInfoAlertContent] = useState<string>('');
+  const [infoAlertContent, setInfoAlertContent] = useState<string | React.ReactNode>('');
 
   useEffect(() => {
     if (selectedTeam && teamSelectionConfirmed) {
@@ -458,7 +458,7 @@ export default function TeamTrackingScreen({
     legend2: string,
     unit1: string = '%',
     unit2: string = '',
-    infoText?: string
+    infoText?: string | React.ReactNode
   ) => {
     if (data1.length < 2) {
       return (
@@ -522,8 +522,13 @@ export default function TeamTrackingScreen({
               style={styles.chartInfoButton}
               onPress={() => {
                 setInfoAlertTitle('Cálculo de porcentajes');
-                setInfoAlertContent(String(infoText));
-                setInfoAlertVisible(true);
+                if (typeof infoText === 'string') {
+                  setInfoAlertContent(infoText);
+                  setInfoAlertVisible(true);
+                } else {
+                  setInfoAlertContent(infoText);
+                  setInfoAlertVisible(true);
+                }
               }}
             >
               <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
@@ -1635,7 +1640,8 @@ export default function TeamTrackingScreen({
         icon={<MaterialCommunityIcons name="information-outline" size={48} color={Colors.primary} />}
         iconBackgroundColor={Colors.primary + '15'}
         title={infoAlertTitle}
-        message={infoAlertContent}
+        message={typeof infoAlertContent === 'string' ? infoAlertContent : ''}
+        contentComponent={typeof infoAlertContent !== 'string' ? infoAlertContent : undefined}
         buttons={[
           {
             text: 'Cerrar',
