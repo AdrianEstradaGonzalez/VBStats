@@ -490,7 +490,7 @@ export default function TeamTrackingScreen({
     }));
     
     // Crear paths curvos
-    const createPath = (points: typeof points1) => {
+    const createPath = (points: { x: number; y: number }[]) => {
       let pathData = `M ${points[0].x} ${points[0].y}`;
       for (let i = 0; i < points.length - 1; i++) {
         const current = points[i];
