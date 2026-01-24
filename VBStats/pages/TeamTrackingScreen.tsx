@@ -487,6 +487,7 @@ export default function TeamTrackingScreen({
       x: i * xSpacing,
       y: chartHeight - ((d.value - minValue) / range) * chartHeight,
       value: d.value,
+      label: d.label,
     }));
     
     // Crear paths curvos
@@ -682,16 +683,6 @@ export default function TeamTrackingScreen({
                     fill={item.color}
                     rx="3"
                   />
-                  <SvgText
-                    x={x + barWidth / 2}
-                    y={item.value >= 0 ? y - 5 : y + barHeight + 12}
-                    fontSize="11"
-                    fill={item.color}
-                    fontWeight="600"
-                    textAnchor="middle"
-                  >
-                    {item.value >= 0 ? '+' : ''}{item.value}
-                  </SvgText>
                   <SvgText
                     x={x + barWidth / 2}
                     y={chartHeight + 18}
@@ -909,14 +900,25 @@ export default function TeamTrackingScreen({
         }
       });
 
-      // Calcular eficacia por categoría: (doblePos + pos - error) / (doblePos + pos + neutro + error) * 100
+      // Calcular eficacia por categoría
       Object.keys(categoryDetails).forEach(cat => {
         const d = categoryDetails[cat];
         const denominator = d.doblePositivo + d.positivo + d.neutro + d.error;
         if (denominator > 0) {
-          const rawEficacia = ((d.doblePositivo + d.positivo - d.error) / denominator) * 100;
-          // Limitar entre 0 y 100
-          d.eficacia = Math.round(Math.max(0, Math.min(100, rawEficacia)));
+          if (cat === 'Recepción') {
+            // Recepción: (doblePos + pos) / (doblePos + pos + neutro + error) * 100
+            const eficacia = ((d.doblePositivo + d.positivo) / denominator) * 100;
+            d.eficacia = Math.round(Math.max(0, Math.min(100, eficacia)));
+          } else if (cat === 'Ataque') {
+            // Ataque: pos / (pos + neutro + error) * 100
+            const ataqueDenominator = d.positivo + d.neutro + d.error;
+            const eficacia = ataqueDenominator > 0 ? (d.positivo / ataqueDenominator) * 100 : 0;
+            d.eficacia = Math.round(Math.max(0, Math.min(100, eficacia)));
+          } else {
+            // Otras categorías mantienen fórmula original
+            const rawEficacia = ((d.doblePositivo + d.positivo - d.error) / denominator) * 100;
+            d.eficacia = Math.round(Math.max(0, Math.min(100, rawEficacia)));
+          }
         }
       });
 
@@ -1128,14 +1130,22 @@ export default function TeamTrackingScreen({
     const maxAnotador = [...players].sort((a, b) => b.ataquePositivo - a.ataquePositivo)[0];
     const mejorAtacante = [...players]
       .filter(p => p.ataqueTotal >= 5)
-      .sort((a, b) => (b.ataqueTotalPuntos / b.ataqueTotal) - (a.ataqueTotalPuntos / a.ataqueTotal))[0];
+      .sort((a, b) => {
+        // Nueva fórmula ataque: pos / (pos + neutro + error)
+        const denomA = a.ataquePositivo + (a.ataqueTotal - a.ataquePositivo);
+        const denomB = b.ataquePositivo + (b.ataqueTotal - b.ataquePositivo);
+        const eficaciaA = denomA > 0 ? a.ataquePositivo / denomA : 0;
+        const eficaciaB = denomB > 0 ? b.ataquePositivo / denomB : 0;
+        return eficaciaB - eficaciaA;
+      })[0];
     const mejorReceptor = [...players]
       .filter(p => (p.recepcionDobles + p.recepcionPos + p.recepcionNeutro + p.recepcionError) >= 5)
       .sort((a, b) => {
         const totalA = a.recepcionDobles + a.recepcionPos + a.recepcionNeutro + a.recepcionError;
         const totalB = b.recepcionDobles + b.recepcionPos + b.recepcionNeutro + b.recepcionError;
-        const eficaciaA = totalA > 0 ? (a.recepcionDobles + a.recepcionPos - a.recepcionError) / totalA : 0;
-        const eficaciaB = totalB > 0 ? (b.recepcionDobles + b.recepcionPos - b.recepcionError) / totalB : 0;
+        // Nueva fórmula: (doblePos + pos) / (doblePos + pos + neutro + error)
+        const eficaciaA = totalA > 0 ? (a.recepcionDobles + a.recepcionPos) / totalA : 0;
+        const eficaciaB = totalB > 0 ? (b.recepcionDobles + b.recepcionPos) / totalB : 0;
         return eficaciaB - eficaciaA;
       })[0];
     const mejorDefensor = [...players].sort((a, b) => b.defensaPositivo - a.defensaPositivo)[0];
@@ -1150,7 +1160,10 @@ export default function TeamTrackingScreen({
       } : null,
       mejorAtacante: mejorAtacante ? {
         ...mejorAtacante,
-        stat: Math.round(Math.max(0, Math.min(100, (mejorAtacante.ataqueTotalPuntos / mejorAtacante.ataqueTotal) * 100))),
+        stat: Math.round(Math.max(0, Math.min(100, (() => {
+          const denom = mejorAtacante.ataquePositivo + (mejorAtacante.ataqueTotal - mejorAtacante.ataquePositivo);
+          return denom > 0 ? (mejorAtacante.ataquePositivo / denom) * 100 : 0;
+        })()))),
         label: '% eficacia'
       } : null,
       mejorReceptor: mejorReceptor ? {
@@ -1158,7 +1171,7 @@ export default function TeamTrackingScreen({
         stat: Math.round(Math.max(0, Math.min(100, (() => {
           const total = mejorReceptor.recepcionDobles + mejorReceptor.recepcionPos + mejorReceptor.recepcionNeutro + mejorReceptor.recepcionError;
           return total > 0
-            ? ((mejorReceptor.recepcionDobles + mejorReceptor.recepcionPos - mejorReceptor.recepcionError) / total) * 100
+            ? ((mejorReceptor.recepcionDobles + mejorReceptor.recepcionPos) / total) * 100
             : 0;
         })()))),
         label: '% eficacia'
@@ -1742,25 +1755,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    paddingVertical: Spacing.md,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#cbd5e1',
     shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   chartTitle: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#0f172a',
-    marginBottom: Spacing.sm,
-    letterSpacing: 0.2,
+    marginBottom: Spacing.md,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   chartAxisText: {
     fontSize: 11,
@@ -2085,11 +2099,17 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: '#f8fafc',
-    borderRadius: 10,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#cbd5e1',
     marginHorizontal: Spacing.md,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   legendItemImproved: {
     flexDirection: 'row',
