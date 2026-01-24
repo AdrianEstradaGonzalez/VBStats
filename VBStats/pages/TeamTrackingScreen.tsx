@@ -342,7 +342,8 @@ export default function TeamTrackingScreen({
     color: string, 
     title: string,
     unit: string = '',
-    showSign: boolean = true
+    showSign: boolean = true,
+    legendLabel: string = 'Serie'
   ) => {
     if (data.length < 2) {
       return (
@@ -356,10 +357,10 @@ export default function TeamTrackingScreen({
     const maxValue = Math.max(...values);
     const minValue = Math.min(...values);
     const range = maxValue - minValue || 1;
-    const paddingLeft = 55;
-    const paddingRight = 15;
-    const paddingTop = 20;
-    const paddingBottom = 45;
+    const paddingLeft = 52;
+    const paddingRight = 24;
+    const paddingTop = 22;
+    const paddingBottom = 48;
     const chartW = CHART_WIDTH - paddingLeft - paddingRight;
     const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
 
@@ -432,6 +433,12 @@ export default function TeamTrackingScreen({
             </SvgText>
           ))}
         </Svg>
+        <View style={styles.chartLegendImproved}>
+          <View style={styles.legendItemImproved}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={[styles.legendTextImproved, { color }]}>{legendLabel}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -468,10 +475,10 @@ export default function TeamTrackingScreen({
     const range1 = maxValue1 - minValue1 || 1;
     const range2 = maxValue2 - minValue2 || 1;
     
-    const paddingLeft = 50;
-    const paddingRight = 50;
-    const paddingTop = 25;
-    const paddingBottom = 50;
+    const paddingLeft = 52;
+    const paddingRight = 32;
+    const paddingTop = 24;
+    const paddingBottom = 52;
     const chartW = CHART_WIDTH - paddingLeft - paddingRight;
     const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
 
@@ -505,10 +512,10 @@ export default function TeamTrackingScreen({
             return (
               <G key={`grid-${i}`}>
                 <Line x1={paddingLeft} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
-                <SvgText x={paddingLeft - 8} y={y + 4} fontSize={11} fill={color1} textAnchor="end" fontWeight="600">
+                <SvgText x={paddingLeft - 10} y={y + 4} fontSize={11} fill={color1} textAnchor="end" fontWeight="600">
                   {yAxis1Values[i]}{unit1}
                 </SvgText>
-                <SvgText x={CHART_WIDTH - paddingRight + 8} y={y + 4} fontSize={11} fill={color2} textAnchor="start" fontWeight="600">
+                <SvgText x={CHART_WIDTH - 8} y={y + 4} fontSize={11} fill={color2} textAnchor="end" fontWeight="600">
                   {yAxis2Values[i]}{unit2}
                 </SvgText>
               </G>
@@ -571,7 +578,12 @@ export default function TeamTrackingScreen({
   };
 
   // Renderizar gráfico de barras mejorado con manejo de negativos
-  const renderImprovedBarChart = (data: { label: string; value: number; color: string }[], title: string) => {
+  const renderImprovedBarChart = (
+    data: { label: string; value: number; color: string }[],
+    title: string,
+    legendLabel: string = 'Serie',
+    legendColor: string = Colors.text
+  ) => {
     if (data.length === 0) return null;
 
     const values = data.map(d => d.value);
@@ -579,13 +591,13 @@ export default function TeamTrackingScreen({
     const minValue = Math.min(...values, 0);
     const range = maxValue - minValue || 1;
     
-    const paddingLeft = 55;
-    const paddingRight = 15;
-    const paddingTop = 25;
-    const paddingBottom = 50;
+    const paddingLeft = 52;
+    const paddingRight = 24;
+    const paddingTop = 24;
+    const paddingBottom = 52;
     const chartW = CHART_WIDTH - paddingLeft - paddingRight;
     const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
-    const barWidth = Math.min((chartW / data.length) - 16, 40);
+    const barWidth = Math.max(18, Math.min((chartW / data.length) - 16, 40));
     
     // Posición de la línea cero
     const zeroY = paddingTop + (maxValue / range) * chartH;
@@ -619,7 +631,7 @@ export default function TeamTrackingScreen({
           {/* Barras */}
           {data.map((d, i) => {
             const totalWidth = data.length * (barWidth + 16);
-            const startX = paddingLeft + (chartW - totalWidth) / 2 + 8;
+            const startX = paddingLeft + Math.max(0, (chartW - totalWidth) / 2) + 4;
             const x = startX + i * (barWidth + 16);
             
             const barHeight = Math.abs(d.value) / range * chartH;
@@ -659,6 +671,12 @@ export default function TeamTrackingScreen({
             );
           })}
         </Svg>
+        <View style={styles.chartLegendImproved}>
+          <View style={styles.legendItemImproved}>
+            <View style={[styles.legendDot, { backgroundColor: legendColor }]} />
+            <Text style={[styles.legendTextImproved, { color: legendColor }]}>{legendLabel}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -667,7 +685,8 @@ export default function TeamTrackingScreen({
   const renderSimpleLineChart = (
     data: { value: number; label: string }[], 
     color: string, 
-    title: string
+    title: string,
+    legendLabel: string = 'Serie'
   ) => {
     if (data.length < 2) {
       return (
@@ -681,10 +700,10 @@ export default function TeamTrackingScreen({
     const maxValue = Math.max(...values, 1);
     const minValue = 0; // Siempre empezar desde 0 para conteos
     const range = maxValue - minValue || 1;
-    const paddingLeft = 50;
-    const paddingRight = 15;
-    const paddingTop = 25;
-    const paddingBottom = 45;
+    const paddingLeft = 52;
+    const paddingRight = 24;
+    const paddingTop = 24;
+    const paddingBottom = 48;
     const chartW = CHART_WIDTH - paddingLeft - paddingRight;
     const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
 
@@ -744,6 +763,12 @@ export default function TeamTrackingScreen({
             </SvgText>
           ))}
         </Svg>
+        <View style={styles.chartLegendImproved}>
+          <View style={styles.legendItemImproved}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={[styles.legendTextImproved, { color }]}>{legendLabel}</Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -830,21 +855,29 @@ export default function TeamTrackingScreen({
 
     const categoryColor = (cat: string) => CATEGORY_COLORS[normalizeCategoryKey(cat)] || Colors.primary;
 
-    // Datos para Recepción
-    const recepcionData = getDetailedCategoryStats.map(m => ({
-      eficacia: m.categoryDetails['Recepción']?.eficacia || 0,
-      doblePositivo: m.categoryDetails['Recepción']?.doblePositivo || 0,
-      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
-    }));
+    // Datos para Recepción (ambas medidas en porcentaje)
+    const recepcionData = getDetailedCategoryStats.map(m => {
+      const r = m.categoryDetails['Recepción'];
+      const total = r ? (r.doblePositivo + r.positivo + r.neutro + r.error) : 0;
+      const doblePosPct = total > 0 ? Math.round((r!.doblePositivo / total) * 100) : 0;
+      return {
+        eficacia: r?.eficacia || 0,
+        doblePosPct: Math.max(0, Math.min(100, doblePosPct)),
+        label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+      };
+    });
 
-    // Datos para Ataque
-    const ataqueData = getDetailedCategoryStats.map(m => ({
-      eficacia: m.categoryDetails['Ataque']?.total > 0 
-        ? Math.round((m.categoryDetails['Ataque']?.positivo || 0) / m.categoryDetails['Ataque'].total * 100)
-        : 0,
-      puntos: m.categoryDetails['Ataque']?.positivo || 0,
-      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
-    }));
+    // Datos para Ataque (ambas medidas en porcentaje)
+    const ataqueData = getDetailedCategoryStats.map(m => {
+      const a = m.categoryDetails['Ataque'];
+      const denom = a ? (a.neutro + a.error) : 0;
+      const anotacionPct = denom > 0 ? (a!.positivo / denom) * 100 : (a?.positivo ? 100 : 0);
+      return {
+        eficacia: a?.eficacia || 0,
+        anotacionPct: Math.max(0, Math.min(100, Math.round(anotacionPct))),
+        label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+      };
+    });
 
     // Datos para Bloqueo (acciones positivas)
     const bloqueoData = getDetailedCategoryStats.map(m => ({
@@ -864,8 +897,8 @@ export default function TeamTrackingScreen({
       label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
     }));
 
-    const hasRecepcion = recepcionData.some(d => d.eficacia !== 0 || d.doblePositivo !== 0);
-    const hasAtaque = ataqueData.some(d => d.eficacia !== 0 || d.puntos !== 0);
+    const hasRecepcion = recepcionData.some(d => d.eficacia !== 0 || d.doblePosPct !== 0);
+    const hasAtaque = ataqueData.some(d => d.eficacia !== 0 || d.anotacionPct !== 0);
     const hasBloqueo = bloqueoData.some(d => d.value !== 0);
     const hasDefensa = defensaData.some(d => d.value !== 0);
     const hasSaque = saqueData.some(d => d.value !== 0);
@@ -883,48 +916,51 @@ export default function TeamTrackingScreen({
         {/* Recepción: Eficacia + Dobles Positivos */}
         {hasRecepcion && renderDualLineChart(
           recepcionData.map(d => ({ value: d.eficacia, label: d.label })),
-          recepcionData.map(d => ({ value: d.doblePositivo, label: d.label })),
+          recepcionData.map(d => ({ value: d.doblePosPct, label: d.label })),
           categoryColor('Recepción'),
           '#0ea5e9',
           'Recepción',
-          'Eficacia',
-          'Dobles',
+          'Eficacia %',
+          'Doble Pos %',
           '%',
-          ''
+          '%'
         )}
 
         {/* Ataque: Eficacia + Puntos */}
         {hasAtaque && renderDualLineChart(
           ataqueData.map(d => ({ value: d.eficacia, label: d.label })),
-          ataqueData.map(d => ({ value: d.puntos, label: d.label })),
+          ataqueData.map(d => ({ value: d.anotacionPct, label: d.label })),
           categoryColor('Ataque'),
           '#f59e0b',
           'Ataque',
-          'Eficacia',
-          'Puntos',
+          'Eficacia %',
+          'Anotación %',
           '%',
-          ''
+          '%'
         )}
 
         {/* Bloqueo: Acciones positivas */}
         {hasBloqueo && renderSimpleLineChart(
           bloqueoData,
           categoryColor('Bloqueo'),
-          'Bloqueo'
+          'Bloqueo',
+          'Acciones'
         )}
 
         {/* Defensa: Acciones positivas */}
         {hasDefensa && renderSimpleLineChart(
           defensaData,
           categoryColor('Defensa'),
-          'Defensa'
+          'Defensa',
+          'Acciones'
         )}
 
         {/* Saque: Puntos directos */}
         {hasSaque && renderSimpleLineChart(
           saqueData,
           categoryColor('Saque'),
-          'Saque'
+          'Saque',
+          'Acciones'
         )}
       </View>
     );
@@ -1017,12 +1053,12 @@ export default function TeamTrackingScreen({
       } : null,
       mejorAtacante: mejorAtacante ? {
         ...mejorAtacante,
-        stat: Math.round((mejorAtacante.ataqueTotalPuntos / mejorAtacante.ataqueTotal) * 100),
+        stat: Math.round(Math.max(0, Math.min(100, (mejorAtacante.ataqueTotalPuntos / mejorAtacante.ataqueTotal) * 100))),
         label: '% eficacia'
       } : null,
       mejorReceptor: mejorReceptor ? {
         ...mejorReceptor,
-        stat: Math.round((mejorReceptor.recepcionEficacia / mejorReceptor.recepcionTotal) * 100),
+        stat: Math.round(Math.max(0, Math.min(100, (mejorReceptor.recepcionEficacia / mejorReceptor.recepcionTotal) * 100))),
         label: '% eficacia'
       } : null,
       mejorDefensor: mejorDefensor ? {
@@ -1327,7 +1363,10 @@ export default function TeamTrackingScreen({
                   label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent
                 })),
                 trendChartColor,
-                'Evolución G-P por Partido'
+                'Evolución G-P por Partido',
+                '',
+                true,
+                'G-P'
               )}
             </View>
 
@@ -1341,7 +1380,9 @@ export default function TeamTrackingScreen({
                     value: data.avgGP,
                     color: CATEGORY_COLORS[normalizeCategoryKey(cat)] || Colors.primary,
                   })),
-                'G-P Promedio por Categoría'
+                'G-P Promedio por Categoría',
+                'G-P Promedio',
+                Colors.text
               )}
             </View>
 
@@ -1599,17 +1640,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartContainer: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
     marginBottom: Spacing.lg,
-    ...Shadows.sm,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   chartTitle: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
     marginBottom: Spacing.sm,
+    letterSpacing: 0.2,
   },
   categoryChartWrapper: {
     marginBottom: Spacing.sm,
@@ -1621,7 +1670,7 @@ const styles = StyleSheet.create({
   },
   noChartDataText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
+    color: '#64748b',
     textAlign: 'center',
   },
   scatterLegend: {
@@ -1924,8 +1973,10 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     marginTop: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.sm,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginHorizontal: Spacing.md,
   },
   legendItemImproved: {
