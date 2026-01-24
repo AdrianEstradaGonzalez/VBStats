@@ -1635,19 +1635,15 @@ export default function TeamTrackingScreen({
         icon={<MaterialCommunityIcons name="information-outline" size={48} color={Colors.primary} />}
         iconBackgroundColor={Colors.primary + '15'}
         title={infoAlertTitle}
-        // use contentComponent for rich formula display
-        contentComponent={<View style={styles.formulaContainer}>
-          <Text style={styles.formulaText}>{infoAlertContent}</Text>
-          <View style={styles.formulaDivider} />
-          <Text style={styles.formulaNote}>Las fórmulas usan: positivo = acciones con resultado favorable, neutro = acciones neutrales, error = acciones con error.</Text>
-        </View>}
+        message={infoAlertContent + '\n\n━━━━━━━━━━━━━━━\n\nLas fórmulas usan:\n• positivo = acciones con resultado favorable\n• neutro = acciones neutrales\n• error = acciones con error'}
         buttons={[
           {
             text: 'Cerrar',
             onPress: () => setInfoAlertVisible(false),
             style: 'primary',
           },
-        ]} message={''}      />
+        ]}
+      />
     </SafeAreaView>
   );
 }
