@@ -1039,7 +1039,7 @@ export default function TeamTrackingScreen({
           'Doble Pos %',
           '%',
           '%',
-          'Eficacia (%) = [(doblePos + pos) / (doblePos + pos + neutro + error)] × 100'
+          'EFICACIA DE RECEPCIÓN:\n\n            ⦿⦿ doblePos + ⊕ pos\n      ─────────────────────────────────\n      ⦿⦿ doblePos + ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficacia %'
         )}
 
         {/* Ataque: Anotación (acciones positivas) */}
@@ -1061,7 +1061,7 @@ export default function TeamTrackingScreen({
           'Eficiencia %',
           '%',
           '%',
-          'Eficacia (%) = [pos / (pos + neutro + error)] × 100\n\nEficiencia (%) = [(pos - error) / (pos + neutro + error)] × 100'
+          'EFICACIA DE ATAQUE:\n\n                  ⊕ pos\n      ──────────────────────────\n      ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficacia %\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEFICIENCIA DE ATAQUE:\n\n                ⊕ pos - ⊗ error\n      ──────────────────────────\n      ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficiencia %'
         )}
 
         {/* Bloqueo: Acciones positivas */}
