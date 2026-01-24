@@ -56,6 +56,7 @@ interface StatsScreenProps {
   subscriptionType?: SubscriptionType;
   onUpgradeToPro?: () => void;
   teams?: Team[];
+  resetTrackingKey?: number;
 }
 
 export default function StatsScreen({ 
@@ -66,6 +67,7 @@ export default function StatsScreen({
   subscriptionType = 'pro',
   onUpgradeToPro,
   teams = [],
+  resetTrackingKey = 0,
 }: StatsScreenProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,12 @@ export default function StatsScreen({
   const [showProAlert, setShowProAlert] = useState(false);
 
   const isProSubscription = subscriptionType === 'pro';
+
+  useEffect(() => {
+    setShowTracking(false);
+    setSelectedMatch(null);
+    setShowProAlert(false);
+  }, [resetTrackingKey]);
 
   useEffect(() => {
     loadFinishedMatches();

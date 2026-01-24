@@ -21,6 +21,7 @@ import Svg, { G, Path, Line, Circle, Text as SvgText, Rect } from 'react-native-
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
+import { POSITION_STATS } from '../services/statTemplates';
 import type { Match, MatchStatsSummary, MatchStat } from '../services/types';
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
@@ -29,7 +30,7 @@ const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 const ANDROID_NAV_BAR_HEIGHT = 48;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
-const CHART_HEIGHT = 200;
+const CHART_HEIGHT = 240;
 
 interface TeamTrackingScreenProps {
   userId: number;
@@ -64,16 +65,31 @@ interface PlayerPerformance {
   averageGP: number;
 }
 
+const MATCH_RESULT_COLORS: Record<'win' | 'loss' | 'draw', string> = {
+  win: '#22c55e',
+  loss: '#ef4444',
+  draw: '#f59e0b',
+};
+
+const getMatchResultColor = (result: MatchPerformance['result']) => MATCH_RESULT_COLORS[result];
+
 // Categorías de estadísticas
 const STAT_CATEGORIES = ['Recepción', 'Ataque', 'Bloqueo', 'Saque', 'Defensa', 'Colocación'];
-const CATEGORY_COLORS: Record<string, string> = {
-  'Recepción': '#22c55e',
-  'Ataque': '#ef4444',
-  'Bloqueo': '#3b82f6',
-  'Saque': '#f59e0b',
-  'Defensa': '#8b5cf6',
-  'Colocación': '#06b6d4',
-};
+const normalizeCategoryKey = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+const CATEGORY_COLORS = Object.values(POSITION_STATS).reduce((map, configs) => {
+  configs.forEach((stat) => {
+    const key = normalizeCategoryKey(stat.category);
+    if (!map[key]) {
+      map[key] = stat.color;
+    }
+  });
+  return map;
+}, {} as Record<string, string>);
 
 export default function TeamTrackingScreen({ 
   userId, 
@@ -82,18 +98,62 @@ export default function TeamTrackingScreen({
   onOpenMenu 
 }: TeamTrackingScreenProps) {
   const [loading, setLoading] = useState(true);
-  const [selectedTeam, setSelectedTeam] = useState<number | null>(teams[0]?.id || null);
+  const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
   const [matchesData, setMatchesData] = useState<{ match: Match; stats: MatchStat[] }[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const [chartType, setChartType] = useState<'line' | 'bar'>('line');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [teamSelectionConfirmed, setTeamSelectionConfirmed] = useState(false);
 
   useEffect(() => {
-    if (selectedTeam) {
+    if (selectedTeam && teamSelectionConfirmed) {
       loadTeamData(selectedTeam);
     }
-  }, [selectedTeam]);
+  }, [selectedTeam, teamSelectionConfirmed]);
+
+  const confirmTeamSelection = (teamId: number) => {
+    setSelectedTeam(teamId);
+    setSelectedPlayer(null);
+    setTeamSelectionConfirmed(true);
+  };
+
+  const reopenTeamSelector = () => {
+    setTeamSelectionConfirmed(false);
+    setMatchesData([]);
+    setSelectedPlayer(null);
+  };
+
+  const selectedTeamName = teams.find(t => t.id === selectedTeam)?.name;
+
+  const renderHeader = (showActions: boolean) => (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
+        <MenuIcon size={28} color={Colors.text} />
+      </TouchableOpacity>
+      <View style={styles.headerCenter}>
+        <StatsIcon size={24} color={Colors.primary} />
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.headerTitle}>Seguimiento</Text>
+          {selectedTeamName ? (
+            <Text style={styles.headerSubtitle}>{selectedTeamName}</Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.headerActions}>
+        {showActions && teamSelectionConfirmed && teams.length > 1 && (
+          <TouchableOpacity style={styles.changeTeamButton} onPress={reopenTeamSelector}>
+            <MaterialCommunityIcons name="swap-horizontal" size={20} color={Colors.primary} />
+            <Text style={styles.changeTeamText}>Cambiar</Text>
+          </TouchableOpacity>
+        )}
+        {showActions && (
+          <TouchableOpacity style={styles.exportButton} onPress={() => setShowExportAlert(true)}>
+            <MaterialCommunityIcons name="export-variant" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
 
   const loadTeamData = async (teamId: number) => {
     setLoading(true);
@@ -117,7 +177,7 @@ export default function TeamTrackingScreen({
         })
       );
 
-      setMatchesData(matchesWithStats.filter(m => m.stats.length > 0));
+      setMatchesData(matchesWithStats);
     } catch (error) {
       console.error('Error loading team data:', error);
     } finally {
@@ -268,7 +328,7 @@ export default function TeamTrackingScreen({
     const range = maxValue - minValue || 1;
     const padding = 40;
     const chartW = CHART_WIDTH - padding * 2;
-    const chartH = CHART_HEIGHT - 50;
+    const chartH = CHART_HEIGHT - 70;
 
     const points = data.map((d, i) => {
       const x = padding + (i / (data.length - 1)) * chartW;
@@ -303,12 +363,33 @@ export default function TeamTrackingScreen({
           <Path d={pathD} fill="none" stroke={color} strokeWidth={2} />
 
           {/* Data points */}
-          {points.map((p, i) => (
-            <G key={i}>
-              <Circle cx={p.x} cy={p.y} r={6} fill={color} />
-              <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
-            </G>
-          ))}
+          {points.map((p, i) => {
+            const labelOffset = p.value >= 0 ? -14 : 16;
+            const labelY = Math.max(20, Math.min(chartH + 35, p.y + labelOffset));
+            const labelValue = `${p.value >= 0 ? '+' : ''}${p.value}`;
+            const labelHalfWidth = Math.max(14, labelValue.length * 3.5);
+            const labelX = Math.max(
+              padding + labelHalfWidth,
+              Math.min(CHART_WIDTH - padding - labelHalfWidth, p.x)
+            );
+            return (
+              <G key={i}>
+                <Circle cx={p.x} cy={p.y} r={6} fill={color} />
+                <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
+                <SvgText
+                  x={labelX}
+                  y={labelY}
+                  fontSize={10}
+                  fill={Colors.text}
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                >
+                  {labelValue}
+                </SvgText>
+              </G>
+            );
+          })}
 
           {/* Labels */}
           {points.map((p, i) => (
@@ -337,9 +418,7 @@ export default function TeamTrackingScreen({
     }
 
     const maxValue = Math.max(...data.map(d => Math.abs(d.value)), 1);
-    // Calcular ancho de barra dinámico según cantidad de datos
-    const availableWidth = CHART_WIDTH - 60;
-    const barWidth = Math.min((availableWidth / data.length) - 8, 50);
+    const barWidth = (CHART_WIDTH - 60) / data.length - 10;
     const chartH = CHART_HEIGHT - 50;
 
     return (
@@ -352,10 +431,14 @@ export default function TeamTrackingScreen({
           {/* Bars */}
           {data.map((d, i) => {
             const barHeight = (Math.abs(d.value) / maxValue) * (chartH - 10);
-            const totalBarsWidth = data.length * (barWidth + 8);
-            const startX = (CHART_WIDTH - totalBarsWidth) / 2;
-            const x = startX + i * (barWidth + 8);
+            const x = 35 + i * (barWidth + 10);
             const y = d.value >= 0 ? chartH + 20 - barHeight : chartH + 20;
+            const labelValue = `${d.value >= 0 ? '+' : ''}${d.value}`;
+            const labelHalfWidth = Math.max(14, labelValue.length * 3.5);
+            const labelX = Math.max(
+              30 + labelHalfWidth,
+              Math.min(CHART_WIDTH - 10 - labelHalfWidth, x + barWidth / 2)
+            );
 
             return (
               <G key={i}>
@@ -367,15 +450,20 @@ export default function TeamTrackingScreen({
                   fill={d.color}
                   rx={4}
                 />
-                <SvgText 
-                  x={x + barWidth / 2} 
-                  y={d.value >= 0 ? y - 5 : y + barHeight + 12} 
-                  fontSize={11} 
-                  fill={Colors.text} 
+                <SvgText
+                  x={labelX}
+                  y={
+                    d.value >= 0
+                      ? Math.max(18, y - 12)
+                      : Math.min(chartH + 30, y + barHeight + 18)
+                  }
+                  fontSize={11}
+                  fill={Colors.text}
                   textAnchor="middle"
                   fontWeight="bold"
+                  alignmentBaseline="middle"
                 >
-                  {d.value >= 0 ? '+' : ''}{d.value}
+                  {labelValue}
                 </SvgText>
                 <SvgText 
                   x={x + barWidth / 2} 
@@ -425,11 +513,13 @@ export default function TeamTrackingScreen({
             label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent,
           }));
 
+          const categoryColor = CATEGORY_COLORS[normalizeCategoryKey(category)] || Colors.primary;
+
           return (
             <View key={category} style={styles.categoryChartWrapper}>
               {renderLineChart(
                 categoryData,
-                CATEGORY_COLORS[category] || Colors.primary,
+                categoryColor,
                 `${category} - Evolución G-P`
               )}
             </View>
@@ -523,19 +613,65 @@ export default function TeamTrackingScreen({
     }
   };
 
+  const trendChartColor = matchPerformances.length
+    ? getMatchResultColor(matchPerformances[matchPerformances.length - 1].result)
+    : Colors.primary;
+
+  if (!teamSelectionConfirmed) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {renderHeader(false)}
+        <ScrollView
+          contentContainerStyle={styles.teamSelectionContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.selectionTitle}>Selecciona el equipo para el seguimiento</Text>
+          <Text style={styles.selectionSubtitle}>
+            Elige el equipo que quieres analizar para cargar sus métricas.
+          </Text>
+          {teams.length === 0 ? (
+            <View style={styles.selectionEmptyState}>
+              <Text style={styles.selectionEmptyTitle}>Todavía no tienes equipos</Text>
+              <Text style={styles.selectionEmptyText}>
+                Crea uno desde el menú lateral y vuelve a esta pantalla para comenzar.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.teamSelectionList}>
+              {teams.map(team => (
+                <TouchableOpacity
+                  key={team.id}
+                  style={[
+                    styles.teamSelectionCard,
+                    selectedTeam === team.id && styles.teamSelectionCardActive,
+                  ]}
+                  onPress={() => confirmTeamSelection(team.id)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.teamSelectionHeader}>
+                    <TeamIcon size={28} color={Colors.primary} />
+                    <Text style={styles.teamSelectionTitle}>{team.name}</Text>
+                  </View>
+                  <Text style={styles.teamSelectionText}>
+                    {team.playerCount ?? 0} jugadores registrados
+                  </Text>
+                  <View style={styles.teamSelectionBadge}>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textSecondary} />
+                    <Text style={styles.teamSelectionBadgeText}>Ver seguimiento</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
-            <MenuIcon size={28} color={Colors.text} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <MaterialCommunityIcons name="chart-timeline-variant" size={24} color={Colors.primary} />
-            <Text style={styles.headerTitle}>Seguimiento</Text>
-          </View>
-          <View style={styles.headerRight} />
-        </View>
+        {renderHeader(true)}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando datos...</Text>
@@ -546,45 +682,18 @@ export default function TeamTrackingScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
-          <MenuIcon size={28} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <MaterialCommunityIcons name="chart-timeline-variant" size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Seguimiento</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.exportButton} 
-          onPress={() => setShowExportAlert(true)}
-        >
-          <MaterialCommunityIcons name="export-variant" size={24} color={Colors.primary} />
-        </TouchableOpacity>
-      </View>
+      {renderHeader(true)}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Selector de equipo */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Equipo</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.filterRow}>
-              {teams.map(team => (
-                <TouchableOpacity
-                  key={team.id}
-                  style={[styles.filterChip, selectedTeam === team.id && styles.filterChipActive]}
-                  onPress={() => {
-                    setSelectedTeam(team.id);
-                    setSelectedPlayer(null);
-                  }}
-                >
-                  <Text style={[styles.filterChipText, selectedTeam === team.id && styles.filterChipTextActive]}>
-                    {team.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+        {/* Equipo seleccionado */}
+        <View style={styles.teamBanner}>
+          <View style={styles.teamBadgeIcon}>
+            <TeamIcon size={22} color={Colors.primary} />
+          </View>
+          <View style={styles.teamBannerText}>
+            <Text style={styles.teamBannerLabel}>Equipo seleccionado</Text>
+            <Text style={styles.teamBannerName}>{selectedTeamName || 'Mi Equipo'}</Text>
+          </View>
         </View>
 
         {/* Selector de jugador */}
@@ -688,7 +797,7 @@ export default function TeamTrackingScreen({
                   value: mp.gp, 
                   label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent
                 })),
-                Colors.primary,
+                trendChartColor,
                 'Evolución G-P por Partido'
               )
             ) : (
@@ -696,7 +805,7 @@ export default function TeamTrackingScreen({
                 matchPerformances.map(mp => ({
                   label: mp.opponent,
                   value: mp.gp,
-                  color: mp.result === 'win' ? '#22c55e' : mp.result === 'loss' ? '#ef4444' : '#f59e0b',
+                  color: getMatchResultColor(mp.result),
                 })),
                 'G-P por Partido',
                 2 // Mínimo 2 partidos para mostrar el gráfico
@@ -718,7 +827,7 @@ export default function TeamTrackingScreen({
                   .map(([cat, data]) => ({
                     label: cat,
                     value: data.avgGP,
-                    color: CATEGORY_COLORS[cat] || Colors.primary,
+                    color: CATEGORY_COLORS[normalizeCategoryKey(cat)] || Colors.primary,
                   })),
                 'G-P Promedio por Categoría'
               )}
@@ -734,7 +843,7 @@ export default function TeamTrackingScreen({
                       <MaterialCommunityIcons 
                         name={mp.result === 'win' ? 'check-circle' : mp.result === 'loss' ? 'close-circle' : 'minus-circle'} 
                         size={20} 
-                        color={mp.result === 'win' ? '#22c55e' : mp.result === 'loss' ? '#ef4444' : '#f59e0b'} 
+                        color={getMatchResultColor(mp.result)} 
                       />
                       <Text style={styles.matchItemDateText}>{formatDate(mp.date)}</Text>
                     </View>
@@ -825,6 +934,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
   },
   headerCenter: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -1053,6 +1163,142 @@ const styles = StyleSheet.create({
   },
   matchItemStatValue: {
     fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  headerTextBlock: {
+    marginLeft: Spacing.sm,
+  },
+  headerSubtitle: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  changeTeamButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+  },
+  changeTeamText: {
+    marginLeft: Spacing.xs,
+    color: Colors.primary,
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  teamSelectionContent: {
+    padding: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  selectionTitle: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '800',
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  selectionSubtitle: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  selectionEmptyState: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+  },
+  selectionEmptyTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  selectionEmptyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  teamSelectionList: {
+    gap: Spacing.md,
+  },
+  teamSelectionCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    ...Shadows.sm,
+  },
+  teamSelectionCardActive: {
+    borderColor: Colors.primary,
+  },
+  teamSelectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  teamSelectionTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  teamSelectionText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  teamSelectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
+  teamSelectionBadgeText: {
+    marginLeft: Spacing.xs,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  teamBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  teamBadgeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  teamBannerText: {
+    flex: 1,
+  },
+  teamBannerLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  teamBannerName: {
+    marginTop: 2,
+    fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.text,
   },
