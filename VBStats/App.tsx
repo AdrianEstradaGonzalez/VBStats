@@ -65,6 +65,7 @@ export default function App() {
   const [matchDetails, setMatchDetails] = useState<MatchDetails | null>(null);
   const [resumeMatchId, setResumeMatchId] = useState<number | null>(null);
   const [viewingMatch, setViewingMatch] = useState<Match | null>(null);
+  const [statsResetKey, setStatsResetKey] = useState(0);
   const [showCancelSubscriptionAlert, setShowCancelSubscriptionAlert] = useState(false);
   const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -280,10 +281,17 @@ export default function App() {
     setShowSignUp(false);
   };
 
+  const openStatsScreen = () => {
+    setStatsResetKey(prev => prev + 1);
+    setCurrentScreen('stats');
+  };
+
   const handleNavigate = (screen: string) => {
     if (screen === 'startMatch') {
       // Go to start match flow screen to check for ongoing matches
       setCurrentScreen('startMatchFlow');
+    } else if (screen === 'stats') {
+      openStatsScreen();
     } else {
       setCurrentScreen(screen as Screen);
     }
@@ -396,7 +404,7 @@ export default function App() {
             onOpenMenu={handleOpenMenu}
             onMatchFound={(match) => {
               setViewingMatch(match);
-              setCurrentScreen('stats');
+              openStatsScreen();
             }}
           />
         );
@@ -535,6 +543,7 @@ export default function App() {
             teams={teams}
             subscriptionType={subscriptionType}
             onUpgradeToPro={handleUpgradeToPro}
+            resetTrackingKey={statsResetKey}
           />
         );
       case 'settings':
@@ -565,6 +574,7 @@ export default function App() {
         return (
           <GuideScreen 
             onBack={() => setCurrentScreen('home')}
+            onOpenMenu={handleOpenMenu}
             onSelectPlan={handleUpgradeToPro}
           />
         );
@@ -576,7 +586,7 @@ export default function App() {
               onOpenMenu={handleOpenMenu}
               onMatchFound={(match) => {
                 setViewingMatch(match);
-                setCurrentScreen('stats');
+                openStatsScreen();
               }}
             />
           );

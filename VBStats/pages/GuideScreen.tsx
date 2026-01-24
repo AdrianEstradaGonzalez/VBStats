@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { MenuIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -25,7 +26,8 @@ const ANDROID_NAV_BAR_HEIGHT = 48;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface GuideScreenProps {
-  onBack: () => void;
+  onBack?: () => void;
+  onOpenMenu?: () => void;
   onSelectPlan?: () => void;
 }
 
@@ -46,7 +48,7 @@ interface RoleFeature {
   pro: boolean | string;
 }
 
-export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) {
+export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan }: GuideScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>('guide');
 
   // Secciones de la guía
@@ -59,9 +61,8 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
       steps: [
         'Ve a "Mis Equipos" desde el menú lateral',
         'Pulsa el botón "+" para crear un nuevo equipo',
-        'Añade jugadores con su nombre y número de dorsal',
-        'Asigna posiciones a cada jugador',
-        'Guarda el equipo para usarlo en partidos',
+        'Añade jugadores con su nombre, número de dorsal y posición',
+        'Guarda el equipo para gestionar sus estadísticas',
       ],
     },
     {
@@ -73,8 +74,10 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
         'Pulsa "Comenzar Partido" en el menú',
         'Selecciona tu equipo',
         'Configura el partido (sets, nombre rival)',
-        'Selecciona los 6 jugadores titulares',
-        'Pulsa "Comenzar" para iniciar el registro',
+        'Selecciona los jugadores titulares',
+        'Pulsa "Iniciar" para iniciar el registro del primer set',
+        'Selecciona el set actual para consultar las estadísticas recogidas hasta el momento',
+        'Pulsa "Finalizar" para terminar el set o partido',
       ],
     },
     {
@@ -83,10 +86,9 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
       title: 'Registrar Estadísticas',
       description: 'Captura cada acción durante el partido de forma rápida e intuitiva.',
       steps: [
-        'Durante el partido, verás el campo con los jugadores',
-        'Toca un jugador para seleccionarlo',
-        'Selecciona la acción realizada (saque, remate, bloqueo, etc.)',
-        'Indica el resultado (++, +, =, -, --)',
+        'Durante el partido, verás el campo con los jugadores titulares',
+        'Selecciona la acción realizada (saque, ataque, bloqueo, recepción, defensa, colocación) para el jugador correspondiente',
+        'Selecciona el icono representativo de la acción (punto directo, doble positivo, positivo, neutro, error)',
         'La estadística se registra automáticamente',
       ],
     },
@@ -97,10 +99,8 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
       description: 'Personaliza qué estadísticas quieres registrar según tus necesidades.',
       steps: [
         'Ve a "Configuración" desde el menú',
-        'Activa o desactiva las estadísticas que necesites',
-        'Las estadísticas PRO requieren suscripción',
-        'Usa la configuración básica o avanzada según tu nivel',
-        'Los cambios se aplican en el siguiente partido',
+        'Se pueden configurar todas las acciones que incluye tu plan (activar o desactivar las acciones), realizando una configuración completamente personalizada',
+        'Se pueden establecer configuraciones predeterminadas básica o avanzada (plan PRO)',
       ],
     },
     {
@@ -111,7 +111,7 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
       steps: [
         'Ve a "Estadísticas" desde el menú',
         'Selecciona un partido para ver sus estadísticas',
-        'Filtra por set para análisis detallado',
+        'Filtra por set o el partido para análisis detallado',
         'Selecciona un jugador específico si lo deseas',
         'Navega entre las diferentes métricas',
       ],
@@ -125,31 +125,17 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
         'Abre las estadísticas de un partido',
         'Pulsa el botón de exportar (📤)',
         'Selecciona el formato deseado',
-        'El archivo se descargará automáticamente',
-        'Función disponible para usuarios PRO',
-      ],
-    },
-    {
-      id: 'filter',
-      icon: 'filter-variant',
-      title: 'Filtros Avanzados',
-      description: 'Analiza estadísticas con filtros por equipo, jugador, partido y set.',
-      steps: [
-        'En la pantalla de estadísticas, usa los filtros',
-        'Filtra por equipo para ver rendimiento global',
-        'Filtra por jugador para análisis individual',
-        'Combina filtros de partido y set',
-        'Funcionalidad completa para usuarios PRO',
+        'Comparte a través de redes sociales las estadísticas exportadas o genera un fichero Excel (función PRO)',
       ],
     },
     {
       id: 'tracking',
       icon: 'trending-up',
       title: 'Seguimiento de Progreso',
-      description: 'Visualiza la evolución de tu equipo con gráficos interactivos.',
+      description: 'Visualiza la evolución de tu equipo con gráficos avanzados.',
       steps: [
         'Accede a "Seguimiento" desde Estadísticas',
-        'Selecciona el equipo y rango de fechas',
+        'Selecciona el equipo',
         'Visualiza gráficos de línea, barras o dispersión',
         'Analiza tendencias y patrones de rendimiento',
         'Función exclusiva para usuarios PRO',
@@ -340,50 +326,23 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ayuda</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'guide' && styles.tabActive]}
-          onPress={() => setActiveTab('guide')}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons 
-            name="book-open-page-variant" 
-            size={20} 
-            color={activeTab === 'guide' ? Colors.primary : Colors.textSecondary} 
-          />
-          <Text style={[styles.tabText, activeTab === 'guide' && styles.tabTextActive]}>
-            Guía de Uso
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'roles' && styles.tabActive]}
-          onPress={() => setActiveTab('roles')}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons 
-            name="account-star" 
-            size={20} 
-            color={activeTab === 'roles' ? Colors.primary : Colors.textSecondary} 
-          />
-          <Text style={[styles.tabText, activeTab === 'roles' && styles.tabTextActive]}>
-            Planes
-          </Text>
-        </TouchableOpacity>
-      </View>
+       {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity 
+                style={styles.menuButton}
+                onPress={onOpenMenu}
+                activeOpacity={0.7}
+              >
+                <MenuIcon size={28} color={Colors.text} />
+              </TouchableOpacity>
+        
+              <View style={styles.headerCenter}>
+                <MaterialCommunityIcons name="help-circle-outline" size={22} color={Colors.primary} />
+                <Text style={styles.headerTitle}>Ayuda</Text>
+              </View>
+        
+              <View style={styles.headerRight} />
+            </View>
 
       {/* Content */}
       <ScrollView 
@@ -391,6 +350,37 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'guide' && styles.tabActive]}
+            onPress={() => setActiveTab('guide')}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons 
+              name="book-open-page-variant" 
+              size={20} 
+              color={activeTab === 'guide' ? Colors.textOnPrimary : Colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === 'guide' && styles.tabTextActive]}>
+              Guía de Uso
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'roles' && styles.tabActive]}
+            onPress={() => setActiveTab('roles')}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons 
+              name="account-star" 
+              size={20} 
+              color={activeTab === 'roles' ? Colors.textOnPrimary : Colors.textSecondary} 
+            />
+            <Text style={[styles.tabText, activeTab === 'roles' && styles.tabTextActive]}>
+              Planes
+            </Text>
+          </TouchableOpacity>
+        </View>
         {activeTab === 'guide' ? (
           <>
             <View style={styles.introSection}>
@@ -432,48 +422,55 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.md,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: Colors.primary,
+  },
+  menuButton: {
+    padding: Spacing.sm,
   },
   backButton: {
     padding: Spacing.sm,
   },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerTitle: {
-    flex: 1,
     fontSize: FontSizes.xl,
     fontWeight: '700',
     color: Colors.text,
-    textAlign: 'center',
+    marginLeft: Spacing.sm,
   },
-  headerSpacer: {
-    width: 40,
+  headerRight: {
+    width: 44,
   },
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
   },
   tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     marginHorizontal: Spacing.xs,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'transparent',
     gap: Spacing.xs,
   },
   tabActive: {
-    backgroundColor: Colors.primary + '15',
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
   },
   tabText: {
     fontSize: FontSizes.md,
@@ -481,7 +478,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: Colors.textOnPrimary,
   },
   content: {
     flex: 1,
