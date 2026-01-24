@@ -17,7 +17,7 @@ import {
   Share,
   Dimensions,
 } from 'react-native';
-import { LineChart, BarChart } from 'react-native-gifted-charts';
+import Svg, { Path, Circle, Line, Text as SvgText, Rect } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
@@ -332,38 +332,107 @@ export default function TeamTrackingScreen({
     const values = data.map(d => d.value);
     const maxValue = Math.max(...values, 0);
     const minValue = Math.min(...values, 0);
-    const chartData = data.map(d => ({ value: d.value, label: d.label }));
-    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
+    const range = maxValue - minValue || 1;
+    
+    const chartWidth = CHART_WIDTH - 80;
+    const chartHeight = CHART_HEIGHT - 100;
+    const pointsCount = data.length;
+    const xSpacing = chartWidth / (pointsCount - 1);
+    
+    // Calcular puntos
+    const points = data.map((d, i) => ({
+      x: i * xSpacing,
+      y: chartHeight - ((d.value - minValue) / range) * chartHeight,
+      value: d.value,
+      label: d.label,
+    }));
+    
+    // Crear path curvo usando Bezier curves
+    let pathData = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const current = points[i];
+      const next = points[i + 1];
+      const xMid = (current.x + next.x) / 2;
+      const yMid = (current.y + next.y) / 2;
+      pathData += ` Q ${current.x},${current.y} ${xMid},${yMid}`;
+      if (i < points.length - 2) {
+        pathData += ` T ${next.x},${next.y}`;
+      } else {
+        pathData += ` Q ${next.x},${next.y} ${next.x},${next.y}`;
+      }
+    }
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <LineChart
-          data={chartData}
-          height={CHART_HEIGHT - 70}
-          width={CHART_WIDTH - 32}
-          color={color}
-          thickness={3}
-          curved
-          hideDataPoints={false}
-          dataPointsColor={color}
-          dataPointsRadius={3}
-          yAxisLabelWidth={36}
-          yAxisTextStyle={styles.chartAxisText}
-          xAxisLabelTextStyle={styles.chartAxisText}
-          xAxisColor={styles.chartAxisText.color}
-          yAxisColor={styles.chartAxisText.color}
-          rulesColor="#e5e7eb"
-          rulesType="solid"
-          noOfSections={4}
-          maxValue={maxValue === 0 ? 1 : maxValue}
-          mostNegativeValue={minValue < 0 ? Math.abs(minValue) : 0}
-          showVerticalLines={false}
-          initialSpacing={12}
-          spacing={spacing}
-          yAxisLabelSuffix={unit}
-          yAxisLabelPrefix={showSign ? '+' : ''}
-        />
+        <View style={{ marginLeft: 40, marginTop: 10 }}>
+          <Svg width={chartWidth + 20} height={chartHeight + 30}>
+            {/* Grid lines */}
+            {[0, 1, 2, 3, 4].map(i => {
+              const y = (chartHeight / 4) * i;
+              return (
+                <Line
+                  key={`grid-${i}`}
+                  x1={0}
+                  y1={y}
+                  x2={chartWidth}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                />
+              );
+            })}
+            
+            {/* Line path */}
+            <Path
+              d={pathData}
+              stroke={color}
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            
+            {/* Data points */}
+            {points.map((point, i) => (
+              <Circle
+                key={`point-${i}`}
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill={color}
+              />
+            ))}
+            
+            {/* X-axis labels */}
+            {points.map((point, i) => (
+              <SvgText
+                key={`label-${i}`}
+                x={point.x}
+                y={chartHeight + 18}
+                fontSize="10"
+                fill="#6b7280"
+                textAnchor="middle"
+              >
+                {point.label}
+              </SvgText>
+            ))}
+          </Svg>
+          
+          {/* Y-axis labels */}
+          <View style={{ position: 'absolute', left: -40, top: 0, height: chartHeight }}>
+            {[0, 1, 2, 3, 4].map(i => {
+              const val = maxValue - (range / 4) * i;
+              const y = (chartHeight / 4) * i - 5;
+              return (
+                <Text key={`y-${i}`} style={[styles.chartAxisText, { position: 'absolute', top: y }]}>
+                  {showSign && val > 0 ? '+' : ''}{val.toFixed(0)}{unit}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+        
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -398,41 +467,135 @@ export default function TeamTrackingScreen({
     const values1 = data1.map(d => d.value);
     const values2 = data2.map(d => d.value);
     const maxValue = isPercentage ? 100 : Math.max(...values1, ...values2, 1);
-    const chartData1 = data1.map(d => ({ value: d.value, label: d.label }));
-    const chartData2 = data2.map(d => ({ value: d.value }));
-    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData1.length, 1));
+    const minValue = isPercentage ? 0 : Math.min(...values1, ...values2, 0);
+    const range = maxValue - minValue || 1;
+    
+    const chartWidth = CHART_WIDTH - 80;
+    const chartHeight = CHART_HEIGHT - 100;
+    const pointsCount = data1.length;
+    const xSpacing = chartWidth / (pointsCount - 1);
+    
+    // Calcular puntos para ambas series
+    const points1 = data1.map((d, i) => ({
+      x: i * xSpacing,
+      y: chartHeight - ((d.value - minValue) / range) * chartHeight,
+      value: d.value,
+      label: d.label,
+    }));
+    
+    const points2 = data2.map((d, i) => ({
+      x: i * xSpacing,
+      y: chartHeight - ((d.value - minValue) / range) * chartHeight,
+      value: d.value,
+    }));
+    
+    // Crear paths curvos
+    const createPath = (points: typeof points1) => {
+      let pathData = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 0; i < points.length - 1; i++) {
+        const current = points[i];
+        const next = points[i + 1];
+        const xMid = (current.x + next.x) / 2;
+        const yMid = (current.y + next.y) / 2;
+        pathData += ` Q ${current.x},${current.y} ${xMid},${yMid}`;
+        if (i < points.length - 2) {
+          pathData += ` T ${next.x},${next.y}`;
+        } else {
+          pathData += ` Q ${next.x},${next.y} ${next.x},${next.y}`;
+        }
+      }
+      return pathData;
+    };
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <LineChart
-          data={chartData1}
-          data2={chartData2}
-          height={CHART_HEIGHT - 70}
-          width={CHART_WIDTH - 32}
-          color={color1}
-          color2={color2}
-          thickness={3}
-          thickness2={3}
-          curved
-          hideDataPoints={false}
-          dataPointsColor={color1}
-          dataPointsColor2={color2}
-          dataPointsRadius={3}
-          yAxisLabelWidth={36}
-          yAxisTextStyle={styles.chartAxisText}
-          xAxisLabelTextStyle={styles.chartAxisText}
-          xAxisColor={styles.chartAxisText.color}
-          yAxisColor={styles.chartAxisText.color}
-          rulesColor="#e5e7eb"
-          rulesType="solid"
-          noOfSections={4}
-          maxValue={maxValue}
-          showVerticalLines={false}
-          initialSpacing={12}
-          spacing={spacing}
-          yAxisLabelSuffix={unit1}
-        />
+        <View style={{ marginLeft: 40, marginTop: 10 }}>
+          <Svg width={chartWidth + 20} height={chartHeight + 30}>
+            {/* Grid lines */}
+            {[0, 1, 2, 3, 4].map(i => {
+              const y = (chartHeight / 4) * i;
+              return (
+                <Line
+                  key={`grid-${i}`}
+                  x1={0}
+                  y1={y}
+                  x2={chartWidth}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                />
+              );
+            })}
+            
+            {/* Line paths */}
+            <Path
+              d={createPath(points1)}
+              stroke={color1}
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <Path
+              d={createPath(points2)}
+              stroke={color2}
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="5,5"
+            />
+            
+            {/* Data points */}
+            {points1.map((point, i) => (
+              <Circle
+                key={`point1-${i}`}
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill={color1}
+              />
+            ))}
+            {points2.map((point, i) => (
+              <Circle
+                key={`point2-${i}`}
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill={color2}
+              />
+            ))}
+            
+            {/* X-axis labels */}
+            {points1.map((point, i) => (
+              <SvgText
+                key={`label-${i}`}
+                x={point.x}
+                y={chartHeight + 18}
+                fontSize="10"
+                fill="#6b7280"
+                textAnchor="middle"
+              >
+                {point.label}
+              </SvgText>
+            ))}
+          </Svg>
+          
+          {/* Y-axis labels */}
+          <View style={{ position: 'absolute', left: -40, top: 0, height: chartHeight }}>
+            {[0, 1, 2, 3, 4].map(i => {
+              const val = maxValue - (range / 4) * i;
+              const y = (chartHeight / 4) * i - 5;
+              return (
+                <Text key={`y-${i}`} style={[styles.chartAxisText, { position: 'absolute', top: y }]}>
+                  {val.toFixed(0)}{unit1}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+        
         {/* Leyenda mejorada */}
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
@@ -456,40 +619,107 @@ export default function TeamTrackingScreen({
     legendColor: string = Colors.text
   ) => {
     if (data.length === 0) return null;
+    
     const values = data.map(d => d.value);
     const maxValue = Math.max(...values, 0);
     const minValue = Math.min(...values, 0);
-    const chartData = data.map(d => ({
-      value: d.value,
-      label: d.label,
-      frontColor: d.color,
-      topLabelComponent: () => (
-        <Text style={styles.barValueLabel}>{d.value >= 0 ? '+' : ''}{d.value}</Text>
-      ),
-    }));
-    const spacing = Math.max(24, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
+    const range = maxValue - minValue || 1;
+    
+    const chartWidth = CHART_WIDTH - 80;
+    const chartHeight = CHART_HEIGHT - 100;
+    const barWidth = Math.min(32, (chartWidth / data.length) * 0.6);
+    const spacing = chartWidth / data.length;
+    const zeroY = chartHeight - ((-minValue) / range) * chartHeight;
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <BarChart
-          data={chartData}
-          height={CHART_HEIGHT - 70}
-          width={CHART_WIDTH - 32}
-          barWidth={18}
-          spacing={spacing}
-          initialSpacing={12}
-          yAxisTextStyle={styles.chartAxisText}
-          xAxisLabelTextStyle={styles.chartAxisText}
-          xAxisColor={styles.chartAxisText.color}
-          yAxisColor={styles.chartAxisText.color}
-          rulesColor="#e5e7eb"
-          noOfSections={4}
-          maxValue={maxValue === 0 ? 1 : maxValue}
-          mostNegativeValue={minValue < 0 ? Math.abs(minValue) : 0}
-          showGradient={false}
-          yAxisLabelWidth={36}
-        />
+        <View style={{ marginLeft: 40, marginTop: 10 }}>
+          <Svg width={chartWidth + 20} height={chartHeight + 30}>
+            {/* Grid lines */}
+            {[0, 1, 2, 3, 4].map(i => {
+              const y = (chartHeight / 4) * i;
+              return (
+                <Line
+                  key={`grid-${i}`}
+                  x1={0}
+                  y1={y}
+                  x2={chartWidth}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                />
+              );
+            })}
+            
+            {/* Zero line */}
+            {minValue < 0 && (
+              <Line
+                x1={0}
+                y1={zeroY}
+                x2={chartWidth}
+                y2={zeroY}
+                stroke="#9ca3af"
+                strokeWidth="2"
+              />
+            )}
+            
+            {/* Bars */}
+            {data.map((item, i) => {
+              const x = spacing * i + (spacing - barWidth) / 2;
+              const barHeight = Math.abs((item.value / range) * chartHeight);
+              const y = item.value >= 0 
+                ? zeroY - barHeight 
+                : zeroY;
+              
+              return (
+                <React.Fragment key={`bar-${i}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={barHeight}
+                    fill={item.color}
+                    rx="3"
+                  />
+                  <SvgText
+                    x={x + barWidth / 2}
+                    y={item.value >= 0 ? y - 5 : y + barHeight + 12}
+                    fontSize="11"
+                    fill={item.color}
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {item.value >= 0 ? '+' : ''}{item.value}
+                  </SvgText>
+                  <SvgText
+                    x={x + barWidth / 2}
+                    y={chartHeight + 18}
+                    fontSize="10"
+                    fill="#6b7280"
+                    textAnchor="middle"
+                  >
+                    {item.label}
+                  </SvgText>
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+          
+          {/* Y-axis labels */}
+          <View style={{ position: 'absolute', left: -40, top: 0, height: chartHeight }}>
+            {[0, 1, 2, 3, 4].map(i => {
+              const val = maxValue - (range / 4) * i;
+              const y = (chartHeight / 4) * i - 5;
+              return (
+                <Text key={`y-${i}`} style={[styles.chartAxisText, { position: 'absolute', top: y }]}>
+                  {val.toFixed(0)}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+        
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: legendColor }]} />
@@ -517,35 +747,108 @@ export default function TeamTrackingScreen({
 
     const values = data.map(d => d.value);
     const maxValue = Math.max(...values, 1);
-    const chartData = data.map(d => ({ value: d.value, label: d.label }));
-    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
+    const minValue = Math.min(...values, 0);
+    const range = maxValue - minValue || 1;
+    
+    const chartWidth = CHART_WIDTH - 80;
+    const chartHeight = CHART_HEIGHT - 100;
+    const pointsCount = data.length;
+    const xSpacing = chartWidth / (pointsCount - 1);
+    
+    // Calcular puntos
+    const points = data.map((d, i) => ({
+      x: i * xSpacing,
+      y: chartHeight - ((d.value - minValue) / range) * chartHeight,
+      value: d.value,
+      label: d.label,
+    }));
+    
+    // Crear path curvo
+    let pathData = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const current = points[i];
+      const next = points[i + 1];
+      const xMid = (current.x + next.x) / 2;
+      const yMid = (current.y + next.y) / 2;
+      pathData += ` Q ${current.x},${current.y} ${xMid},${yMid}`;
+      if (i < points.length - 2) {
+        pathData += ` T ${next.x},${next.y}`;
+      } else {
+        pathData += ` Q ${next.x},${next.y} ${next.x},${next.y}`;
+      }
+    }
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <LineChart
-          data={chartData}
-          height={CHART_HEIGHT - 70}
-          width={CHART_WIDTH - 32}
-          color={color}
-          thickness={3}
-          curved
-          hideDataPoints={false}
-          dataPointsColor={color}
-          dataPointsRadius={3}
-          yAxisLabelWidth={36}
-          yAxisTextStyle={styles.chartAxisText}
-          xAxisLabelTextStyle={styles.chartAxisText}
-          xAxisColor={styles.chartAxisText.color}
-          yAxisColor={styles.chartAxisText.color}
-          rulesColor="#e5e7eb"
-          rulesType="solid"
-          noOfSections={4}
-          maxValue={maxValue}
-          showVerticalLines={false}
-          initialSpacing={12}
-          spacing={spacing}
-        />
+        <View style={{ marginLeft: 40, marginTop: 10 }}>
+          <Svg width={chartWidth + 20} height={chartHeight + 30}>
+            {/* Grid lines */}
+            {[0, 1, 2, 3, 4].map(i => {
+              const y = (chartHeight / 4) * i;
+              return (
+                <Line
+                  key={`grid-${i}`}
+                  x1={0}
+                  y1={y}
+                  x2={chartWidth}
+                  y2={y}
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                />
+              );
+            })}
+            
+            {/* Line path */}
+            <Path
+              d={pathData}
+              stroke={color}
+              strokeWidth="3"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            
+            {/* Data points */}
+            {points.map((point, i) => (
+              <Circle
+                key={`point-${i}`}
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill={color}
+              />
+            ))}
+            
+            {/* X-axis labels */}
+            {points.map((point, i) => (
+              <SvgText
+                key={`label-${i}`}
+                x={point.x}
+                y={chartHeight + 18}
+                fontSize="10"
+                fill="#6b7280"
+                textAnchor="middle"
+              >
+                {point.label}
+              </SvgText>
+            ))}
+          </Svg>
+          
+          {/* Y-axis labels */}
+          <View style={{ position: 'absolute', left: -40, top: 0, height: chartHeight }}>
+            {[0, 1, 2, 3, 4].map(i => {
+              const val = maxValue - (range / 4) * i;
+              const y = (chartHeight / 4) * i - 5;
+              return (
+                <Text key={`y-${i}`} style={[styles.chartAxisText, { position: 'absolute', top: y }]}>
+                  {val.toFixed(0)}
+                </Text>
+              );
+            })}
+          </View>
+        </View>
+        
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: color }]} />
