@@ -1044,7 +1044,40 @@ export default function TeamTrackingScreen({
           'Doble Pos %',
           '%',
           '%',
-          'EFICACIA DE RECEPCIÓN:\n\n            ⦿⦿ doblePos + ⊕ pos\n      ─────────────────────────────────\n      ⦿⦿ doblePos + ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficacia %'
+          (
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', marginBottom: 15, color: '#0f172a' }}>EFICACIA DE RECEPCIÓN</Text>
+              
+              {/* Numerador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle-multiple" size={20} color="#3b82f6" />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>doblePos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#3b82f6" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>pos</Text>
+              </View>
+              
+              {/* Línea divisoria */}
+              <View style={{ width: 280, height: 2, backgroundColor: '#334155', marginVertical: 8 }} />
+              
+              {/* Denominador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle-multiple" size={20} color="#3b82f6" />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>doblePos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#3b82f6" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>pos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="equal" size={20} color="#64748b" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>neutro</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="close-circle" size={20} color="#ef4444" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>error</Text>
+              </View>
+              
+              <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 10, color: '#334155' }}>× 100 = Eficacia %</Text>
+            </View>
+          )
         )}
 
         {/* Ataque: Anotación (acciones positivas) */}
@@ -1066,7 +1099,65 @@ export default function TeamTrackingScreen({
           'Eficiencia %',
           '%',
           '%',
-          'EFICACIA DE ATAQUE:\n\n                  ⊕ pos\n      ──────────────────────────\n      ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficacia %\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nEFICIENCIA DE ATAQUE:\n\n                ⊕ pos - ⊗ error\n      ──────────────────────────\n      ⊕ pos + ⦶ neutro + ⊗ error\n\n      × 100 = Eficiencia %'
+          (
+            <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', marginBottom: 15, color: '#0f172a' }}>EFICACIA DE ATAQUE</Text>
+              
+              {/* Numerador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#f59e0b" />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>pos</Text>
+              </View>
+              
+              {/* Línea divisoria */}
+              <View style={{ width: 250, height: 2, backgroundColor: '#334155', marginVertical: 8 }} />
+              
+              {/* Denominador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#f59e0b" />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>pos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="equal" size={20} color="#64748b" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>neutro</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="close-circle" size={20} color="#ef4444" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>error</Text>
+              </View>
+              
+              <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 10, color: '#334155' }}>× 100 = Eficacia %</Text>
+              
+              {/* Separador */}
+              <View style={{ width: '80%', height: 1, backgroundColor: '#cbd5e1', marginVertical: 20 }} />
+              
+              <Text style={{ fontSize: 16, fontWeight: '700', marginBottom: 15, color: '#0f172a' }}>EFICIENCIA DE ATAQUE</Text>
+              
+              {/* Numerador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#f59e0b" />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>pos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>-</Text>
+                <MaterialCommunityIcons name="close-circle" size={20} color="#ef4444" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>error</Text>
+              </View>
+              
+              {/* Línea divisoria */}
+              <View style={{ width: 250, height: 2, backgroundColor: '#334155', marginVertical: 8 }} />
+              
+              {/* Denominador */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
+                <MaterialCommunityIcons name="plus-circle" size={20} color="#f59e0b" />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>pos</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="equal" size={20} color="#64748b" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginHorizontal: 5, color: '#334155' }}>neutro</Text>
+                <Text style={{ fontSize: 15, color: '#334155' }}>+</Text>
+                <MaterialCommunityIcons name="close-circle" size={20} color="#ef4444" style={{ marginLeft: 5 }} />
+                <Text style={{ fontSize: 15, marginLeft: 5, color: '#334155' }}>error</Text>
+              </View>
+              
+              <Text style={{ fontSize: 16, fontWeight: '600', marginTop: 10, color: '#334155' }}>× 100 = Eficiencia %</Text>
+            </View>
+          )
         )}
 
         {/* Bloqueo: Acciones positivas */}
