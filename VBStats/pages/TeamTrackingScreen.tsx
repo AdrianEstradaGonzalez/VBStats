@@ -17,7 +17,7 @@ import {
   Share,
   Dimensions,
 } from 'react-native';
-import Svg, { G, Path, Line, Circle, Text as SvgText, Rect } from 'react-native-svg';
+import { LineChart, BarChart } from 'react-native-gifted-charts';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
@@ -312,30 +312,6 @@ export default function TeamTrackingScreen({
     return `${day} ${monthNames[date.getMonth()]}`;
   };
 
-  // Generar path suavizado con curvas bezier
-  const generateSmoothPath = (points: { x: number; y: number }[]): string => {
-    if (points.length < 2) return '';
-    
-    let path = `M ${points[0].x} ${points[0].y}`;
-    
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i === 0 ? i : i - 1];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-      
-      const tension = 0.3;
-      const cp1x = p1.x + (p2.x - p0.x) * tension;
-      const cp1y = p1.y + (p2.y - p0.y) * tension;
-      const cp2x = p2.x - (p3.x - p1.x) * tension;
-      const cp2y = p2.y - (p3.y - p1.y) * tension;
-      
-      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-    }
-    
-    return path;
-  };
-
   // Renderizar gráfico de líneas suavizadas con ejes
   const renderSmoothLineChart = (
     data: { value: number; label: string }[], 
@@ -354,85 +330,40 @@ export default function TeamTrackingScreen({
     }
 
     const values = data.map(d => d.value);
-    const maxValue = Math.max(...values);
-    const minValue = Math.min(...values);
-    const range = maxValue - minValue || 1;
-    const paddingLeft = 52;
-    const paddingRight = 24;
-    const paddingTop = 22;
-    const paddingBottom = 48;
-    const chartW = CHART_WIDTH - paddingLeft - paddingRight;
-    const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
-
-    // Calcular valores de eje Y (3 valores: max, medio, min)
-    const yAxisValues = [maxValue, Math.round((maxValue + minValue) / 2), minValue];
-
-    const points = data.map((d, i) => {
-      const x = paddingLeft + (i / (data.length - 1)) * chartW;
-      const y = paddingTop + ((maxValue - d.value) / range) * chartH;
-      return { x, y, value: d.value, label: d.label };
-    });
-
-    const smoothPath = generateSmoothPath(points);
+    const maxValue = Math.max(...values, 0);
+    const minValue = Math.min(...values, 0);
+    const chartData = data.map(d => ({ value: d.value, label: d.label }));
+    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Grid horizontal lines */}
-          {yAxisValues.map((val, i) => {
-            const y = paddingTop + (i / 2) * chartH;
-            return (
-              <G key={`grid-${i}`}>
-                <Line x1={paddingLeft} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
-                <SvgText x={paddingLeft - 10} y={y + 4} fontSize={11} fill={Colors.textSecondary} textAnchor="end" fontWeight="500">
-                  {showSign && val >= 0 ? '+' : ''}{val}{unit}
-                </SvgText>
-              </G>
-            );
-          })}
-
-          {/* Eje Y */}
-          <Line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={chartH + paddingTop} stroke={Colors.border} strokeWidth={1} />
-          
-          {/* Zero line if applicable */}
-          {minValue < 0 && maxValue > 0 && (
-            <Line 
-              x1={paddingLeft} 
-              y1={paddingTop + ((maxValue - 0) / range) * chartH} 
-              x2={CHART_WIDTH - paddingRight} 
-              y2={paddingTop + ((maxValue - 0) / range) * chartH} 
-              stroke={Colors.textTertiary} 
-              strokeWidth={2} 
-            />
-          )}
-
-          {/* Línea suavizada */}
-          <Path d={smoothPath} fill="none" stroke={color} strokeWidth={3} />
-
-          {/* Puntos de datos */}
-          {points.map((p, i) => (
-            <G key={i}>
-              <Circle cx={p.x} cy={p.y} r={6} fill={color} />
-              <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
-            </G>
-          ))}
-
-          {/* Labels eje X */}
-          {points.map((p, i) => (
-            <SvgText 
-              key={`label-${i}`} 
-              x={p.x} 
-              y={CHART_HEIGHT - 10} 
-              fontSize={10} 
-              fill={Colors.text} 
-              textAnchor="middle"
-              fontWeight="500"
-            >
-              {p.label.length > 5 ? p.label.substring(0, 5) : p.label}
-            </SvgText>
-          ))}
-        </Svg>
+        <LineChart
+          data={chartData}
+          height={CHART_HEIGHT - 70}
+          width={CHART_WIDTH - 32}
+          color={color}
+          thickness={3}
+          curved
+          hideDataPoints={false}
+          dataPointsColor={color}
+          dataPointsRadius={3}
+          yAxisLabelWidth={36}
+          yAxisTextStyle={styles.chartAxisText}
+          xAxisLabelTextStyle={styles.chartAxisText}
+          xAxisColor={styles.chartAxisText.color}
+          yAxisColor={styles.chartAxisText.color}
+          rulesColor="#e5e7eb"
+          rulesType="solid"
+          noOfSections={4}
+          maxValue={maxValue === 0 ? 1 : maxValue}
+          mostNegativeValue={minValue < 0 ? Math.abs(minValue) : 0}
+          showVerticalLines={false}
+          initialSpacing={12}
+          spacing={spacing}
+          yAxisLabelSuffix={unit}
+          yAxisLabelPrefix={showSign ? '+' : ''}
+        />
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -463,105 +394,45 @@ export default function TeamTrackingScreen({
       );
     }
 
+    const isPercentage = unit1 === '%' && unit2 === '%';
     const values1 = data1.map(d => d.value);
     const values2 = data2.map(d => d.value);
-    // Para eficacia: usar 0-100 como rango fijo si es porcentaje
-    const isPercentage = unit1 === '%';
-    const maxValue1 = isPercentage ? 100 : Math.max(...values1);
-    const minValue1 = isPercentage ? 0 : Math.min(...values1);
-    const maxValue2 = Math.max(...values2, 1);
-    const minValue2 = Math.min(...values2, 0);
-    
-    const range1 = maxValue1 - minValue1 || 1;
-    const range2 = maxValue2 - minValue2 || 1;
-    
-    const paddingLeft = 52;
-    const paddingRight = 32;
-    const paddingTop = 24;
-    const paddingBottom = 52;
-    const chartW = CHART_WIDTH - paddingLeft - paddingRight;
-    const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
-
-    const points1 = data1.map((d, i) => {
-      const x = paddingLeft + (i / (data1.length - 1)) * chartW;
-      const y = paddingTop + ((maxValue1 - d.value) / range1) * chartH;
-      return { x, y, value: d.value };
-    });
-
-    const points2 = data2.map((d, i) => {
-      const x = paddingLeft + (i / (data2.length - 1)) * chartW;
-      const y = paddingTop + ((maxValue2 - d.value) / range2) * chartH;
-      return { x, y, value: d.value };
-    });
-
-    const smoothPath1 = generateSmoothPath(points1);
-    const smoothPath2 = generateSmoothPath(points2);
-
-    // Valores eje Y izquierdo (serie 1) - solo 3 valores para claridad
-    const yAxis1Values = isPercentage ? [100, 50, 0] : [maxValue1, Math.round((maxValue1 + minValue1) / 2), minValue1];
-    // Valores eje Y derecho (serie 2)  
-    const yAxis2Values = [maxValue2, Math.round((maxValue2 + minValue2) / 2), minValue2];
+    const maxValue = isPercentage ? 100 : Math.max(...values1, ...values2, 1);
+    const chartData1 = data1.map(d => ({ value: d.value, label: d.label }));
+    const chartData2 = data2.map(d => ({ value: d.value }));
+    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData1.length, 1));
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Grid lines */}
-          {[0, 0.5, 1].map((ratio, i) => {
-            const y = paddingTop + ratio * chartH;
-            return (
-              <G key={`grid-${i}`}>
-                <Line x1={paddingLeft} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
-                <SvgText x={paddingLeft - 10} y={y + 4} fontSize={11} fill={color1} textAnchor="end" fontWeight="600">
-                  {yAxis1Values[i]}{unit1}
-                </SvgText>
-                <SvgText x={CHART_WIDTH - 8} y={y + 4} fontSize={11} fill={color2} textAnchor="end" fontWeight="600">
-                  {yAxis2Values[i]}{unit2}
-                </SvgText>
-              </G>
-            );
-          })}
-
-          {/* Ejes */}
-          <Line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={chartH + paddingTop} stroke={color1} strokeWidth={2} />
-          <Line x1={CHART_WIDTH - paddingRight} y1={paddingTop} x2={CHART_WIDTH - paddingRight} y2={chartH + paddingTop} stroke={color2} strokeWidth={2} />
-
-          {/* Líneas suavizadas */}
-          <Path d={smoothPath1} fill="none" stroke={color1} strokeWidth={3} />
-          <Path d={smoothPath2} fill="none" stroke={color2} strokeWidth={3} strokeDasharray="8,4" />
-
-          {/* Puntos */}
-          {points1.map((p, i) => (
-            <G key={`p1-${i}`}>
-              <Circle cx={p.x} cy={p.y} r={5} fill={color1} />
-              <Circle cx={p.x} cy={p.y} r={2} fill="#fff" />
-            </G>
-          ))}
-          {points2.map((p, i) => (
-            <G key={`p2-${i}`}>
-              <Circle cx={p.x} cy={p.y} r={5} fill={color2} />
-              <Circle cx={p.x} cy={p.y} r={2} fill="#fff" />
-            </G>
-          ))}
-
-          {/* Labels eje X */}
-          {data1.map((d, i) => {
-            const x = paddingLeft + (i / (data1.length - 1)) * chartW;
-            return (
-              <SvgText 
-                key={`label-${i}`} 
-                x={x} 
-                y={CHART_HEIGHT - 12} 
-                fontSize={10} 
-                fill={Colors.text} 
-                textAnchor="middle"
-                fontWeight="500"
-              >
-                {d.label.length > 5 ? d.label.substring(0, 5) : d.label}
-              </SvgText>
-            );
-          })}
-        </Svg>
+        <LineChart
+          data={chartData1}
+          data2={chartData2}
+          height={CHART_HEIGHT - 70}
+          width={CHART_WIDTH - 32}
+          color={color1}
+          color2={color2}
+          thickness={3}
+          thickness2={3}
+          curved
+          hideDataPoints={false}
+          dataPointsColor={color1}
+          dataPointsColor2={color2}
+          dataPointsRadius={3}
+          yAxisLabelWidth={36}
+          yAxisTextStyle={styles.chartAxisText}
+          xAxisLabelTextStyle={styles.chartAxisText}
+          xAxisColor={styles.chartAxisText.color}
+          yAxisColor={styles.chartAxisText.color}
+          rulesColor="#e5e7eb"
+          rulesType="solid"
+          noOfSections={4}
+          maxValue={maxValue}
+          showVerticalLines={false}
+          initialSpacing={12}
+          spacing={spacing}
+          yAxisLabelSuffix={unit1}
+        />
         {/* Leyenda mejorada */}
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
@@ -585,92 +456,40 @@ export default function TeamTrackingScreen({
     legendColor: string = Colors.text
   ) => {
     if (data.length === 0) return null;
-
     const values = data.map(d => d.value);
     const maxValue = Math.max(...values, 0);
     const minValue = Math.min(...values, 0);
-    const range = maxValue - minValue || 1;
-    
-    const paddingLeft = 52;
-    const paddingRight = 24;
-    const paddingTop = 24;
-    const paddingBottom = 52;
-    const chartW = CHART_WIDTH - paddingLeft - paddingRight;
-    const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
-    const barWidth = Math.max(18, Math.min((chartW / data.length) - 16, 40));
-    
-    // Posición de la línea cero
-    const zeroY = paddingTop + (maxValue / range) * chartH;
-
-    // Valores del eje Y (solo 3 para claridad)
-    const yAxisValues = [maxValue, Math.round((maxValue + minValue) / 2), minValue];
+    const chartData = data.map(d => ({
+      value: d.value,
+      label: d.label,
+      frontColor: d.color,
+      topLabelComponent: () => (
+        <Text style={styles.barValueLabel}>{d.value >= 0 ? '+' : ''}{d.value}</Text>
+      ),
+    }));
+    const spacing = Math.max(24, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Grid y etiquetas eje Y */}
-          {yAxisValues.map((val, i) => {
-            const y = paddingTop + (i / 2) * chartH;
-            return (
-              <G key={`grid-${i}`}>
-                <Line x1={paddingLeft} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
-                <SvgText x={paddingLeft - 10} y={y + 4} fontSize={11} fill={Colors.textSecondary} textAnchor="end" fontWeight="500">
-                  {val >= 0 ? '+' : ''}{val}
-                </SvgText>
-              </G>
-            );
-          })}
-
-          {/* Eje Y */}
-          <Line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={chartH + paddingTop} stroke={Colors.border} strokeWidth={1} />
-          
-          {/* Línea cero */}
-          <Line x1={paddingLeft} y1={zeroY} x2={CHART_WIDTH - paddingRight} y2={zeroY} stroke={Colors.text} strokeWidth={1.5} />
-
-          {/* Barras */}
-          {data.map((d, i) => {
-            const totalWidth = data.length * (barWidth + 16);
-            const startX = paddingLeft + Math.max(0, (chartW - totalWidth) / 2) + 4;
-            const x = startX + i * (barWidth + 16);
-            
-            const barHeight = Math.abs(d.value) / range * chartH;
-            const y = d.value >= 0 ? zeroY - barHeight : zeroY;
-
-            return (
-              <G key={i}>
-                <Rect
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={barHeight || 2}
-                  fill={d.color}
-                  rx={4}
-                />
-                <SvgText 
-                  x={x + barWidth / 2} 
-                  y={d.value >= 0 ? y - 8 : y + barHeight + 16} 
-                  fontSize={11} 
-                  fill={Colors.text} 
-                  textAnchor="middle"
-                  fontWeight="700"
-                >
-                  {d.value >= 0 ? '+' : ''}{d.value}
-                </SvgText>
-                <SvgText 
-                  x={x + barWidth / 2} 
-                  y={CHART_HEIGHT - 12} 
-                  fontSize={10} 
-                  fill={Colors.text} 
-                  textAnchor="middle"
-                  fontWeight="500"
-                >
-                  {d.label.length > 4 ? d.label.substring(0, 4) : d.label}
-                </SvgText>
-              </G>
-            );
-          })}
-        </Svg>
+        <BarChart
+          data={chartData}
+          height={CHART_HEIGHT - 70}
+          width={CHART_WIDTH - 32}
+          barWidth={18}
+          spacing={spacing}
+          initialSpacing={12}
+          yAxisTextStyle={styles.chartAxisText}
+          xAxisLabelTextStyle={styles.chartAxisText}
+          xAxisColor={styles.chartAxisText.color}
+          yAxisColor={styles.chartAxisText.color}
+          rulesColor="#e5e7eb"
+          noOfSections={4}
+          maxValue={maxValue === 0 ? 1 : maxValue}
+          mostNegativeValue={minValue < 0 ? Math.abs(minValue) : 0}
+          showGradient={false}
+          yAxisLabelWidth={36}
+        />
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: legendColor }]} />
@@ -698,71 +517,35 @@ export default function TeamTrackingScreen({
 
     const values = data.map(d => d.value);
     const maxValue = Math.max(...values, 1);
-    const minValue = 0; // Siempre empezar desde 0 para conteos
-    const range = maxValue - minValue || 1;
-    const paddingLeft = 52;
-    const paddingRight = 24;
-    const paddingTop = 24;
-    const paddingBottom = 48;
-    const chartW = CHART_WIDTH - paddingLeft - paddingRight;
-    const chartH = CHART_HEIGHT - paddingTop - paddingBottom;
-
-    const points = data.map((d, i) => {
-      const x = paddingLeft + (i / (data.length - 1)) * chartW;
-      const y = paddingTop + ((maxValue - d.value) / range) * chartH;
-      return { x, y, value: d.value, label: d.label };
-    });
-
-    const smoothPath = generateSmoothPath(points);
-
-    // Valores eje Y (enteros para conteos)
-    const yAxisValues = [maxValue, Math.round(maxValue / 2), 0];
+    const chartData = data.map(d => ({ value: d.value, label: d.label }));
+    const spacing = Math.max(28, (CHART_WIDTH - 64) / Math.max(chartData.length, 1));
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Grid */}
-          {yAxisValues.map((val, i) => {
-            const y = paddingTop + (i / 2) * chartH;
-            return (
-              <G key={`grid-${i}`}>
-                <Line x1={paddingLeft} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
-                <SvgText x={paddingLeft - 10} y={y + 4} fontSize={11} fill={Colors.textSecondary} textAnchor="end" fontWeight="500">
-                  {val}
-                </SvgText>
-              </G>
-            );
-          })}
-
-          <Line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={chartH + paddingTop} stroke={Colors.border} strokeWidth={1} />
-
-          {/* Línea suavizada */}
-          <Path d={smoothPath} fill="none" stroke={color} strokeWidth={3} />
-
-          {/* Puntos */}
-          {points.map((p, i) => (
-            <G key={i}>
-              <Circle cx={p.x} cy={p.y} r={6} fill={color} />
-              <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
-            </G>
-          ))}
-
-          {/* Labels */}
-          {points.map((p, i) => (
-            <SvgText 
-              key={`label-${i}`} 
-              x={p.x} 
-              y={CHART_HEIGHT - 10} 
-              fontSize={10} 
-              fill={Colors.text} 
-              textAnchor="middle"
-              fontWeight="500"
-            >
-              {p.label.length > 5 ? p.label.substring(0, 5) : p.label}
-            </SvgText>
-          ))}
-        </Svg>
+        <LineChart
+          data={chartData}
+          height={CHART_HEIGHT - 70}
+          width={CHART_WIDTH - 32}
+          color={color}
+          thickness={3}
+          curved
+          hideDataPoints={false}
+          dataPointsColor={color}
+          dataPointsRadius={3}
+          yAxisLabelWidth={36}
+          yAxisTextStyle={styles.chartAxisText}
+          xAxisLabelTextStyle={styles.chartAxisText}
+          xAxisColor={styles.chartAxisText.color}
+          yAxisColor={styles.chartAxisText.color}
+          rulesColor="#e5e7eb"
+          rulesType="solid"
+          noOfSections={4}
+          maxValue={maxValue}
+          showVerticalLines={false}
+          initialSpacing={12}
+          spacing={spacing}
+        />
         <View style={styles.chartLegendImproved}>
           <View style={styles.legendItemImproved}>
             <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -975,8 +758,10 @@ export default function TeamTrackingScreen({
       ataquePositivo: number;
       ataqueTotalPuntos: number;
       ataqueTotal: number;
-      recepcionEficacia: number;
-      recepcionTotal: number;
+      recepcionDobles: number;
+      recepcionPos: number;
+      recepcionNeutro: number;
+      recepcionError: number;
       defensaPositivo: number;
       bloqueoPositivo: number;
       saquePuntoDirecto: number;
@@ -993,8 +778,10 @@ export default function TeamTrackingScreen({
             ataquePositivo: 0,
             ataqueTotalPuntos: 0,
             ataqueTotal: 0,
-            recepcionEficacia: 0,
-            recepcionTotal: 0,
+            recepcionDobles: 0,
+            recepcionPos: 0,
+            recepcionNeutro: 0,
+            recepcionError: 0,
             defensaPositivo: 0,
             bloqueoPositivo: 0,
             saquePuntoDirecto: 0,
@@ -1013,13 +800,14 @@ export default function TeamTrackingScreen({
             p.ataqueTotalPuntos += 1;
           }
         } else if (category === 'Recepción') {
-          p.recepcionTotal += 1;
           if (normalized.includes('doble positiv') || normalized === '++') {
-            p.recepcionEficacia += 2; // doble positivo cuenta como 2
+            p.recepcionDobles += 1;
           } else if (normalized.includes('positiv') || normalized === '+') {
-            p.recepcionEficacia += 1;
+            p.recepcionPos += 1;
+          } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+            p.recepcionNeutro += 1;
           } else if (normalized.includes('error')) {
-            p.recepcionEficacia -= 1;
+            p.recepcionError += 1;
           }
         } else if (category === 'Defensa' && score > 0) {
           p.defensaPositivo += 1;
@@ -1039,8 +827,14 @@ export default function TeamTrackingScreen({
       .filter(p => p.ataqueTotal >= 5)
       .sort((a, b) => (b.ataqueTotalPuntos / b.ataqueTotal) - (a.ataqueTotalPuntos / a.ataqueTotal))[0];
     const mejorReceptor = [...players]
-      .filter(p => p.recepcionTotal >= 5)
-      .sort((a, b) => (b.recepcionEficacia / b.recepcionTotal) - (a.recepcionEficacia / a.recepcionTotal))[0];
+      .filter(p => (p.recepcionDobles + p.recepcionPos + p.recepcionNeutro + p.recepcionError) >= 5)
+      .sort((a, b) => {
+        const totalA = a.recepcionDobles + a.recepcionPos + a.recepcionNeutro + a.recepcionError;
+        const totalB = b.recepcionDobles + b.recepcionPos + b.recepcionNeutro + b.recepcionError;
+        const eficaciaA = totalA > 0 ? (a.recepcionDobles + a.recepcionPos - a.recepcionError) / totalA : 0;
+        const eficaciaB = totalB > 0 ? (b.recepcionDobles + b.recepcionPos - b.recepcionError) / totalB : 0;
+        return eficaciaB - eficaciaA;
+      })[0];
     const mejorDefensor = [...players].sort((a, b) => b.defensaPositivo - a.defensaPositivo)[0];
     const mejorBloqueador = [...players].sort((a, b) => b.bloqueoPositivo - a.bloqueoPositivo)[0];
     const mejorSacador = [...players].sort((a, b) => b.saquePuntoDirecto - a.saquePuntoDirecto)[0];
@@ -1058,7 +852,12 @@ export default function TeamTrackingScreen({
       } : null,
       mejorReceptor: mejorReceptor ? {
         ...mejorReceptor,
-        stat: Math.round(Math.max(0, Math.min(100, (mejorReceptor.recepcionEficacia / mejorReceptor.recepcionTotal) * 100))),
+        stat: Math.round(Math.max(0, Math.min(100, (() => {
+          const total = mejorReceptor.recepcionDobles + mejorReceptor.recepcionPos + mejorReceptor.recepcionNeutro + mejorReceptor.recepcionError;
+          return total > 0
+            ? ((mejorReceptor.recepcionDobles + mejorReceptor.recepcionPos - mejorReceptor.recepcionError) / total) * 100
+            : 0;
+        })()))),
         label: '% eficacia'
       } : null,
       mejorDefensor: mejorDefensor ? {
@@ -1659,6 +1458,16 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     marginBottom: Spacing.sm,
     letterSpacing: 0.2,
+  },
+  chartAxisText: {
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  barValueLabel: {
+    fontSize: 11,
+    color: '#0f172a',
+    fontWeight: '700',
   },
   categoryChartWrapper: {
     marginBottom: Spacing.sm,
