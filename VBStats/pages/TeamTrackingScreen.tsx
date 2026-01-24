@@ -1039,7 +1039,7 @@ export default function TeamTrackingScreen({
           'Doble Pos %',
           '%',
           '%',
-          'Eficacia de Recepción:\n\nNumerador: doble positivo + positivo\nDenominador: doble positivo + positivo + neutro + error\n\nEficacia % = (Numerador ÷ Denominador) × 100'
+          'Eficacia (%) = [(doblePos + pos) / (doblePos + pos + neutro + error)] × 100'
         )}
 
         {/* Ataque: Anotación (acciones positivas) */}
@@ -1061,7 +1061,7 @@ export default function TeamTrackingScreen({
           'Eficiencia %',
           '%',
           '%',
-          'Eficacia de Ataque:\n\nNumerador: positivo\nDenominador: positivo + neutro + error\n\nEficacia % = (Numerador ÷ Denominador) × 100\n\n━━━━━━━━━━━━━━━\n\nEficiencia de Ataque:\n\nNumerador: positivo - error\nDenominador: positivo + neutro + error\n\nEficiencia % = (Numerador ÷ Denominador) × 100'
+          'Eficacia (%) = [pos / (pos + neutro + error)] × 100\n\nEficiencia (%) = [(pos - error) / (pos + neutro + error)] × 100'
         )}
 
         {/* Bloqueo: Acciones positivas */}
@@ -1635,7 +1635,7 @@ export default function TeamTrackingScreen({
         icon={<MaterialCommunityIcons name="information-outline" size={48} color={Colors.primary} />}
         iconBackgroundColor={Colors.primary + '15'}
         title={infoAlertTitle}
-        message={infoAlertContent + '\n\n━━━━━━━━━━━━━━━\n\nLas fórmulas usan:\n• positivo = acciones con resultado favorable\n• neutro = acciones neutrales\n• error = acciones con error'}
+        message={infoAlertContent}
         buttons={[
           {
             text: 'Cerrar',

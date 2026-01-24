@@ -10,6 +10,7 @@ import {
   Modal,
   TouchableOpacity,
   Image,
+  ScrollView,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 
@@ -107,9 +108,13 @@ export default function CustomAlert({
             <Text style={styles.confirmTitle}>{title}</Text>
 
             {contentComponent ? (
-              <View style={styles.customContentWrapper}>{contentComponent}</View>
+              <ScrollView style={styles.scrollableContent} showsVerticalScrollIndicator={true}>
+                {contentComponent}
+              </ScrollView>
             ) : (
-              <Text style={styles.confirmMessage}>{message}</Text>
+              <ScrollView style={styles.scrollableContent} showsVerticalScrollIndicator={true}>
+                <Text style={styles.confirmMessage}>{message}</Text>
+              </ScrollView>
             )}
 
             {warning && (
@@ -211,6 +216,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.md,
     lineHeight: 22,
+  },
+  scrollableContent: {
+    maxHeight: 300,
+    width: '100%',
+    marginBottom: Spacing.md,
   },
   confirmWarning: {
     fontSize: FontSizes.sm,
