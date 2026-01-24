@@ -324,11 +324,22 @@ export default function TeamTrackingScreen({
   };
 
   // Renderizar gráfico de barras
-  const renderBarChart = (data: { label: string; value: number; color: string }[], title: string) => {
+  const renderBarChart = (data: { label: string; value: number; color: string }[], title: string, minData: number = 1) => {
     if (data.length === 0) return null;
 
+    // Validar mínimo de datos requeridos
+    if (data.length < minData) {
+      return (
+        <View style={styles.noChartData}>
+          <Text style={styles.noChartDataText}>Se necesitan al menos {minData} partidos para mostrar el gráfico</Text>
+        </View>
+      );
+    }
+
     const maxValue = Math.max(...data.map(d => Math.abs(d.value)), 1);
-    const barWidth = (CHART_WIDTH - 60) / data.length - 10;
+    // Calcular ancho de barra dinámico según cantidad de datos
+    const availableWidth = CHART_WIDTH - 60;
+    const barWidth = Math.min((availableWidth / data.length) - 8, 50);
     const chartH = CHART_HEIGHT - 50;
 
     return (
@@ -341,7 +352,9 @@ export default function TeamTrackingScreen({
           {/* Bars */}
           {data.map((d, i) => {
             const barHeight = (Math.abs(d.value) / maxValue) * (chartH - 10);
-            const x = 35 + i * (barWidth + 10);
+            const totalBarsWidth = data.length * (barWidth + 8);
+            const startX = (CHART_WIDTH - totalBarsWidth) / 2;
+            const x = startX + i * (barWidth + 8);
             const y = d.value >= 0 ? chartH + 20 - barHeight : chartH + 20;
 
             return (
@@ -367,11 +380,11 @@ export default function TeamTrackingScreen({
                 <SvgText 
                   x={x + barWidth / 2} 
                   y={chartH + 38} 
-                  fontSize={9} 
+                  fontSize={8} 
                   fill={Colors.textSecondary} 
                   textAnchor="middle"
                 >
-                  {d.label.substring(0, 3)}
+                  {d.label.length > 6 ? d.label.substring(0, 6) : d.label}
                 </SvgText>
               </G>
             );
@@ -381,73 +394,47 @@ export default function TeamTrackingScreen({
     );
   };
 
-  // Renderizar gráfico de puntos (scatter)
-  const renderScatterChart = () => {
-    if (matchPerformances.length < 2) return null;
+  // Renderizar gráficos de progreso por categoría
+  const renderCategoryProgressCharts = () => {
+    if (matchPerformances.length < 2) {
+      return (
+        <View style={styles.noChartData}>
+          <Text style={styles.noChartDataText}>Se necesitan al menos 2 partidos para mostrar el progreso por categoría</Text>
+        </View>
+      );
+    }
 
-    const data = matchPerformances.map(mp => ({
-      x: mp.totalActions,
-      y: mp.gp,
-      result: mp.result,
-    }));
+    // Categorías activas (que tienen datos)
+    const activeCategories = STAT_CATEGORIES.filter(category => 
+      matchPerformances.some(mp => mp.categories[category]?.total > 0)
+    );
 
-    const maxX = Math.max(...data.map(d => d.x), 1);
-    const maxY = Math.max(...data.map(d => Math.abs(d.y)), 1);
-    const minY = Math.min(...data.map(d => d.y), 0);
-    const rangeY = maxY - minY || 1;
-    const padding = 40;
-    const chartW = CHART_WIDTH - padding * 2;
-    const chartH = CHART_HEIGHT - 50;
+    if (activeCategories.length === 0) {
+      return (
+        <View style={styles.noChartData}>
+          <Text style={styles.noChartDataText}>No hay datos de categorías registrados</Text>
+        </View>
+      );
+    }
 
     return (
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Acciones vs G-P por Partido</Text>
-        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Axes */}
-          <Line x1={padding} y1={25} x2={padding} y2={chartH + 25} stroke={Colors.border} strokeWidth={1} />
-          <Line x1={padding} y1={chartH + 25} x2={CHART_WIDTH - padding} y2={chartH + 25} stroke={Colors.border} strokeWidth={1} />
+      <View>
+        {activeCategories.map(category => {
+          const categoryData = matchPerformances.map(mp => ({
+            value: mp.categories[category]?.gp || 0,
+            label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent,
+          }));
 
-          {/* Zero line */}
-          {minY < 0 && (
-            <Line 
-              x1={padding} 
-              y1={25 + ((maxY - 0) / rangeY) * chartH} 
-              x2={CHART_WIDTH - padding} 
-              y2={25 + ((maxY - 0) / rangeY) * chartH} 
-              stroke={Colors.textTertiary} 
-              strokeWidth={1} 
-              strokeDasharray="4,4"
-            />
-          )}
-
-          {/* Points */}
-          {data.map((d, i) => {
-            const px = padding + (d.x / maxX) * chartW;
-            const py = 25 + ((maxY - d.y) / rangeY) * chartH;
-            const color = d.result === 'win' ? '#22c55e' : d.result === 'loss' ? '#ef4444' : '#f59e0b';
-            return (
-              <Circle key={i} cx={px} cy={py} r={8} fill={color} opacity={0.8} />
-            );
-          })}
-
-          {/* Labels */}
-          <SvgText x={CHART_WIDTH / 2} y={CHART_HEIGHT - 5} fontSize={10} fill={Colors.textSecondary} textAnchor="middle">
-            Total Acciones
-          </SvgText>
-          <SvgText x={15} y={CHART_HEIGHT / 2} fontSize={10} fill={Colors.textSecondary} textAnchor="middle" rotation={-90} origin={`15, ${CHART_HEIGHT / 2}`}>
-            G-P
-          </SvgText>
-        </Svg>
-        <View style={styles.scatterLegend}>
-          <View style={styles.scatterLegendItem}>
-            <View style={[styles.scatterDot, { backgroundColor: '#22c55e' }]} />
-            <Text style={styles.scatterLegendText}>Victoria</Text>
-          </View>
-          <View style={styles.scatterLegendItem}>
-            <View style={[styles.scatterDot, { backgroundColor: '#ef4444' }]} />
-            <Text style={styles.scatterLegendText}>Derrota</Text>
-          </View>
-        </View>
+          return (
+            <View key={category} style={styles.categoryChartWrapper}>
+              {renderLineChart(
+                categoryData,
+                CATEGORY_COLORS[category] || Colors.primary,
+                `${category} - Evolución G-P`
+              )}
+            </View>
+          );
+        })}
       </View>
     );
   };
@@ -699,7 +686,7 @@ export default function TeamTrackingScreen({
               renderLineChart(
                 matchPerformances.map(mp => ({ 
                   value: mp.gp, 
-                  label: formatDate(mp.date) 
+                  label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent
                 })),
                 Colors.primary,
                 'Evolución G-P por Partido'
@@ -707,16 +694,20 @@ export default function TeamTrackingScreen({
             ) : (
               renderBarChart(
                 matchPerformances.map(mp => ({
-                  label: formatDate(mp.date),
+                  label: mp.opponent,
                   value: mp.gp,
                   color: mp.result === 'win' ? '#22c55e' : mp.result === 'loss' ? '#ef4444' : '#f59e0b',
                 })),
-                'G-P por Partido'
+                'G-P por Partido',
+                2 // Mínimo 2 partidos para mostrar el gráfico
               )
             )}
 
-            {/* Gráfico de puntos */}
-            {renderScatterChart()}
+            {/* Gráficos de progreso por categoría */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progreso por Categoría</Text>
+              {renderCategoryProgressCharts()}
+            </View>
 
             {/* Rendimiento por categoría */}
             <View style={styles.section}>
@@ -984,6 +975,9 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: '600',
     color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  categoryChartWrapper: {
     marginBottom: Spacing.sm,
   },
   noChartData: {

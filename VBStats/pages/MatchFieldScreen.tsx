@@ -697,6 +697,33 @@ export default function MatchFieldScreen({
   const handleStartSet = () => {
     if (!isSetActive) {
       const newSetNumber = currentSet + 1;
+      
+      // Al comenzar un nuevo set (no el primero), asegurar 8 posiciones manteniendo jugadores
+      if (newSetNumber > 1) {
+        // Obtener posiciones con jugador asignado
+        const positionsWithPlayers = positions.filter(p => p.playerId !== null);
+        
+        // Posiciones vacías estándar
+        const standardLabels = ['Receptor', 'Receptor', 'Central', 'Central', 'Opuesto', 'Colocador', 'Líbero', 'Líbero'];
+        
+        // Crear las 8 posiciones, manteniendo los jugadores asignados
+        const newPositions: Position[] = standardLabels.map((label, index) => {
+          const existingPosition = positionsWithPlayers[index];
+          return existingPosition || {
+            id: `pos${Date.now()}_${index}`,
+            label: label,
+            playerId: null,
+            playerName: null,
+            playerNumber: null,
+          };
+        });
+        
+        setPositions(newPositions);
+      } else {
+        // Primer set: quitar posiciones vacías (sin jugador asignado)
+        setPositions(prev => prev.filter(pos => pos.playerId !== null));
+      }
+      
       setCurrentSet(newSetNumber);
       setIsSetActive(true);
       

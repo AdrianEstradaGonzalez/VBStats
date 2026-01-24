@@ -173,8 +173,8 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
   // Características por rol
   const roleFeatures: RoleFeature[] = [
     { feature: 'Crear equipos', free: false, basic: '2 equipos', pro: 'Ilimitados' },
-    { feature: 'Jugadores por equipo', free: false, basic: '15 máx', pro: 'Ilimitados' },
-    { feature: 'Partidos guardados', free: false, basic: '20 máx', pro: 'Ilimitados' },
+    { feature: 'Jugadores por equipo', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
+    { feature: 'Partidos guardados', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
     { feature: 'Buscar partido por código', free: true, basic: true, pro: true },
     { feature: 'Marcador básico', free: true, basic: true, pro: true },
     { feature: 'Estadísticas básicas', free: false, basic: true, pro: true },
@@ -187,9 +187,6 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
     { feature: 'Exportar a Excel', free: false, basic: false, pro: true },
     { feature: 'Gráficos de progreso', free: false, basic: false, pro: true },
     { feature: 'Análisis de tendencias', free: false, basic: false, pro: true },
-    { feature: 'Estadísticas PRO (recep., ajuste...)', free: false, basic: false, pro: true },
-    { feature: 'Compartir partido en vivo', free: false, basic: true, pro: true },
-    { feature: 'Soporte prioritario', free: false, basic: false, pro: true },
   ];
 
   // Render de un item de la guía
@@ -305,7 +302,7 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
             <Text style={styles.rolePrice}>4,99€/mes</Text>
           </View>
           <Text style={styles.roleDescriptionText}>
-            Ideal para entrenadores aficionados. Crea hasta 2 equipos, registra estadísticas básicas y guarda hasta 20 partidos. Incluye configuración básica y filtros esenciales.
+            Crea hasta 2 equipos, registra estadísticas básicas y guarda partidos ilimitados. Incluye configuración básica y filtros esenciales.
           </Text>
         </View>
 
@@ -319,7 +316,7 @@ export default function GuideScreen({ onBack, onSelectPlan }: GuideScreenProps) 
             <Text style={styles.rolePrice}>9,99€/mes</Text>
           </View>
           <Text style={styles.roleDescriptionText}>
-            Para entrenadores profesionales. Sin límites en equipos, jugadores ni partidos. Acceso a todas las estadísticas avanzadas, exportación a Excel, gráficos de seguimiento, análisis de tendencias y soporte prioritario.
+            Sin límites en equipos, jugadores ni partidos. Acceso a todas las estadísticas avanzadas, exportación a Excel, gráficos de seguimiento y análisis de tendencias.
           </Text>
         </View>
       </View>
