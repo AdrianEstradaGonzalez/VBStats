@@ -102,7 +102,6 @@ export default function TeamTrackingScreen({
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
   const [matchesData, setMatchesData] = useState<{ match: Match; stats: MatchStat[] }[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
-  const [chartType, setChartType] = useState<'line' | 'bar'>('line');
   const [teamSelectionConfirmed, setTeamSelectionConfirmed] = useState(false);
 
   useEffect(() => {
@@ -313,8 +312,38 @@ export default function TeamTrackingScreen({
     return `${day} ${monthNames[date.getMonth()]}`;
   };
 
-  // Renderizar gráfico de líneas
-  const renderLineChart = (data: { value: number; label: string }[], color: string, title: string) => {
+  // Generar path suavizado con curvas bezier
+  const generateSmoothPath = (points: { x: number; y: number }[]): string => {
+    if (points.length < 2) return '';
+    
+    let path = `M ${points[0].x} ${points[0].y}`;
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i === 0 ? i : i - 1];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+      
+      const tension = 0.3;
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = p1.y + (p2.y - p0.y) * tension;
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = p2.y - (p3.y - p1.y) * tension;
+      
+      path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+    
+    return path;
+  };
+
+  // Renderizar gráfico de líneas suavizadas con ejes
+  const renderSmoothLineChart = (
+    data: { value: number; label: string }[], 
+    color: string, 
+    title: string,
+    unit: string = '',
+    showSign: boolean = true
+  ) => {
     if (data.length < 2) {
       return (
         <View style={styles.noChartData}>
@@ -323,122 +352,254 @@ export default function TeamTrackingScreen({
       );
     }
 
-    const maxValue = Math.max(...data.map(d => Math.abs(d.value)), 1);
-    const minValue = Math.min(...data.map(d => d.value), 0);
+    const values = data.map(d => d.value);
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
     const range = maxValue - minValue || 1;
-    const padding = 40;
-    const chartW = CHART_WIDTH - padding * 2;
-    const chartH = CHART_HEIGHT - 70;
+    const padding = 50;
+    const chartW = CHART_WIDTH - padding - 20;
+    const chartH = CHART_HEIGHT - 80;
+
+    // Calcular valores de eje Y
+    const yAxisValues = [];
+    const step = range / 4;
+    for (let i = 0; i <= 4; i++) {
+      yAxisValues.push(Math.round((maxValue - step * i) * 10) / 10);
+    }
 
     const points = data.map((d, i) => {
       const x = padding + (i / (data.length - 1)) * chartW;
-      const y = 25 + ((maxValue - d.value) / range) * chartH;
+      const y = 30 + ((maxValue - d.value) / range) * chartH;
       return { x, y, value: d.value, label: d.label };
     });
 
-    const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const smoothPath = generateSmoothPath(points);
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
         <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Grid lines */}
-          <Line x1={padding} y1={25} x2={padding} y2={chartH + 25} stroke={Colors.border} strokeWidth={1} />
-          <Line x1={padding} y1={chartH + 25} x2={CHART_WIDTH - padding} y2={chartH + 25} stroke={Colors.border} strokeWidth={1} />
-          
-          {/* Zero line if applicable */}
-          {minValue < 0 && (
-            <Line 
-              x1={padding} 
-              y1={25 + ((maxValue - 0) / range) * chartH} 
-              x2={CHART_WIDTH - padding} 
-              y2={25 + ((maxValue - 0) / range) * chartH} 
-              stroke={Colors.textTertiary} 
-              strokeWidth={1} 
-              strokeDasharray="4,4"
-            />
-          )}
-
-          {/* Line path */}
-          <Path d={pathD} fill="none" stroke={color} strokeWidth={2} />
-
-          {/* Data points */}
-          {points.map((p, i) => {
-            const labelOffset = p.value >= 0 ? -14 : 16;
-            const labelY = Math.max(20, Math.min(chartH + 35, p.y + labelOffset));
-            const labelValue = `${p.value >= 0 ? '+' : ''}${p.value}`;
-            const labelHalfWidth = Math.max(14, labelValue.length * 3.5);
-            const labelX = Math.max(
-              padding + labelHalfWidth,
-              Math.min(CHART_WIDTH - padding - labelHalfWidth, p.x)
-            );
+          {/* Grid horizontal lines */}
+          {yAxisValues.map((val, i) => {
+            const y = 30 + (i / 4) * chartH;
             return (
-              <G key={i}>
-                <Circle cx={p.x} cy={p.y} r={6} fill={color} />
-                <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
-                <SvgText
-                  x={labelX}
-                  y={labelY}
-                  fontSize={10}
-                  fill={Colors.text}
-                  fontWeight="bold"
-                  textAnchor="middle"
-                  alignmentBaseline="middle"
-                >
-                  {labelValue}
+              <G key={`grid-${i}`}>
+                <Line x1={padding} y1={y} x2={CHART_WIDTH - 20} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={padding - 8} y={y + 4} fontSize={9} fill={Colors.textSecondary} textAnchor="end">
+                  {showSign && val >= 0 ? '+' : ''}{val}{unit}
                 </SvgText>
               </G>
             );
           })}
 
-          {/* Labels */}
+          {/* Eje Y */}
+          <Line x1={padding} y1={30} x2={padding} y2={chartH + 30} stroke={Colors.border} strokeWidth={1} />
+          
+          {/* Zero line if applicable */}
+          {minValue < 0 && maxValue > 0 && (
+            <Line 
+              x1={padding} 
+              y1={30 + ((maxValue - 0) / range) * chartH} 
+              x2={CHART_WIDTH - 20} 
+              y2={30 + ((maxValue - 0) / range) * chartH} 
+              stroke={Colors.textTertiary} 
+              strokeWidth={2} 
+            />
+          )}
+
+          {/* Línea suavizada */}
+          <Path d={smoothPath} fill="none" stroke={color} strokeWidth={3} />
+
+          {/* Puntos de datos */}
           {points.map((p, i) => (
-            <G key={`label-${i}`}>
-              <SvgText x={p.x} y={chartH + 45} fontSize={10} fill={Colors.textSecondary} textAnchor="middle">
-                {p.label}
-              </SvgText>
+            <G key={i}>
+              <Circle cx={p.x} cy={p.y} r={6} fill={color} />
+              <Circle cx={p.x} cy={p.y} r={3} fill="#fff" />
             </G>
+          ))}
+
+          {/* Labels eje X */}
+          {points.map((p, i) => (
+            <SvgText key={`label-${i}`} x={p.x} y={chartH + 50} fontSize={9} fill={Colors.textSecondary} textAnchor="middle">
+              {p.label.length > 6 ? p.label.substring(0, 6) : p.label}
+            </SvgText>
           ))}
         </Svg>
       </View>
     );
   };
 
-  // Renderizar gráfico de barras
-  const renderBarChart = (data: { label: string; value: number; color: string }[], title: string, minData: number = 1) => {
-    if (data.length === 0) return null;
-
-    // Validar mínimo de datos requeridos
-    if (data.length < minData) {
+  // Renderizar gráfico de líneas múltiples (2 series)
+  const renderDualLineChart = (
+    data1: { value: number; label: string }[],
+    data2: { value: number; label: string }[],
+    color1: string,
+    color2: string,
+    title: string,
+    legend1: string,
+    legend2: string,
+    unit1: string = '%',
+    unit2: string = ''
+  ) => {
+    if (data1.length < 2) {
       return (
         <View style={styles.noChartData}>
-          <Text style={styles.noChartDataText}>Se necesitan al menos {minData} partidos para mostrar el gráfico</Text>
+          <Text style={styles.noChartDataText}>Se necesitan al menos 2 partidos para mostrar el gráfico</Text>
         </View>
       );
     }
 
-    const maxValue = Math.max(...data.map(d => Math.abs(d.value)), 1);
-    const barWidth = (CHART_WIDTH - 60) / data.length - 10;
-    const chartH = CHART_HEIGHT - 50;
+    const values1 = data1.map(d => d.value);
+    const values2 = data2.map(d => d.value);
+    const maxValue1 = Math.max(...values1);
+    const minValue1 = Math.min(...values1);
+    const maxValue2 = Math.max(...values2);
+    const minValue2 = Math.min(...values2);
+    
+    const range1 = maxValue1 - minValue1 || 1;
+    const range2 = maxValue2 - minValue2 || 1;
+    
+    const padding = 45;
+    const paddingRight = 45;
+    const chartW = CHART_WIDTH - padding - paddingRight;
+    const chartH = CHART_HEIGHT - 80;
+
+    const points1 = data1.map((d, i) => {
+      const x = padding + (i / (data1.length - 1)) * chartW;
+      const y = 30 + ((maxValue1 - d.value) / range1) * chartH;
+      return { x, y, value: d.value };
+    });
+
+    const points2 = data2.map((d, i) => {
+      const x = padding + (i / (data2.length - 1)) * chartW;
+      const y = 30 + ((maxValue2 - d.value) / range2) * chartH;
+      return { x, y, value: d.value };
+    });
+
+    const smoothPath1 = generateSmoothPath(points1);
+    const smoothPath2 = generateSmoothPath(points2);
+
+    // Valores eje Y izquierdo (serie 1)
+    const yAxis1Values = [maxValue1, Math.round((maxValue1 + minValue1) / 2), minValue1];
+    // Valores eje Y derecho (serie 2)  
+    const yAxis2Values = [maxValue2, Math.round((maxValue2 + minValue2) / 2), minValue2];
 
     return (
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{title}</Text>
         <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-          {/* Base line */}
-          <Line x1={30} y1={chartH + 20} x2={CHART_WIDTH - 10} y2={chartH + 20} stroke={Colors.border} strokeWidth={1} />
-
-          {/* Bars */}
-          {data.map((d, i) => {
-            const barHeight = (Math.abs(d.value) / maxValue) * (chartH - 10);
-            const x = 35 + i * (barWidth + 10);
-            const y = d.value >= 0 ? chartH + 20 - barHeight : chartH + 20;
-            const labelValue = `${d.value >= 0 ? '+' : ''}${d.value}`;
-            const labelHalfWidth = Math.max(14, labelValue.length * 3.5);
-            const labelX = Math.max(
-              30 + labelHalfWidth,
-              Math.min(CHART_WIDTH - 10 - labelHalfWidth, x + barWidth / 2)
+          {/* Grid lines */}
+          {[0, 0.5, 1].map((ratio, i) => {
+            const y = 30 + ratio * chartH;
+            return (
+              <G key={`grid-${i}`}>
+                <Line x1={padding} y1={y} x2={CHART_WIDTH - paddingRight} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={padding - 5} y={y + 4} fontSize={8} fill={color1} textAnchor="end">
+                  {yAxis1Values[i]}{unit1}
+                </SvgText>
+                <SvgText x={CHART_WIDTH - paddingRight + 5} y={y + 4} fontSize={8} fill={color2} textAnchor="start">
+                  {yAxis2Values[i]}{unit2}
+                </SvgText>
+              </G>
             );
+          })}
+
+          {/* Ejes */}
+          <Line x1={padding} y1={30} x2={padding} y2={chartH + 30} stroke={color1} strokeWidth={2} />
+          <Line x1={CHART_WIDTH - paddingRight} y1={30} x2={CHART_WIDTH - paddingRight} y2={chartH + 30} stroke={color2} strokeWidth={2} />
+
+          {/* Líneas suavizadas */}
+          <Path d={smoothPath1} fill="none" stroke={color1} strokeWidth={2.5} />
+          <Path d={smoothPath2} fill="none" stroke={color2} strokeWidth={2.5} strokeDasharray="6,3" />
+
+          {/* Puntos */}
+          {points1.map((p, i) => (
+            <Circle key={`p1-${i}`} cx={p.x} cy={p.y} r={4} fill={color1} />
+          ))}
+          {points2.map((p, i) => (
+            <Circle key={`p2-${i}`} cx={p.x} cy={p.y} r={4} fill={color2} />
+          ))}
+
+          {/* Labels eje X */}
+          {data1.map((d, i) => {
+            const x = padding + (i / (data1.length - 1)) * chartW;
+            return (
+              <SvgText key={`label-${i}`} x={x} y={chartH + 50} fontSize={8} fill={Colors.textSecondary} textAnchor="middle">
+                {d.label.length > 5 ? d.label.substring(0, 5) : d.label}
+              </SvgText>
+            );
+          })}
+        </Svg>
+        {/* Leyenda */}
+        <View style={styles.chartLegend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendLine, { backgroundColor: color1 }]} />
+            <Text style={styles.legendText}>{legend1}</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendLineDashed, { borderColor: color2 }]} />
+            <Text style={styles.legendText}>{legend2}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Renderizar gráfico de barras mejorado con manejo de negativos
+  const renderImprovedBarChart = (data: { label: string; value: number; color: string }[], title: string) => {
+    if (data.length === 0) return null;
+
+    const values = data.map(d => d.value);
+    const maxValue = Math.max(...values, 0);
+    const minValue = Math.min(...values, 0);
+    const range = maxValue - minValue || 1;
+    
+    const padding = 50;
+    const chartW = CHART_WIDTH - padding - 20;
+    const chartH = CHART_HEIGHT - 90;
+    const barWidth = Math.min((chartW / data.length) - 12, 45);
+    
+    // Posición de la línea cero
+    const zeroY = 30 + (maxValue / range) * chartH;
+
+    // Valores del eje Y
+    const yAxisValues = [];
+    const step = range / 4;
+    for (let i = 0; i <= 4; i++) {
+      yAxisValues.push(Math.round((maxValue - step * i) * 10) / 10);
+    }
+
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>{title}</Text>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
+          {/* Grid y etiquetas eje Y */}
+          {yAxisValues.map((val, i) => {
+            const y = 30 + (i / 4) * chartH;
+            return (
+              <G key={`grid-${i}`}>
+                <Line x1={padding} y1={y} x2={CHART_WIDTH - 20} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={padding - 8} y={y + 4} fontSize={9} fill={Colors.textSecondary} textAnchor="end">
+                  {val >= 0 ? '+' : ''}{val}
+                </SvgText>
+              </G>
+            );
+          })}
+
+          {/* Eje Y */}
+          <Line x1={padding} y1={30} x2={padding} y2={chartH + 30} stroke={Colors.border} strokeWidth={1} />
+          
+          {/* Línea cero */}
+          <Line x1={padding} y1={zeroY} x2={CHART_WIDTH - 20} y2={zeroY} stroke={Colors.text} strokeWidth={1.5} />
+
+          {/* Barras */}
+          {data.map((d, i) => {
+            const totalWidth = data.length * (barWidth + 12);
+            const startX = padding + (chartW - totalWidth) / 2 + 6;
+            const x = startX + i * (barWidth + 12);
+            
+            const barHeight = Math.abs(d.value) / range * chartH;
+            const y = d.value >= 0 ? zeroY - barHeight : zeroY;
 
             return (
               <G key={i}>
@@ -450,29 +611,24 @@ export default function TeamTrackingScreen({
                   fill={d.color}
                   rx={4}
                 />
-                <SvgText
-                  x={labelX}
-                  y={
-                    d.value >= 0
-                      ? Math.max(18, y - 12)
-                      : Math.min(chartH + 30, y + barHeight + 18)
-                  }
-                  fontSize={11}
-                  fill={Colors.text}
+                <SvgText 
+                  x={x + barWidth / 2} 
+                  y={d.value >= 0 ? y - 6 : y + barHeight + 14} 
+                  fontSize={10} 
+                  fill={Colors.text} 
                   textAnchor="middle"
                   fontWeight="bold"
-                  alignmentBaseline="middle"
                 >
-                  {labelValue}
+                  {d.value >= 0 ? '+' : ''}{d.value}
                 </SvgText>
                 <SvgText 
                   x={x + barWidth / 2} 
-                  y={chartH + 38} 
+                  y={chartH + 50} 
                   fontSize={8} 
                   fill={Colors.textSecondary} 
                   textAnchor="middle"
                 >
-                  {d.label.length > 6 ? d.label.substring(0, 6) : d.label}
+                  {d.label.length > 5 ? d.label.substring(0, 5) : d.label}
                 </SvgText>
               </G>
             );
@@ -481,6 +637,147 @@ export default function TeamTrackingScreen({
       </View>
     );
   };
+
+  // Renderizar gráfico de línea simple para acciones positivas
+  const renderSimpleLineChart = (
+    data: { value: number; label: string }[], 
+    color: string, 
+    title: string
+  ) => {
+    if (data.length < 2) {
+      return (
+        <View style={styles.noChartData}>
+          <Text style={styles.noChartDataText}>Se necesitan al menos 2 partidos para mostrar el gráfico</Text>
+        </View>
+      );
+    }
+
+    const values = data.map(d => d.value);
+    const maxValue = Math.max(...values, 1);
+    const minValue = Math.min(...values, 0);
+    const range = maxValue - minValue || 1;
+    const padding = 45;
+    const chartW = CHART_WIDTH - padding - 20;
+    const chartH = CHART_HEIGHT - 80;
+
+    const points = data.map((d, i) => {
+      const x = padding + (i / (data.length - 1)) * chartW;
+      const y = 30 + ((maxValue - d.value) / range) * chartH;
+      return { x, y, value: d.value, label: d.label };
+    });
+
+    const smoothPath = generateSmoothPath(points);
+
+    // Valores eje Y
+    const yAxisValues = [maxValue, Math.round((maxValue + minValue) / 2), minValue];
+
+    return (
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>{title}</Text>
+        <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
+          {/* Grid */}
+          {yAxisValues.map((val, i) => {
+            const y = 30 + (i / 2) * chartH;
+            return (
+              <G key={`grid-${i}`}>
+                <Line x1={padding} y1={y} x2={CHART_WIDTH - 20} y2={y} stroke={Colors.border} strokeWidth={1} strokeDasharray="4,4" />
+                <SvgText x={padding - 8} y={y + 4} fontSize={9} fill={Colors.textSecondary} textAnchor="end">
+                  {val}
+                </SvgText>
+              </G>
+            );
+          })}
+
+          <Line x1={padding} y1={30} x2={padding} y2={chartH + 30} stroke={Colors.border} strokeWidth={1} />
+
+          {/* Línea suavizada */}
+          <Path d={smoothPath} fill="none" stroke={color} strokeWidth={3} />
+
+          {/* Puntos */}
+          {points.map((p, i) => (
+            <G key={i}>
+              <Circle cx={p.x} cy={p.y} r={5} fill={color} />
+              <Circle cx={p.x} cy={p.y} r={2} fill="#fff" />
+            </G>
+          ))}
+
+          {/* Labels */}
+          {points.map((p, i) => (
+            <SvgText key={`label-${i}`} x={p.x} y={chartH + 50} fontSize={9} fill={Colors.textSecondary} textAnchor="middle">
+              {p.label.length > 6 ? p.label.substring(0, 6) : p.label}
+            </SvgText>
+          ))}
+        </Svg>
+      </View>
+    );
+  };
+
+  // Calcular estadísticas detalladas por partido y categoría
+  const getDetailedCategoryStats = useMemo(() => {
+    return matchesData.map(({ match, stats }) => {
+      let filteredStats = stats;
+      if (selectedPlayer) {
+        filteredStats = stats.filter(s => s.player_id === selectedPlayer);
+      }
+
+      const categoryDetails: Record<string, {
+        total: number;
+        doblePositivo: number;
+        positivo: number;
+        neutro: number;
+        error: number;
+        eficacia: number;
+        puntoDirecto: number;
+      }> = {};
+
+      filteredStats.forEach(stat => {
+        const category = stat.stat_category;
+        const normalized = stat.stat_type.toLowerCase().trim();
+        
+        if (!categoryDetails[category]) {
+          categoryDetails[category] = {
+            total: 0,
+            doblePositivo: 0,
+            positivo: 0,
+            neutro: 0,
+            error: 0,
+            eficacia: 0,
+            puntoDirecto: 0,
+          };
+        }
+
+        categoryDetails[category].total += 1;
+
+        if (normalized.includes('doble positiv') || normalized === '++') {
+          categoryDetails[category].doblePositivo += 1;
+        } else if (normalized.includes('punto directo') || normalized.includes('ace')) {
+          categoryDetails[category].puntoDirecto += 1;
+          categoryDetails[category].positivo += 1;
+        } else if (normalized.includes('positiv') || normalized === '+') {
+          categoryDetails[category].positivo += 1;
+        } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+          categoryDetails[category].neutro += 1;
+        } else if (normalized.includes('error')) {
+          categoryDetails[category].error += 1;
+        }
+      });
+
+      // Calcular eficacia por categoría
+      Object.keys(categoryDetails).forEach(cat => {
+        const d = categoryDetails[cat];
+        if (d.total > 0) {
+          // Eficacia = (doblePos + pos - error) / total * 100
+          d.eficacia = Math.round(((d.doblePositivo + d.positivo - d.error) / d.total) * 100);
+        }
+      });
+
+      return {
+        matchId: match.id,
+        opponent: match.opponent || 'Sin rival',
+        categoryDetails,
+      };
+    });
+  }, [matchesData, selectedPlayer]);
 
   // Renderizar gráficos de progreso por categoría
   const renderCategoryProgressCharts = () => {
@@ -492,12 +789,49 @@ export default function TeamTrackingScreen({
       );
     }
 
-    // Categorías activas (que tienen datos)
-    const activeCategories = STAT_CATEGORIES.filter(category => 
-      matchPerformances.some(mp => mp.categories[category]?.total > 0)
-    );
+    const categoryColor = (cat: string) => CATEGORY_COLORS[normalizeCategoryKey(cat)] || Colors.primary;
 
-    if (activeCategories.length === 0) {
+    // Datos para Recepción
+    const recepcionData = getDetailedCategoryStats.map(m => ({
+      eficacia: m.categoryDetails['Recepción']?.eficacia || 0,
+      doblePositivo: m.categoryDetails['Recepción']?.doblePositivo || 0,
+      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+    }));
+
+    // Datos para Ataque
+    const ataqueData = getDetailedCategoryStats.map(m => ({
+      eficacia: m.categoryDetails['Ataque']?.total > 0 
+        ? Math.round((m.categoryDetails['Ataque']?.positivo || 0) / m.categoryDetails['Ataque'].total * 100)
+        : 0,
+      puntos: m.categoryDetails['Ataque']?.positivo || 0,
+      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+    }));
+
+    // Datos para Bloqueo (acciones positivas)
+    const bloqueoData = getDetailedCategoryStats.map(m => ({
+      value: m.categoryDetails['Bloqueo']?.positivo || 0,
+      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+    }));
+
+    // Datos para Defensa (acciones positivas)
+    const defensaData = getDetailedCategoryStats.map(m => ({
+      value: m.categoryDetails['Defensa']?.positivo || 0,
+      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+    }));
+
+    // Datos para Saque (puntos directos)
+    const saqueData = getDetailedCategoryStats.map(m => ({
+      value: m.categoryDetails['Saque']?.puntoDirecto || 0,
+      label: m.opponent.length > 5 ? m.opponent.substring(0, 5) : m.opponent,
+    }));
+
+    const hasRecepcion = recepcionData.some(d => d.eficacia !== 0 || d.doblePositivo !== 0);
+    const hasAtaque = ataqueData.some(d => d.eficacia !== 0 || d.puntos !== 0);
+    const hasBloqueo = bloqueoData.some(d => d.value !== 0);
+    const hasDefensa = defensaData.some(d => d.value !== 0);
+    const hasSaque = saqueData.some(d => d.value !== 0);
+
+    if (!hasRecepcion && !hasAtaque && !hasBloqueo && !hasDefensa && !hasSaque) {
       return (
         <View style={styles.noChartData}>
           <Text style={styles.noChartDataText}>No hay datos de categorías registrados</Text>
@@ -507,24 +841,210 @@ export default function TeamTrackingScreen({
 
     return (
       <View>
-        {activeCategories.map(category => {
-          const categoryData = matchPerformances.map(mp => ({
-            value: mp.categories[category]?.gp || 0,
-            label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent,
-          }));
+        {/* Recepción: Eficacia + Dobles Positivos */}
+        {hasRecepcion && renderDualLineChart(
+          recepcionData.map(d => ({ value: d.eficacia, label: d.label })),
+          recepcionData.map(d => ({ value: d.doblePositivo, label: d.label })),
+          categoryColor('Recepción'),
+          '#0ea5e9',
+          'Recepción - Progreso',
+          'Eficacia %',
+          'Dobles ++',
+          '%',
+          ''
+        )}
 
-          const categoryColor = CATEGORY_COLORS[normalizeCategoryKey(category)] || Colors.primary;
+        {/* Ataque: Eficacia + Puntos */}
+        {hasAtaque && renderDualLineChart(
+          ataqueData.map(d => ({ value: d.eficacia, label: d.label })),
+          ataqueData.map(d => ({ value: d.puntos, label: d.label })),
+          categoryColor('Ataque'),
+          '#f59e0b',
+          'Ataque - Progreso',
+          'Eficacia %',
+          'Puntos',
+          '%',
+          ''
+        )}
 
-          return (
-            <View key={category} style={styles.categoryChartWrapper}>
-              {renderLineChart(
-                categoryData,
-                categoryColor,
-                `${category} - Evolución G-P`
-              )}
+        {/* Bloqueo: Acciones positivas */}
+        {hasBloqueo && renderSimpleLineChart(
+          bloqueoData,
+          categoryColor('Bloqueo'),
+          'Bloqueo - Positivos por Partido'
+        )}
+
+        {/* Defensa: Acciones positivas */}
+        {hasDefensa && renderSimpleLineChart(
+          defensaData,
+          categoryColor('Defensa'),
+          'Defensa - Positivos por Partido'
+        )}
+
+        {/* Saque: Puntos directos */}
+        {hasSaque && renderSimpleLineChart(
+          saqueData,
+          categoryColor('Saque'),
+          'Saque - Puntos Directos por Partido'
+        )}
+      </View>
+    );
+  };
+
+  // Calcular TOP de jugadores
+  const playerRankings = useMemo(() => {
+    const playerStats: Record<number, {
+      id: number;
+      name: string;
+      number: number;
+      ataquePositivo: number;
+      ataqueTotalPuntos: number;
+      ataqueTotal: number;
+      recepcionEficacia: number;
+      recepcionTotal: number;
+      defensaPositivo: number;
+      bloqueoPositivo: number;
+      saquePuntoDirecto: number;
+    }> = {};
+
+    matchesData.forEach(({ stats }) => {
+      stats.forEach(stat => {
+        const playerId = stat.player_id;
+        if (!playerStats[playerId]) {
+          playerStats[playerId] = {
+            id: playerId,
+            name: stat.player_name || 'Jugador',
+            number: stat.player_number || 0,
+            ataquePositivo: 0,
+            ataqueTotalPuntos: 0,
+            ataqueTotal: 0,
+            recepcionEficacia: 0,
+            recepcionTotal: 0,
+            defensaPositivo: 0,
+            bloqueoPositivo: 0,
+            saquePuntoDirecto: 0,
+          };
+        }
+
+        const p = playerStats[playerId];
+        const category = stat.stat_category;
+        const normalized = stat.stat_type.toLowerCase().trim();
+        const score = getStatScore(stat.stat_type);
+
+        if (category === 'Ataque') {
+          p.ataqueTotal += 1;
+          if (score > 0) {
+            p.ataquePositivo += 1;
+            p.ataqueTotalPuntos += 1;
+          }
+        } else if (category === 'Recepción') {
+          p.recepcionTotal += 1;
+          if (normalized.includes('doble positiv') || normalized === '++') {
+            p.recepcionEficacia += 2; // doble positivo cuenta como 2
+          } else if (normalized.includes('positiv') || normalized === '+') {
+            p.recepcionEficacia += 1;
+          } else if (normalized.includes('error')) {
+            p.recepcionEficacia -= 1;
+          }
+        } else if (category === 'Defensa' && score > 0) {
+          p.defensaPositivo += 1;
+        } else if (category === 'Bloqueo' && score > 0) {
+          p.bloqueoPositivo += 1;
+        } else if (category === 'Saque' && (normalized.includes('punto directo') || normalized.includes('ace'))) {
+          p.saquePuntoDirecto += 1;
+        }
+      });
+    });
+
+    const players = Object.values(playerStats);
+
+    // Calcular rankings
+    const maxAnotador = [...players].sort((a, b) => b.ataquePositivo - a.ataquePositivo)[0];
+    const mejorAtacante = [...players]
+      .filter(p => p.ataqueTotal >= 5)
+      .sort((a, b) => (b.ataqueTotalPuntos / b.ataqueTotal) - (a.ataqueTotalPuntos / a.ataqueTotal))[0];
+    const mejorReceptor = [...players]
+      .filter(p => p.recepcionTotal >= 5)
+      .sort((a, b) => (b.recepcionEficacia / b.recepcionTotal) - (a.recepcionEficacia / a.recepcionTotal))[0];
+    const mejorDefensor = [...players].sort((a, b) => b.defensaPositivo - a.defensaPositivo)[0];
+    const mejorBloqueador = [...players].sort((a, b) => b.bloqueoPositivo - a.bloqueoPositivo)[0];
+    const mejorSacador = [...players].sort((a, b) => b.saquePuntoDirecto - a.saquePuntoDirecto)[0];
+
+    return {
+      maxAnotador: maxAnotador ? {
+        ...maxAnotador,
+        stat: maxAnotador.ataquePositivo,
+        label: 'puntos'
+      } : null,
+      mejorAtacante: mejorAtacante ? {
+        ...mejorAtacante,
+        stat: Math.round((mejorAtacante.ataqueTotalPuntos / mejorAtacante.ataqueTotal) * 100),
+        label: '% eficacia'
+      } : null,
+      mejorReceptor: mejorReceptor ? {
+        ...mejorReceptor,
+        stat: Math.round((mejorReceptor.recepcionEficacia / mejorReceptor.recepcionTotal) * 100),
+        label: '% eficacia'
+      } : null,
+      mejorDefensor: mejorDefensor ? {
+        ...mejorDefensor,
+        stat: mejorDefensor.defensaPositivo,
+        label: 'defensas'
+      } : null,
+      mejorBloqueador: mejorBloqueador ? {
+        ...mejorBloqueador,
+        stat: mejorBloqueador.bloqueoPositivo,
+        label: 'bloqueos'
+      } : null,
+      mejorSacador: mejorSacador ? {
+        ...mejorSacador,
+        stat: mejorSacador.saquePuntoDirecto,
+        label: 'aces'
+      } : null,
+    };
+  }, [matchesData]);
+
+  // Renderizar TOP de jugadores
+  const renderPlayerRankings = () => {
+    const rankings = [
+      { title: 'Máximo Anotador', icon: 'target', color: '#ef4444', data: playerRankings.maxAnotador },
+      { title: 'Atacante más Eficaz', icon: 'arm-flex', color: '#f59e0b', data: playerRankings.mejorAtacante },
+      { title: 'Mejor Receptor', icon: 'hand-wave', color: '#22c55e', data: playerRankings.mejorReceptor },
+      { title: 'Mejor Defensor', icon: 'shield-check', color: '#8b5cf6', data: playerRankings.mejorDefensor },
+      { title: 'Mejor Bloqueador', icon: 'wall', color: '#3b82f6', data: playerRankings.mejorBloqueador },
+      { title: 'Mejor Sacador', icon: 'volleyball', color: '#06b6d4', data: playerRankings.mejorSacador },
+    ].filter(r => r.data && r.data.stat > 0);
+
+    if (rankings.length === 0) {
+      return (
+        <View style={styles.noChartData}>
+          <Text style={styles.noChartDataText}>No hay suficientes datos para mostrar rankings</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.rankingsContainer}>
+        {rankings.map((ranking, index) => (
+          <View key={ranking.title} style={styles.rankingCard}>
+            <View style={[styles.rankingIconContainer, { backgroundColor: ranking.color + '20' }]}>
+              <MaterialCommunityIcons name={ranking.icon as any} size={24} color={ranking.color} />
             </View>
-          );
-        })}
+            <View style={styles.rankingContent}>
+              <Text style={styles.rankingTitle}>{ranking.title}</Text>
+              <View style={styles.rankingPlayerRow}>
+                <View style={[styles.rankingNumber, { backgroundColor: ranking.color }]}>
+                  <Text style={styles.rankingNumberText}>#{ranking.data!.number}</Text>
+                </View>
+                <Text style={styles.rankingPlayerName}>{ranking.data!.name}</Text>
+              </View>
+            </View>
+            <View style={styles.rankingStatContainer}>
+              <Text style={[styles.rankingStat, { color: ranking.color }]}>{ranking.data!.stat}</Text>
+              <Text style={styles.rankingStatLabel}>{ranking.data!.label}</Text>
+            </View>
+          </View>
+        ))}
       </View>
     );
   };
@@ -760,68 +1280,21 @@ export default function TeamTrackingScreen({
               </View>
             </View>
 
-            {/* Selector de tipo de gráfico */}
-            <View style={styles.chartTypeSelector}>
-              <TouchableOpacity
-                style={[styles.chartTypeButton, chartType === 'line' && styles.chartTypeButtonActive]}
-                onPress={() => setChartType('line')}
-              >
-                <MaterialCommunityIcons 
-                  name="chart-line" 
-                  size={20} 
-                  color={chartType === 'line' ? Colors.textOnPrimary : Colors.textSecondary} 
-                />
-                <Text style={[styles.chartTypeText, chartType === 'line' && styles.chartTypeTextActive]}>
-                  Líneas
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.chartTypeButton, chartType === 'bar' && styles.chartTypeButtonActive]}
-                onPress={() => setChartType('bar')}
-              >
-                <MaterialCommunityIcons 
-                  name="chart-bar" 
-                  size={20} 
-                  color={chartType === 'bar' ? Colors.textOnPrimary : Colors.textSecondary} 
-                />
-                <Text style={[styles.chartTypeText, chartType === 'bar' && styles.chartTypeTextActive]}>
-                  Barras
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Gráfico de evolución G-P */}
-            {chartType === 'line' ? (
-              renderLineChart(
+            {/* Gráfico de evolución G-P - Líneas suavizadas */}
+            <View style={styles.section}>
+              {renderSmoothLineChart(
                 matchPerformances.map(mp => ({ 
                   value: mp.gp, 
                   label: mp.opponent.length > 5 ? mp.opponent.substring(0, 5) : mp.opponent
                 })),
                 trendChartColor,
                 'Evolución G-P por Partido'
-              )
-            ) : (
-              renderBarChart(
-                matchPerformances.map(mp => ({
-                  label: mp.opponent,
-                  value: mp.gp,
-                  color: getMatchResultColor(mp.result),
-                })),
-                'G-P por Partido',
-                2 // Mínimo 2 partidos para mostrar el gráfico
-              )
-            )}
-
-            {/* Gráficos de progreso por categoría */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Progreso por Categoría</Text>
-              {renderCategoryProgressCharts()}
+              )}
             </View>
 
-            {/* Rendimiento por categoría */}
+            {/* Gráfico de barras G-P por categoría */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Promedio por Categoría</Text>
-              {renderBarChart(
+              {renderImprovedBarChart(
                 Object.entries(aggregatedStats.categoryAverages)
                   .filter(([cat]) => STAT_CATEGORIES.includes(cat))
                   .map(([cat, data]) => ({
@@ -831,6 +1304,18 @@ export default function TeamTrackingScreen({
                   })),
                 'G-P Promedio por Categoría'
               )}
+            </View>
+
+            {/* TOP de jugadores */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🏆 TOP Jugadores</Text>
+              {renderPlayerRankings()}
+            </View>
+
+            {/* Gráficos de progreso por categoría */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Progreso por Categoría</Text>
+              {renderCategoryProgressCharts()}
             </View>
 
             {/* Lista de partidos */}
@@ -1301,5 +1786,96 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.text,
+  },
+  // Rankings styles
+  rankingsContainer: {
+    gap: Spacing.sm,
+  },
+  rankingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  rankingIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  rankingContent: {
+    flex: 1,
+  },
+  rankingTitle: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  rankingPlayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  rankingNumber: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  rankingNumberText: {
+    fontSize: FontSizes.xs,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  rankingPlayerName: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  rankingStatContainer: {
+    alignItems: 'flex-end',
+  },
+  rankingStat: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+  },
+  rankingStatLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  // Chart legend styles
+  chartLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+    marginTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendLine: {
+    width: 16,
+    height: 3,
+    borderRadius: 1.5,
+  },
+  legendLineDashed: {
+    width: 16,
+    height: 3,
+    borderRadius: 1.5,
+    opacity: 0.7,
+  },
+  legendText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
   },
 });
