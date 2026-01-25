@@ -14,10 +14,11 @@ import {
   Platform,
   StatusBar,
   Dimensions,
+  Modal,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
-import { MenuIcon } from '../components/VectorIcons';
+import { MenuIcon, ReceptionIcon, AttackIcon, BlockIcon, ServeIcon, DefenseIcon, SetIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -52,8 +53,21 @@ interface RoleFeature {
   pro: boolean | string;
 }
 
+// Colores de las categorías de estadísticas
+const STAT_COLORS = {
+  reception: '#3b82f6',
+  attack: '#f59e0b',
+  block: '#10b981',
+  serve: '#8b5cf6',
+  defense: '#ef4444',
+  set: '#06b6d4',
+};
+
+type InfoModalType = 'basicConfig' | 'proConfig' | null;
+
 export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialTab, onlyRoles }: GuideScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? (onlyRoles ? 'roles' : 'guide'));
+  const [infoModal, setInfoModal] = useState<InfoModalType>(null);
 
   // Secciones de la guía
   const guideSections: GuideSection[] = [
@@ -160,23 +174,24 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
     },
   ];
 
-  // Características por rol
-  const roleFeatures: RoleFeature[] = [
+  // Características por rol - con campo especial para info button
+  interface RoleFeatureExtended extends RoleFeature {
+    infoType?: 'basicConfig' | 'proConfig';
+  }
+
+  const roleFeatures: RoleFeatureExtended[] = [
     { feature: 'Crear equipos', free: false, basic: '2 equipos', pro: 'Ilimitados' },
     { feature: 'Jugadores por equipo', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
     { feature: 'Partidos guardados', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
     { feature: 'Buscar partido por código', free: true, basic: true, pro: true },
     { feature: 'Marcador básico', free: true, basic: true, pro: true },
-    { feature: 'Estadísticas básicas', free: false, basic: true, pro: true },
-    { feature: 'Estadísticas avanzadas', free: false, basic: false, pro: true },
-    { feature: 'Configuración básica', free: false, basic: true, pro: true },
-    { feature: 'Configuración avanzada', free: false, basic: false, pro: true },
+    { feature: 'Configuración de estadísticas', free: false, basic: true, pro: true, infoType: 'basicConfig' },
+    { feature: 'Estadísticas avanzadas', free: false, basic: false, pro: true, infoType: 'proConfig' },
     { feature: 'Ver estadísticas de partido', free: false, basic: true, pro: true },
     { feature: 'Filtrar por set', free: false, basic: true, pro: true },
     { feature: 'Filtrar por jugador', free: false, basic: true, pro: true },
     { feature: 'Exportar a Excel', free: false, basic: false, pro: true },
-    { feature: 'Gráficos de progreso', free: false, basic: false, pro: true },
-    { feature: 'Análisis de tendencias', free: false, basic: false, pro: true },
+    { feature: 'Seguimiento del equipo', free: false, basic: false, pro: true },
   ];
 
   // Render de un item de la guía
@@ -252,7 +267,18 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
           ]}
         >
           <View style={styles.featureColumn}>
-            <Text style={styles.featureText}>{item.feature}</Text>
+            <View style={styles.featureWithInfo}>
+              <Text style={styles.featureText}>{item.feature}</Text>
+              {item.infoType && (
+                <TouchableOpacity 
+                  style={styles.infoButton}
+                  onPress={() => setInfoModal(item.infoType!)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="information" size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <View style={styles.roleColumn}>
             {renderFeatureStatus(item.free)}
@@ -325,8 +351,192 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
     </View>
   );
 
+  // Renderiza el contenido del modal de información de estadísticas
+  const renderInfoModalContent = () => {
+    const isBasic = infoModal === 'basicConfig';
+    
+    interface StatInfo {
+      category: string;
+      color: string;
+      icon: React.FC<{ size?: number; color?: string }>;
+      types: string[];
+      note?: string;
+      exclusive?: boolean;
+    }
+
+    // Estadísticas del plan básico
+    const basicStats: StatInfo[] = [
+      { 
+        category: 'Recepción', 
+        color: STAT_COLORS.reception, 
+        icon: ReceptionIcon,
+        types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+        note: 'Solo para Receptor y Líbero'
+      },
+      { 
+        category: 'Ataque', 
+        color: STAT_COLORS.attack, 
+        icon: AttackIcon,
+        types: ['Positivo', 'Error']
+      },
+      { 
+        category: 'Bloqueo', 
+        color: STAT_COLORS.block, 
+        icon: BlockIcon,
+        types: ['Positivo']
+      },
+      { 
+        category: 'Saque', 
+        color: STAT_COLORS.serve, 
+        icon: ServeIcon,
+        types: ['Punto directo', 'Error']
+      },
+    ];
+    
+    // Estadísticas adicionales PRO
+    const proStats: StatInfo[] = [
+      { 
+        category: 'Recepción', 
+        color: STAT_COLORS.reception, 
+        icon: ReceptionIcon,
+        types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+        note: 'Todas las posiciones'
+      },
+      { 
+        category: 'Ataque', 
+        color: STAT_COLORS.attack, 
+        icon: AttackIcon,
+        types: ['Positivo', 'Neutro', 'Error']
+      },
+      { 
+        category: 'Bloqueo', 
+        color: STAT_COLORS.block, 
+        icon: BlockIcon,
+        types: ['Positivo', 'Neutro', 'Error']
+      },
+      { 
+        category: 'Saque', 
+        color: STAT_COLORS.serve, 
+        icon: ServeIcon,
+        types: ['Punto directo', 'Positivo', 'Neutro', 'Error']
+      },
+      { 
+        category: 'Defensa', 
+        color: STAT_COLORS.defense, 
+        icon: DefenseIcon,
+        types: ['Positivo', 'Neutro', 'Error'],
+        exclusive: true
+      },
+      { 
+        category: 'Colocación', 
+        color: STAT_COLORS.set, 
+        icon: SetIcon,
+        types: ['Positivo', 'Neutro', 'Error'],
+        exclusive: true
+      },
+    ];
+
+    const stats = isBasic ? basicStats : proStats;
+
+    return (
+      <View style={styles.infoModalContent}>
+        <View style={styles.infoModalHeader}>
+          <View style={[styles.infoModalBadge, { backgroundColor: isBasic ? '#3b82f620' : '#f59e0b20' }]}>
+            {!isBasic && <MaterialCommunityIcons name="crown" size={16} color="#f59e0b" style={{ marginRight: 4 }} />}
+            <Text style={[styles.infoModalBadgeText, { color: isBasic ? '#3b82f6' : '#f59e0b' }]}>
+              {isBasic ? 'BÁSICA' : 'PRO'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => setInfoModal(null)} activeOpacity={0.7}>
+            <MaterialCommunityIcons name="close" size={24} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.infoModalTitle}>
+          {isBasic ? 'Configuración de Estadísticas' : 'Estadísticas Avanzadas'}
+        </Text>
+        
+        <Text style={styles.infoModalSubtitle}>
+          {isBasic 
+            ? 'Puedes activar o desactivar las siguientes opciones según tus necesidades:' 
+            : 'Además de todas las opciones básicas, el plan PRO incluye:'}
+        </Text>
+
+        <ScrollView style={styles.infoModalScrollView} showsVerticalScrollIndicator={false}>
+          {stats.map((stat, index) => {
+            const IconComponent = stat.icon;
+            return (
+              <View 
+                key={index} 
+                style={[
+                  styles.statInfoCard,
+                  stat.exclusive && styles.statInfoCardExclusive
+                ]}
+              >
+                <View style={styles.statInfoHeader}>
+                  <View style={[styles.statIconContainer, { backgroundColor: stat.color + '20' }]}>
+                    <IconComponent size={22} color={stat.color} />
+                  </View>
+                  <View style={styles.statInfoTitleContainer}>
+                    <Text style={[styles.statInfoCategory, { color: stat.color }]}>{stat.category}</Text>
+                    {stat.exclusive && (
+                      <View style={styles.exclusiveBadge}>
+                        <MaterialCommunityIcons name="star" size={10} color="#f59e0b" />
+                        <Text style={styles.exclusiveText}>Exclusivo PRO</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.statTypesContainer}>
+                  {stat.types.map((type, typeIndex) => (
+                    <View key={typeIndex} style={[styles.statTypeBadge, { borderColor: stat.color + '40' }]}>
+                      <Text style={[styles.statTypeText, { color: stat.color }]}>{type}</Text>
+                    </View>
+                  ))}
+                </View>
+                {stat.note && (
+                  <Text style={styles.statNote}>
+                    <MaterialCommunityIcons name="information-outline" size={12} color={Colors.textSecondary} /> {stat.note}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+
+          <View style={styles.infoModalNote}>
+            <MaterialCommunityIcons name="cog" size={18} color={Colors.primary} />
+            <Text style={styles.infoModalNoteText}>
+              La configuración es totalmente personalizable. Puedes activar o desactivar cada opción según tus preferencias.
+            </Text>
+          </View>
+
+          {isBasic && (
+            <View style={styles.infoModalProHint}>
+              <MaterialCommunityIcons name="crown" size={18} color="#f59e0b" />
+              <Text style={styles.infoModalProHintText}>
+                ¿Necesitas Defensa, Colocación o más opciones de registro? ¡Actualiza a PRO!
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Modal de información de estadísticas */}
+      <Modal
+        visible={infoModal !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setInfoModal(null)}
+      >
+        <View style={styles.infoModalOverlay}>
+          {renderInfoModalContent()}
+        </View>
+      </Modal>
+
        {/* Header */}
             <View style={styles.header}>
               {onBack ? (
@@ -720,5 +930,156 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: Spacing.xxl,
+  },
+  featureWithInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  infoButton: {
+    padding: 2,
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  infoModalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '85%',
+    ...Shadows.lg,
+  },
+  infoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  infoModalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+  },
+  infoModalBadgeText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
+  infoModalTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: '800',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+  },
+  infoModalSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+    lineHeight: 20,
+  },
+  infoModalScrollView: {
+    flexGrow: 0,
+  },
+  statInfoCard: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  statInfoCardExclusive: {
+    borderWidth: 1,
+    borderColor: '#f59e0b40',
+    backgroundColor: '#f59e0b08',
+  },
+  statInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  statInfoTitleContainer: {
+    flex: 1,
+  },
+  statInfoCategory: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+  },
+  exclusiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  exclusiveText: {
+    fontSize: 10,
+    color: '#f59e0b',
+    fontWeight: '600',
+  },
+  statTypesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  statTypeBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    backgroundColor: Colors.surface,
+  },
+  statTypeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statNote: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
+    fontStyle: 'italic',
+  },
+  infoModalNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: Colors.primary + '10',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  infoModalNoteText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  infoModalProHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f59e0b10',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  infoModalProHintText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: '#b45309',
+    lineHeight: 20,
+    fontWeight: '500',
   },
 });
