@@ -29,6 +29,10 @@ interface GuideScreenProps {
   onBack?: () => void;
   onOpenMenu?: () => void;
   onSelectPlan?: () => void;
+  /** Si se pasa, muestra inicialmente este tab */
+  initialTab?: TabType;
+  /** Si true, muestra solo el tab de Planes (roles) y oculta la Guía */
+  onlyRoles?: boolean;
 }
 
 type TabType = 'guide' | 'roles';
@@ -48,8 +52,8 @@ interface RoleFeature {
   pro: boolean | string;
 }
 
-export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan }: GuideScreenProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('guide');
+export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialTab, onlyRoles }: GuideScreenProps) {
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? (onlyRoles ? 'roles' : 'guide'));
 
   // Secciones de la guía
   const guideSections: GuideSection[] = [
@@ -325,19 +329,29 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan }: GuideS
     <SafeAreaView style={styles.safeArea}>
        {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity 
-                style={styles.menuButton}
-                onPress={onOpenMenu}
-                activeOpacity={0.7}
-              >
-                <MenuIcon size={28} color={Colors.text} />
-              </TouchableOpacity>
-        
+              {onBack ? (
+                <TouchableOpacity
+                  style={styles.menuButton}
+                  onPress={onBack}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="arrow-left" size={28} color={Colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.menuButton}
+                  onPress={onOpenMenu}
+                  activeOpacity={0.7}
+                >
+                  <MenuIcon size={28} color={Colors.text} />
+                </TouchableOpacity>
+              )}
+
               <View style={styles.headerCenter}>
                 <MaterialCommunityIcons name="help-circle-outline" size={22} color={Colors.primary} />
                 <Text style={styles.headerTitle}>Ayuda</Text>
               </View>
-        
+
               <View style={styles.headerRight} />
             </View>
 
@@ -349,34 +363,47 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan }: GuideS
       >
         {/* Tabs */}
         <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'guide' && styles.tabActive]}
-            onPress={() => setActiveTab('guide')}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons 
-              name="book-open-page-variant" 
-              size={20} 
-              color={activeTab === 'guide' ? Colors.textOnPrimary : Colors.textSecondary} 
-            />
-            <Text style={[styles.tabText, activeTab === 'guide' && styles.tabTextActive]}>
-              Guía de Uso
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'roles' && styles.tabActive]}
-            onPress={() => setActiveTab('roles')}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons 
-              name="account-star" 
-              size={20} 
-              color={activeTab === 'roles' ? Colors.textOnPrimary : Colors.textSecondary} 
-            />
-            <Text style={[styles.tabText, activeTab === 'roles' && styles.tabTextActive]}>
-              Planes
-            </Text>
-          </TouchableOpacity>
+          {onlyRoles ? (
+            <View style={[styles.tab, styles.tabActive, { flex: 1 }]}>
+              <MaterialCommunityIcons 
+                name="account-star" 
+                size={20} 
+                color={Colors.textOnPrimary} 
+              />
+              <Text style={[styles.tabText, styles.tabTextActive]}>Planes</Text>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'guide' && styles.tabActive]}
+                onPress={() => setActiveTab('guide')}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons 
+                  name="book-open-page-variant" 
+                  size={20} 
+                  color={activeTab === 'guide' ? Colors.textOnPrimary : Colors.textSecondary} 
+                />
+                <Text style={[styles.tabText, activeTab === 'guide' && styles.tabTextActive]}>
+                  Guía de Uso
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'roles' && styles.tabActive]}
+                onPress={() => setActiveTab('roles')}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons 
+                  name="account-star" 
+                  size={20} 
+                  color={activeTab === 'roles' ? Colors.textOnPrimary : Colors.textSecondary} 
+                />
+                <Text style={[styles.tabText, activeTab === 'roles' && styles.tabTextActive]}>
+                  Planes
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
         {activeTab === 'guide' ? (
           <>

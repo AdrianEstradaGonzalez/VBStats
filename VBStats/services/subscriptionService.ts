@@ -27,7 +27,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     id: 'free',
     name: 'Gratis',
     price: 0,
-    priceString: 'Gratis',
+    priceString: '0 €/mes',
     features: [
       'Buscar estadísticas por código',
       'Ver informes compartidos',
@@ -47,15 +47,15 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     features: [
       'Crear hasta 2 equipos',
       'Configuración básica de estadísticas',
-      'Informe resumido con código',
+      'Informes de estadísticas de partidos individuales',
       'Marcador de partido',
     ],
     limitations: [
       'Estadísticas avanzadas (Pro)',
       'Equipos ilimitados (Pro)',
-      'Informes completos (Pro)',
+      'Estadísticas de seguimiento y progreso del equipo (Pro)',
     ],
-    stripePriceId: 'price_1SsS4aJAUMhTgnDDHPblpB1L',
+    stripePriceId: 'price_1SsWrGJAUMhTgnDDYlr1nUcQ',
   },
   {
     id: 'pro',
@@ -66,11 +66,11 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Equipos ilimitados',
       'Todas las estadísticas',
       'Configuración avanzada',
-      'Informes completos',
+      'Estadísticas de seguimiento y progreso del equipo',
       'Marcador de partido',
       'Sin limitaciones',
     ],
-    stripePriceId: 'price_1SsS8CJAUMhTgnDDPWo9z33Z',
+    stripePriceId: 'price_1SsWsEJAUMhTgnDDKSO78qnD',
     recommended: true,
   },
 ];

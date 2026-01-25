@@ -53,18 +53,19 @@ export default function SelectPlanScreen({
   const [paymentPending, setPaymentPending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showConfirmPlan, setShowConfirmPlan] = useState(false);
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
-      // Free plan - no payment needed
-      onPlanSelected('free');
+      setSelectedPlan('free');
+      setShowConfirmPlan(true);
       return;
     }
 
     setSelectedPlan(plan.id);
   };
 
-  const handleContinue = async () => {
+  const performContinue = async () => {
     if (selectedPlan === 'free') {
       onPlanSelected('free');
       return;
@@ -105,6 +106,11 @@ export default function SelectPlanScreen({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleContinue = () => {
+    // Show confirmation before proceeding to payment/selection
+    setShowConfirmPlan(true);
   };
 
   const handleVerifyPayment = async () => {
@@ -211,6 +217,8 @@ export default function SelectPlanScreen({
     return (
       <GuideScreen
         onBack={() => setShowGuide(false)}
+        initialTab="roles"
+        onlyRoles={true}
       />
     );
   }
@@ -354,6 +362,31 @@ export default function SelectPlanScreen({
       </ScrollView>
 
       {/* Error Alert */}
+      <CustomAlert
+        visible={showConfirmPlan}
+        title="Confirmar selección"
+        message={(() => {
+          const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
+          if (!plan) return '¿Confirmas seleccionar este plan?';
+          return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
+        })()}
+        buttons={[
+          {
+            text: 'Cancelar',
+            onPress: () => setShowConfirmPlan(false),
+            style: 'cancel',
+          },
+          {
+            text: 'Confirmar',
+            onPress: async () => {
+              setShowConfirmPlan(false);
+              await performContinue();
+            },
+            style: 'primary',
+          },
+        ]}
+        onClose={() => setShowConfirmPlan(false)}
+      />
       <CustomAlert
         visible={showErrorAlert}
         title="Error"
