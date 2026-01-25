@@ -233,11 +233,13 @@ export default function SelectPlanScreen({
           <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Image
-            source={require('../assets/VBStats_logo_sinfondo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../assets/VBStats_logo_sinfondo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -426,6 +428,17 @@ const styles = StyleSheet.create({
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+  },
+  logoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    padding: 6,
   },
   logo: {
     width: 40,
