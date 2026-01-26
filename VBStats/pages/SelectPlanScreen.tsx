@@ -3,7 +3,7 @@
  * Diseño moderno y profesional con integración de pagos
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,16 @@ import {
   Linking,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { CustomAlert } from '../components';
 import { 
   SUBSCRIPTION_PLANS, 
   SubscriptionType, 
   SubscriptionPlan,
-  subscriptionService 
+  subscriptionService,
+  TRIAL_DAYS,
+  TrialEligibility,
 } from '../services/subscriptionService';
 import GuideScreen from './GuideScreen';
 
@@ -54,6 +57,45 @@ export default function SelectPlanScreen({
   const [isVerifying, setIsVerifying] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showConfirmPlan, setShowConfirmPlan] = useState(false);
+  const [trialEligibility, setTrialEligibility] = useState<TrialEligibility | null>(null);
+  const [useFreeTrial, setUseFreeTrial] = useState(true);
+  const [deviceId, setDeviceId] = useState<string>('');
+  const [showTrialInfo, setShowTrialInfo] = useState(false);
+
+  // Generate or get device ID for trial tracking
+  useEffect(() => {
+    const getOrCreateDeviceId = async () => {
+      try {
+        let storedDeviceId = await AsyncStorage.getItem('vbstats_device_id');
+        if (!storedDeviceId) {
+          // Generate a unique device ID
+          storedDeviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+          await AsyncStorage.setItem('vbstats_device_id', storedDeviceId);
+        }
+        setDeviceId(storedDeviceId);
+      } catch (error) {
+        console.error('Error getting device ID:', error);
+        // Fallback device ID
+        setDeviceId('device_' + Date.now());
+      }
+    };
+    getOrCreateDeviceId();
+  }, []);
+
+  // Check trial eligibility when userId and deviceId are available
+  useEffect(() => {
+    const checkEligibility = async () => {
+      if (userId && deviceId) {
+        const eligibility = await subscriptionService.checkTrialEligibility(userId, deviceId);
+        setTrialEligibility(eligibility);
+        // If not eligible, disable trial option
+        if (!eligibility.eligible) {
+          setUseFreeTrial(false);
+        }
+      }
+    };
+    checkEligibility();
+  }, [userId, deviceId]);
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
@@ -79,7 +121,30 @@ export default function SelectPlanScreen({
 
     setIsLoading(true);
     try {
-      const result = await subscriptionService.createCheckoutSession(userId, selectedPlan);
+      // If using free trial without requiring payment upfront
+      if (useFreeTrial && trialEligibility?.eligible) {
+        const result = await subscriptionService.startTrial(userId, selectedPlan, deviceId);
+        
+        if (result.error) {
+          setErrorMessage(result.error);
+          setShowErrorAlert(true);
+          return;
+        }
+        
+        if (result.success) {
+          // Trial started successfully, proceed to app
+          onPlanSelected(selectedPlan);
+          return;
+        }
+      }
+      
+      // Regular payment flow (or trial with Stripe - requires card upfront)
+      const result = await subscriptionService.createCheckoutSessionWithTrial(
+        userId, 
+        selectedPlan, 
+        deviceId,
+        useFreeTrial && trialEligibility?.eligible
+      );
       
       if (result.error) {
         setErrorMessage(result.error);
@@ -280,8 +345,56 @@ export default function SelectPlanScreen({
           }).map(renderPlanCard)}
         </View>
 
+        {/* Free Trial Option */}
+        {selectedPlan !== 'free' && trialEligibility?.eligible && (
+          <View style={styles.trialSection}>
+            <TouchableOpacity
+              style={styles.trialToggle}
+              onPress={() => setUseFreeTrial(!useFreeTrial)}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons 
+                name={useFreeTrial ? 'checkbox-marked' : 'checkbox-blank-outline'} 
+                size={24} 
+                color={useFreeTrial ? Colors.primary : Colors.textSecondary} 
+              />
+              <View style={styles.trialToggleContent}>
+                <View style={styles.trialBadge}>
+                  <MaterialCommunityIcons name="gift" size={14} color="#fff" />
+                  <Text style={styles.trialBadgeText}>PRUEBA GRATIS</Text>
+                </View>
+                <Text style={styles.trialToggleText}>
+                  Probar {TRIAL_DAYS} días gratis
+                </Text>
+                <Text style={styles.trialToggleSubtext}>
+                  Sin cargo durante la prueba. Después se cobra automáticamente.
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.trialInfoButton}
+              onPress={() => setShowTrialInfo(true)}
+            >
+              <MaterialCommunityIcons name="information-outline" size={16} color={Colors.primary} />
+              <Text style={styles.trialInfoButtonText}>Más información sobre la prueba</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Trial Not Available Notice */}
+        {selectedPlan !== 'free' && trialEligibility && !trialEligibility.eligible && (
+          <View style={styles.trialNotAvailable}>
+            <MaterialCommunityIcons name="information-outline" size={20} color={Colors.textSecondary} />
+            <Text style={styles.trialNotAvailableText}>
+              {trialEligibility.deviceUsedTrial 
+                ? 'Este dispositivo ya ha utilizado una prueba gratuita.'
+                : 'Esta cuenta ya ha utilizado una prueba gratuita.'}
+            </Text>
+          </View>
+        )}
+
         {/* Payment Methods */}
-        {selectedPlan !== 'free' && (
+        {selectedPlan !== 'free' && !useFreeTrial && (
           <View style={styles.paymentSection}>
             <Text style={styles.paymentTitle}>Métodos de pago seguros</Text>
             <View style={styles.paymentMethods}>
@@ -320,7 +433,11 @@ export default function SelectPlanScreen({
             ) : (
               <>
                 <Text style={styles.continueButtonText}>
-                  {selectedPlan === 'free' ? 'Continuar gratis' : 'Continuar al pago'}
+                  {selectedPlan === 'free' 
+                    ? 'Continuar gratis' 
+                    : useFreeTrial && trialEligibility?.eligible
+                      ? `Empezar ${TRIAL_DAYS} días gratis`
+                      : 'Continuar al pago'}
                 </Text>
                 <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
               </>
@@ -357,17 +474,28 @@ export default function SelectPlanScreen({
         {/* Terms */}
         <Text style={styles.termsText}>
           Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad.
-          {selectedPlan !== 'free' && ' La suscripción se renovará automáticamente cada mes.'}
+          {selectedPlan !== 'free' && useFreeTrial && trialEligibility?.eligible 
+            ? ` La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
+            : selectedPlan !== 'free' 
+              ? ' La suscripción se renovará automáticamente cada mes.'
+              : ''}
         </Text>
       </ScrollView>
 
       {/* Error Alert */}
       <CustomAlert
         visible={showConfirmPlan}
-        title="Confirmar selección"
+        title={useFreeTrial && trialEligibility?.eligible && selectedPlan !== 'free' 
+          ? `Comenzar prueba gratuita de ${TRIAL_DAYS} días` 
+          : 'Confirmar selección'}
         message={(() => {
           const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
           if (!plan) return '¿Confirmas seleccionar este plan?';
+          
+          if (useFreeTrial && trialEligibility?.eligible && plan.price > 0) {
+            return `🎁 Vas a comenzar una prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+          }
+          
           return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
         })()}
         buttons={[
@@ -377,7 +505,9 @@ export default function SelectPlanScreen({
             style: 'cancel',
           },
           {
-            text: 'Confirmar',
+            text: useFreeTrial && trialEligibility?.eligible && selectedPlan !== 'free' 
+              ? 'Comenzar prueba' 
+              : 'Confirmar',
             onPress: async () => {
               setShowConfirmPlan(false);
               await performContinue();
@@ -387,6 +517,22 @@ export default function SelectPlanScreen({
         ]}
         onClose={() => setShowConfirmPlan(false)}
       />
+      
+      {/* Trial Info Alert */}
+      <CustomAlert
+        visible={showTrialInfo}
+        title={`Prueba gratuita de ${TRIAL_DAYS} días`}
+        message={`🎁 ¿Cómo funciona la prueba gratuita?\n\n✅ Disfruta de todas las funciones del plan durante ${TRIAL_DAYS} días completamente gratis.\n\n✅ Puedes cancelar en cualquier momento desde tu perfil.\n\n⚠️ Si no cancelas antes de que termine la prueba, se activará la suscripción y se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente cada mes.\n\n⚠️ Solo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        buttons={[
+          {
+            text: 'Entendido',
+            onPress: () => setShowTrialInfo(false),
+            style: 'primary',
+          },
+        ]}
+        onClose={() => setShowTrialInfo(false)}
+      />
+      
       <CustomAlert
         visible={showErrorAlert}
         title="Error"
@@ -640,5 +786,75 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.primary,
     textDecorationLine: 'underline',
+  },
+  // Trial styles
+  trialSection: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 2,
+    borderColor: '#22c55e',
+    ...Shadows.sm,
+  },
+  trialToggle: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+  },
+  trialToggleContent: {
+    flex: 1,
+  },
+  trialBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#22c55e',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.xs,
+    gap: 4,
+  },
+  trialBadgeText: {
+    color: '#fff',
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+  },
+  trialToggleText: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  trialToggleSubtext: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  trialInfoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.md,
+    gap: 4,
+  },
+  trialInfoButtonText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+  },
+  trialNotAvailable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  trialNotAvailableText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
   },
 });

@@ -25,7 +25,7 @@ import { Colors } from "./styles";
 import { SideMenu } from "./components";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
-import { SubscriptionType, subscriptionService } from "./services/subscriptionService";
+import { SubscriptionType, subscriptionService, TrialInfo } from "./services/subscriptionService";
 import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide';
@@ -55,6 +55,7 @@ export default function App() {
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>('free');
   const [subscriptionCancelledPending, setSubscriptionCancelledPending] = useState(false);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
+  const [activeTrial, setActiveTrial] = useState<TrialInfo | null>(null);
   const [showSessionAlert, setShowSessionAlert] = useState(false);
   const [sessionCheckBlocked, setSessionCheckBlocked] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -155,11 +156,13 @@ export default function App() {
       const subscription = await subscriptionService.getSubscription(userId);
       setSubscriptionType(subscription.type);
       setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+      setActiveTrial(subscription.activeTrial || null);
       setSubscriptionLoaded(true);
     } catch (error) {
       console.error('Error loading subscription:', error);
       setSubscriptionType('free');
       setSubscriptionCancelledPending(false);
+      setActiveTrial(null);
       setSubscriptionLoaded(true);
     }
   };
@@ -317,6 +320,7 @@ export default function App() {
     setSubscriptionType('free');
     setSubscriptionCancelledPending(false);
     setSubscriptionLoaded(false);
+    setActiveTrial(null);
     setCurrentScreen('home');
     setMenuVisible(false);
   };
@@ -563,6 +567,7 @@ export default function App() {
             userName={userName}
             userEmail={userEmail}
             subscriptionType={subscriptionType}
+            activeTrial={activeTrial}
             onSubscriptionCancelled={() => {
               // Don't change to free immediately - user keeps access until expiration
               // Just show a message, the subscription type stays the same

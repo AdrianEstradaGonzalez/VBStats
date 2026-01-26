@@ -42,11 +42,125 @@ const PRICE_IDS = {
   pro: process.env.STRIPE_PRICE_PRO || 'price_pro_monthly',
 };
 
+// Trial configuration
+const TRIAL_DAYS = 7;
+
+// Check if a device has already used a trial
+const hasDeviceUsedTrial = async (deviceId) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id FROM device_trials WHERE device_id = ?',
+      [deviceId]
+    );
+    return rows.length > 0;
+  } catch (error) {
+    console.error('Error checking device trial:', error);
+    return false;
+  }
+};
+
+// Check if user has already used a trial
+const hasUserUsedTrial = async (userId) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT trial_used FROM users WHERE id = ?',
+      [userId]
+    );
+    return rows.length > 0 && rows[0].trial_used === 1;
+  } catch (error) {
+    console.error('Error checking user trial:', error);
+    return false;
+  }
+};
+
+// Record trial usage for device and user
+const recordTrialUsage = async (userId, deviceId, planType) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+    
+    // Update user trial info
+    await conn.query(
+      `UPDATE users SET 
+        trial_used = TRUE, 
+        trial_started_at = NOW(), 
+        trial_ends_at = ?,
+        trial_plan_type = ?
+      WHERE id = ?`,
+      [trialEndsAt, planType, userId]
+    );
+    
+    // Record device trial
+    await conn.query(
+      `INSERT INTO device_trials (device_id, user_id, plan_type) 
+       VALUES (?, ?, ?) 
+       ON DUPLICATE KEY UPDATE user_id = user_id`,
+      [deviceId, userId, planType]
+    );
+    
+    await conn.commit();
+    return true;
+  } catch (error) {
+    await conn.rollback();
+    console.error('Error recording trial usage:', error);
+    return false;
+  } finally {
+    conn.release();
+  }
+};
+
+// Check trial eligibility for a device
+router.post('/check-trial-eligibility', async (req, res) => {
+  try {
+    const { userId, deviceId } = req.body;
+    
+    if (!userId || !deviceId) {
+      return res.status(400).json({ error: 'userId and deviceId are required' });
+    }
+    
+    const deviceUsedTrial = await hasDeviceUsedTrial(deviceId);
+    const userUsedTrial = await hasUserUsedTrial(userId);
+    
+    // Get user's current subscription to check if they're on a trial
+    const [rows] = await pool.query(
+      'SELECT trial_used, trial_ends_at, trial_plan_type, subscription_type FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    let currentTrial = null;
+    if (rows.length > 0 && rows[0].trial_ends_at) {
+      const trialEndsAt = new Date(rows[0].trial_ends_at);
+      if (trialEndsAt > new Date()) {
+        currentTrial = {
+          planType: rows[0].trial_plan_type,
+          endsAt: rows[0].trial_ends_at,
+          daysRemaining: Math.ceil((trialEndsAt - new Date()) / (1000 * 60 * 60 * 24))
+        };
+      }
+    }
+    
+    res.json({
+      eligible: !deviceUsedTrial && !userUsedTrial,
+      deviceUsedTrial,
+      userUsedTrial,
+      currentTrial,
+      trialDays: TRIAL_DAYS
+    });
+  } catch (error) {
+    console.error('Error checking trial eligibility:', error);
+    res.status(500).json({ error: 'Failed to check trial eligibility' });
+  }
+});
+
 // Get user's subscription
 router.get('/:userId', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT subscription_type, subscription_expires_at, stripe_customer_id, stripe_subscription_id 
+      `SELECT subscription_type, subscription_expires_at, stripe_customer_id, stripe_subscription_id,
+              trial_used, trial_started_at, trial_ends_at, trial_plan_type
        FROM users WHERE id = ?`,
       [req.params.userId]
     );
@@ -78,12 +192,27 @@ router.get('/:userId', async (req, res) => {
       }
     }
 
+    // Check if user is on an active trial
+    let activeTrial = null;
+    if (user.trial_ends_at) {
+      const trialEndsAt = new Date(user.trial_ends_at);
+      if (trialEndsAt > new Date()) {
+        activeTrial = {
+          planType: user.trial_plan_type,
+          endsAt: user.trial_ends_at,
+          daysRemaining: Math.ceil((trialEndsAt - new Date()) / (1000 * 60 * 60 * 24))
+        };
+      }
+    }
+    
     res.json({
       type: user.subscription_type || 'free',
       expiresAt: user.subscription_expires_at,
       stripeCustomerId: user.stripe_customer_id,
       stripeSubscriptionId: user.stripe_subscription_id,
       cancelAtPeriodEnd: cancelAtPeriodEnd,
+      trialUsed: user.trial_used === 1,
+      activeTrial: activeTrial,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -162,6 +291,72 @@ router.put('/:userId', async (req, res) => {
   }
 });
 
+// Start a free trial (no payment required initially)
+router.post('/start-trial', async (req, res) => {
+  console.log('🎁 Start trial request:', req.body);
+  
+  try {
+    const { userId, planType, deviceId } = req.body;
+    
+    if (!userId || !planType || !deviceId) {
+      return res.status(400).json({ error: 'userId, planType and deviceId are required' });
+    }
+    
+    if (planType !== 'basic' && planType !== 'pro') {
+      return res.status(400).json({ error: 'Invalid plan type. Must be basic or pro' });
+    }
+    
+    // Check eligibility
+    const deviceUsedTrial = await hasDeviceUsedTrial(deviceId);
+    const userUsedTrial = await hasUserUsedTrial(userId);
+    
+    if (deviceUsedTrial) {
+      return res.status(400).json({ 
+        error: 'Este dispositivo ya ha utilizado una prueba gratuita.',
+        code: 'DEVICE_TRIAL_USED'
+      });
+    }
+    
+    if (userUsedTrial) {
+      return res.status(400).json({ 
+        error: 'Esta cuenta ya ha utilizado una prueba gratuita.',
+        code: 'USER_TRIAL_USED'
+      });
+    }
+    
+    // Record trial usage
+    const recorded = await recordTrialUsage(userId, deviceId, planType);
+    if (!recorded) {
+      return res.status(500).json({ error: 'Error al iniciar la prueba gratuita' });
+    }
+    
+    // Update user subscription to the trial plan
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + TRIAL_DAYS);
+    
+    await pool.query(
+      `UPDATE users SET 
+        subscription_type = ?,
+        subscription_expires_at = ?
+      WHERE id = ?`,
+      [planType, trialEndsAt, userId]
+    );
+    
+    console.log(`✅ Trial started for user ${userId}: ${planType} until ${trialEndsAt}`);
+    
+    res.json({
+      success: true,
+      planType,
+      trialEndsAt: trialEndsAt.toISOString(),
+      trialDays: TRIAL_DAYS,
+      message: `Prueba gratuita de ${TRIAL_DAYS} días activada. Después se cobrará automáticamente.`
+    });
+  } catch (error) {
+    console.error('❌ Error starting trial:', error);
+    res.status(500).json({ error: 'Error al iniciar la prueba gratuita' });
+  }
+});
+
 // Create Stripe checkout session
 router.post('/create-checkout', async (req, res) => {
   console.log('📦 Create checkout request:', req.body);
@@ -174,10 +369,18 @@ router.post('/create-checkout', async (req, res) => {
   }
 
   try {
-    const { userId, priceId, platform } = req.body;
+    const { userId, priceId, platform, withTrial, deviceId } = req.body;
 
     if (!userId || !priceId) {
       return res.status(400).json({ error: 'userId y priceId son requeridos' });
+    }
+    
+    // If requesting trial, check eligibility
+    let trialEligible = false;
+    if (withTrial && deviceId) {
+      const deviceUsedTrial = await hasDeviceUsedTrial(deviceId);
+      const userUsedTrial = await hasUserUsedTrial(userId);
+      trialEligible = !deviceUsedTrial && !userUsedTrial;
     }
 
     console.log('🔍 Getting user:', userId);
@@ -207,8 +410,8 @@ router.post('/create-checkout', async (req, res) => {
 
     console.log('💳 Creating checkout session with priceId:', priceId);
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    // Build checkout session options
+    const sessionOptions = {
       customer: customerId,
       payment_method_types: platform === 'ios' ? ['card', 'apple_pay'] : ['card'],
       line_items: [
@@ -222,8 +425,25 @@ router.post('/create-checkout', async (req, res) => {
       cancel_url: `${process.env.APP_URL || 'vbstats://'}payment-cancelled`,
       metadata: {
         userId: userId.toString(),
+        withTrial: withTrial ? 'true' : 'false',
+        deviceId: deviceId || '',
       },
-    });
+    };
+    
+    // Add trial period if eligible
+    if (withTrial && trialEligible) {
+      sessionOptions.subscription_data = {
+        trial_period_days: TRIAL_DAYS,
+        metadata: {
+          userId: userId.toString(),
+          isTrial: 'true',
+        },
+      };
+      console.log(`🎁 Adding ${TRIAL_DAYS} day trial to checkout session`);
+    }
+    
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create(sessionOptions);
 
     console.log('✅ Checkout session created:', session.id);
     res.json({ url: session.url, sessionId: session.id });
@@ -268,6 +488,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const session = event.data.object;
         const userId = session.metadata.userId;
         const subscriptionId = session.subscription;
+        const withTrial = session.metadata.withTrial === 'true';
+        const deviceId = session.metadata.deviceId;
 
         // Get subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
@@ -280,6 +502,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         } else if (priceId === PRICE_IDS.pro) {
           subscriptionType = 'pro';
         }
+        
+        // If this was a trial checkout, record trial usage
+        if (withTrial && deviceId && subscription.trial_end) {
+          console.log(`🎁 Recording trial usage for user ${userId}, device ${deviceId}`);
+          await recordTrialUsage(userId, deviceId, subscriptionType);
+        }
 
         // Update user subscription
         await pool.query(
@@ -290,6 +518,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           WHERE id = ?`,
           [subscriptionType, subscription.current_period_end, subscriptionId, userId]
         );
+        
+        console.log(`✅ Subscription activated for user ${userId}: ${subscriptionType}${withTrial ? ' (with trial)' : ''}`);
         break;
       }
 

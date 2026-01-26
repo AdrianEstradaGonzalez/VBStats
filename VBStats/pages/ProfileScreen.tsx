@@ -2,7 +2,7 @@
  * Pantalla de Perfil de Usuario
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { MenuIcon, UserIcon } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
 import { usersService } from '../services/api';
-import { subscriptionService, SubscriptionType } from '../services/subscriptionService';
+import { subscriptionService, SubscriptionType, TrialInfo, TRIAL_DAYS } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -33,6 +33,7 @@ interface ProfileScreenProps {
   userName: string;
   userEmail: string;
   subscriptionType?: SubscriptionType;
+  activeTrial?: TrialInfo | null;
   onUserUpdate?: (name: string, email: string) => void;
   onSubscriptionCancelled?: () => void;
 }
@@ -44,6 +45,7 @@ export default function ProfileScreen({
   userName,
   userEmail,
   subscriptionType = 'free',
+  activeTrial,
   onUserUpdate,
   onSubscriptionCancelled,
 }: ProfileScreenProps) {
@@ -257,6 +259,22 @@ export default function ProfileScreen({
               </Text>
             </View>
           </View>
+          
+          {/* Trial Info */}
+          {activeTrial && activeTrial.daysRemaining > 0 && (
+            <View style={styles.trialInfoContainer}>
+              <View style={styles.trialInfoHeader}>
+                <MaterialCommunityIcons name="gift" size={20} color="#22c55e" />
+                <Text style={styles.trialInfoTitle}>Prueba gratuita activa</Text>
+              </View>
+              <Text style={styles.trialInfoText}>
+                Te quedan <Text style={styles.trialDaysHighlight}>{activeTrial.daysRemaining} días</Text> de prueba gratis del plan {getSubscriptionName(activeTrial.planType as SubscriptionType)}.
+              </Text>
+              <Text style={styles.trialWarningText}>
+                ⚠️ Recuerda: Al finalizar la prueba se cobrará automáticamente. Cancela antes si no deseas continuar.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Divider */}
@@ -616,6 +634,40 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FontSizes.sm,
     fontWeight: '600',
+  },
+  trialInfoContainer: {
+    backgroundColor: '#22c55e10',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#22c55e40',
+  },
+  trialInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  trialInfoTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  trialInfoText: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
+  trialDaysHighlight: {
+    fontWeight: '700',
+    color: '#22c55e',
+  },
+  trialWarningText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    fontStyle: 'italic',
   },
   dangerZone: {
     paddingVertical: Spacing.md,

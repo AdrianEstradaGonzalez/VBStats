@@ -92,12 +92,31 @@ export const BASIC_ENABLED_STATS = {
 // Maximum teams for basic subscription
 export const BASIC_MAX_TEAMS = 2;
 
+// Trial configuration
+export const TRIAL_DAYS = 7;
+
+export interface TrialInfo {
+  planType: SubscriptionType;
+  endsAt: string;
+  daysRemaining: number;
+}
+
+export interface TrialEligibility {
+  eligible: boolean;
+  deviceUsedTrial: boolean;
+  userUsedTrial: boolean;
+  currentTrial: TrialInfo | null;
+  trialDays: number;
+}
+
 export interface UserSubscription {
   type: SubscriptionType;
   expiresAt?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   cancelAtPeriodEnd?: boolean;
+  trialUsed?: boolean;
+  activeTrial?: TrialInfo | null;
 }
 
 export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
@@ -331,6 +350,104 @@ export const subscriptionService = {
     } catch (error) {
       console.error('Error cancelling subscription:', error);
       return { success: false, error: 'Error de conexión' };
+    }
+  },
+
+  // Check trial eligibility
+  checkTrialEligibility: async (userId: number, deviceId: string): Promise<TrialEligibility> => {
+    try {
+      const response = await fetch(`${SUBSCRIPTIONS_URL}/check-trial-eligibility`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, deviceId }),
+      });
+
+      if (!response.ok) {
+        return {
+          eligible: false,
+          deviceUsedTrial: false,
+          userUsedTrial: false,
+          currentTrial: null,
+          trialDays: TRIAL_DAYS,
+        };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking trial eligibility:', error);
+      return {
+        eligible: false,
+        deviceUsedTrial: false,
+        userUsedTrial: false,
+        currentTrial: null,
+        trialDays: TRIAL_DAYS,
+      };
+    }
+  },
+
+  // Start a free trial
+  startTrial: async (userId: number, planType: SubscriptionType, deviceId: string): Promise<{ success: boolean; trialEndsAt?: string; error?: string }> => {
+    try {
+      const response = await fetch(`${SUBSCRIPTIONS_URL}/start-trial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, planType, deviceId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { success: false, error: error.error || 'Error al iniciar la prueba gratuita' };
+      }
+
+      const data = await response.json();
+      return { success: true, trialEndsAt: data.trialEndsAt };
+    } catch (error) {
+      console.error('Error starting trial:', error);
+      return { success: false, error: 'Error de conexión' };
+    }
+  },
+
+  // Create Stripe checkout session with optional trial
+  createCheckoutSessionWithTrial: async (
+    userId: number, 
+    planId: SubscriptionType, 
+    deviceId: string,
+    withTrial: boolean = false
+  ): Promise<{ sessionUrl?: string; error?: string }> => {
+    try {
+      let plan: SubscriptionPlan | undefined;
+      for (let i = 0; i < SUBSCRIPTION_PLANS.length; i++) {
+        if (SUBSCRIPTION_PLANS[i].id === planId) {
+          plan = SUBSCRIPTION_PLANS[i];
+          break;
+        }
+      }
+      if (!plan || !plan.stripePriceId) {
+        return { error: 'Plan no válido' };
+      }
+
+      const response = await fetch(`${SUBSCRIPTIONS_URL}/create-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          priceId: plan.stripePriceId,
+          platform: Platform.OS,
+          withTrial,
+          deviceId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        return { error: error.message || 'Error al crear sesión de pago' };
+      }
+
+      const data = await response.json();
+      return { sessionUrl: data.url };
+    } catch (error) {
+      console.error('Error creating checkout session with trial:', error);
+      return { error: 'Error de conexión' };
     }
   },
 
