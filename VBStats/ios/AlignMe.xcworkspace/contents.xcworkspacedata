@@ -5,6 +5,6 @@
       location = "group:Pods/Pods.xcodeproj">
    </FileRef>
    <FileRef
-      location = "group:VBStats.xcodeproj">
+      location = "group:AlignMe.xcodeproj">
    </FileRef>
 </Workspace>
