@@ -121,8 +121,8 @@ export default function SelectPlanScreen({
 
     setIsLoading(true);
     try {
-      // If using free trial without requiring payment upfront
-      if (useFreeTrial && trialEligibility?.eligible) {
+      // If using free trial without requiring payment upfront (PRO only)
+      if (selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible) {
         const result = await subscriptionService.startTrial(userId, selectedPlan, deviceId);
         
         if (result.error) {
@@ -348,7 +348,7 @@ export default function SelectPlanScreen({
         </View>
 
         {/* Free Trial Option */}
-        {selectedPlan !== 'free' && trialEligibility?.eligible && (
+        {selectedPlan === 'pro' && trialEligibility?.eligible && (
           <View style={styles.trialSection}>
             <TouchableOpacity
               style={styles.trialToggle}
@@ -384,7 +384,7 @@ export default function SelectPlanScreen({
         )}
 
         {/* Trial Not Available Notice */}
-        {selectedPlan !== 'free' && trialEligibility && !trialEligibility.eligible && (
+        {selectedPlan === 'pro' && trialEligibility && !trialEligibility.eligible && (
           <View style={styles.trialNotAvailable}>
             <MaterialCommunityIcons name="information-outline" size={20} color={Colors.textSecondary} />
             <Text style={styles.trialNotAvailableText}>
@@ -396,7 +396,7 @@ export default function SelectPlanScreen({
         )}
 
         {/* Payment Methods */}
-        {selectedPlan !== 'free' && !useFreeTrial && (
+        {selectedPlan !== 'free' && !(selectedPlan === 'pro' && useFreeTrial) && (
           <View style={styles.paymentSection}>
             <Text style={styles.paymentTitle}>Métodos de pago seguros</Text>
             <View style={styles.paymentMethods}>
@@ -437,7 +437,7 @@ export default function SelectPlanScreen({
                 <Text style={styles.continueButtonText}>
                   {selectedPlan === 'free' 
                     ? 'Continuar gratis' 
-                    : useFreeTrial && trialEligibility?.eligible
+                    : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible
                       ? `Empezar ${TRIAL_DAYS} días gratis`
                       : 'Continuar al pago'}
                 </Text>
@@ -476,7 +476,7 @@ export default function SelectPlanScreen({
         {/* Terms */}
         <Text style={styles.termsText}>
           Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad.
-          {selectedPlan !== 'free' && useFreeTrial && trialEligibility?.eligible 
+          {selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
             ? ` La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
             : selectedPlan !== 'free' 
               ? ' La suscripción se renovará automáticamente cada mes.'
@@ -487,15 +487,15 @@ export default function SelectPlanScreen({
       {/* Error Alert */}
       <CustomAlert
         visible={showConfirmPlan}
-        title={useFreeTrial && trialEligibility?.eligible && selectedPlan !== 'free' 
+        title={useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro' 
           ? `Comenzar prueba gratuita de ${TRIAL_DAYS} días` 
           : 'Confirmar selección'}
         message={(() => {
           const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
           if (!plan) return '¿Confirmas seleccionar este plan?';
           
-          if (useFreeTrial && trialEligibility?.eligible && plan.price > 0) {
-            return `🎁 Vas a comenzar una prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+          if (useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro') {
+            return `Vas a comenzar una prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
           }
           
           return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
@@ -507,7 +507,7 @@ export default function SelectPlanScreen({
             style: 'cancel',
           },
           {
-            text: useFreeTrial && trialEligibility?.eligible && selectedPlan !== 'free' 
+            text: useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro' 
               ? 'Comenzar prueba' 
               : 'Confirmar',
             onPress: async () => {
@@ -524,7 +524,7 @@ export default function SelectPlanScreen({
       <CustomAlert
         visible={showTrialInfo}
         title={`Prueba gratuita de ${TRIAL_DAYS} días`}
-        message={`🎁 ¿Cómo funciona la prueba gratuita?\n\n✅ Disfruta de todas las funciones del plan durante ${TRIAL_DAYS} días completamente gratis.\n\n✅ Puedes cancelar en cualquier momento desde tu perfil.\n\n⚠️ Si no cancelas antes de que termine la prueba, se activará la suscripción y se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente cada mes.\n\n⚠️ Solo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        message={`¿Cómo funciona la prueba gratuita?\n\nDisfruta de todas las funciones del plan PRO durante ${TRIAL_DAYS} días completamente gratis.\n\nPuedes cancelar en cualquier momento desde tu perfil.\n\nIMPORTANTE: Si no cancelas antes de que termine la prueba, se activará la suscripción y se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente cada mes.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
             text: 'Entendido',

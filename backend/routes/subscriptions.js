@@ -302,8 +302,8 @@ router.post('/start-trial', async (req, res) => {
       return res.status(400).json({ error: 'userId, planType and deviceId are required' });
     }
     
-    if (planType !== 'basic' && planType !== 'pro') {
-      return res.status(400).json({ error: 'Invalid plan type. Must be basic or pro' });
+    if (planType !== 'pro') {
+      return res.status(400).json({ error: 'La prueba gratuita solo está disponible para el plan Pro' });
     }
     
     // Check eligibility
