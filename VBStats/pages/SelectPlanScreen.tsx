@@ -28,7 +28,9 @@ import {
   subscriptionService,
   TRIAL_DAYS,
   TrialEligibility,
+  useAppleIAP,
 } from '../services/subscriptionService';
+import { appleIAPService, AppleProduct } from '../services/appleIAPService';
 import GuideScreen from './GuideScreen';
 
 // Safe area paddings para Android
@@ -61,6 +63,25 @@ export default function SelectPlanScreen({
   const [useFreeTrial, setUseFreeTrial] = useState(true);
   const [deviceId, setDeviceId] = useState<string>('');
   const [showTrialInfo, setShowTrialInfo] = useState(false);
+  const [appleProducts, setAppleProducts] = useState<AppleProduct[]>([]);
+  const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+
+  // Initialize Apple IAP for iOS
+  useEffect(() => {
+    if (useAppleIAP()) {
+      const initAppleIAP = async () => {
+        await appleIAPService.initialize();
+        const products = await appleIAPService.getProducts();
+        setAppleProducts(products);
+      };
+      initAppleIAP();
+
+      // Cleanup on unmount
+      return () => {
+        appleIAPService.endConnection();
+      };
+    }
+  }, []);
 
   // Generate or get device ID for trial tracking
   useEffect(() => {
@@ -121,6 +142,13 @@ export default function SelectPlanScreen({
 
     setIsLoading(true);
     try {
+      // Check if we're on iOS - use Apple IAP
+      if (useAppleIAP()) {
+        await performApplePurchase();
+        return;
+      }
+
+      // Android/other platforms - use Stripe
       // If using free trial without requiring payment upfront (PRO only)
       if (selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible) {
         const result = await subscriptionService.startTrial(userId, selectedPlan, deviceId);
@@ -138,7 +166,7 @@ export default function SelectPlanScreen({
         }
       }
       
-      // Regular payment flow (or trial with Stripe - requires card upfront)
+      // Regular Stripe payment flow
       const result = await subscriptionService.createCheckoutSessionWithTrial(
         userId, 
         selectedPlan, 
@@ -170,6 +198,63 @@ export default function SelectPlanScreen({
       setShowErrorAlert(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle Apple IAP purchase (iOS only)
+  const performApplePurchase = async () => {
+    if (!userId) return;
+
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
+    if (!plan || !plan.appleProductId) {
+      setErrorMessage('Plan no disponible para compra');
+      setShowErrorAlert(true);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await appleIAPService.purchaseSubscription(plan.appleProductId, userId);
+      
+      if (result.success) {
+        // Purchase successful, navigate to app
+        onPlanSelected(selectedPlan);
+      } else {
+        if (result.error !== 'Compra cancelada por el usuario') {
+          setErrorMessage(result.error || 'Error al procesar la compra');
+          setShowErrorAlert(true);
+        }
+      }
+    } catch (error: any) {
+      console.error('Apple purchase error:', error);
+      setErrorMessage('Error al procesar la compra con Apple. Inténtalo de nuevo.');
+      setShowErrorAlert(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Restore Apple purchases (iOS only)
+  const handleRestorePurchases = async () => {
+    if (!userId || !useAppleIAP()) return;
+
+    setIsRestoringPurchases(true);
+    try {
+      const result = await appleIAPService.restorePurchases(userId);
+      
+      if (result.success && result.restoredProductId) {
+        const restoredType = appleIAPService.productIdToSubscriptionType(result.restoredProductId);
+        onPlanSelected(restoredType);
+      } else {
+        setErrorMessage(result.error || 'No se encontraron compras para restaurar');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error restoring purchases:', error);
+      setErrorMessage('Error al restaurar compras. Inténtalo de nuevo.');
+      setShowErrorAlert(true);
+    } finally {
+      setIsRestoringPurchases(false);
     }
   };
 
@@ -396,55 +481,87 @@ export default function SelectPlanScreen({
         )}
 
         {/* Payment Methods */}
-        {selectedPlan !== 'free' && !(selectedPlan === 'pro' && useFreeTrial) && (
+        {selectedPlan !== 'free' && !(selectedPlan === 'pro' && useFreeTrial && !useAppleIAP()) && (
           <View style={styles.paymentSection}>
-            <Text style={styles.paymentTitle}>Métodos de pago seguros</Text>
+            <Text style={styles.paymentTitle}>
+              {useAppleIAP() ? 'Pago seguro con Apple' : 'Métodos de pago seguros'}
+            </Text>
             <View style={styles.paymentMethods}>
-              <View style={styles.paymentMethod}>
-                <MaterialCommunityIcons name="credit-card" size={24} color={Colors.textSecondary} />
-                <Text style={styles.paymentMethodText}>Tarjeta</Text>
-              </View>
-              {Platform.OS === 'android' && (
-                <View style={styles.paymentMethod}>
-                  <MaterialCommunityIcons name="google" size={24} color={Colors.textSecondary} />
-                  <Text style={styles.paymentMethodText}>Google Pay</Text>
-                </View>
-              )}
-              {Platform.OS === 'ios' && (
-                <View style={styles.paymentMethod}>
-                  <MaterialCommunityIcons name="apple" size={24} color={Colors.textSecondary} />
-                  <Text style={styles.paymentMethodText}>Apple Pay</Text>
-                </View>
+              {useAppleIAP() ? (
+                // iOS: Apple In-App Purchase
+                <>
+                  <View style={styles.paymentMethod}>
+                    <MaterialCommunityIcons name="apple" size={24} color={Colors.textSecondary} />
+                    <Text style={styles.paymentMethodText}>Apple Pay</Text>
+                  </View>
+                  <View style={styles.paymentMethod}>
+                    <MaterialCommunityIcons name="credit-card" size={24} color={Colors.textSecondary} />
+                    <Text style={styles.paymentMethodText}>Tarjeta</Text>
+                  </View>
+                </>
+              ) : (
+                // Android: Stripe
+                <>
+                  <View style={styles.paymentMethod}>
+                    <MaterialCommunityIcons name="credit-card" size={24} color={Colors.textSecondary} />
+                    <Text style={styles.paymentMethodText}>Tarjeta</Text>
+                  </View>
+                  <View style={styles.paymentMethod}>
+                    <MaterialCommunityIcons name="google" size={24} color={Colors.textSecondary} />
+                    <Text style={styles.paymentMethodText}>Google Pay</Text>
+                  </View>
+                </>
               )}
             </View>
             <Text style={styles.stripeNote}>
-              Pagos procesados de forma segura por Stripe
+              {useAppleIAP() 
+                ? 'Pagos procesados de forma segura por Apple' 
+                : 'Pagos procesados de forma segura por Stripe'}
             </Text>
           </View>
         )}
 
         {/* Continue Button */}
-        {!paymentPending ? (
-          <TouchableOpacity
-            style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
-            onPress={handleContinue}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.continueButtonText}>
-                  {selectedPlan === 'free' 
-                    ? 'Continuar gratis' 
-                    : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible
-                      ? `Empezar ${TRIAL_DAYS} días gratis`
-                      : 'Continuar al pago'}
-                </Text>
-                <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
-              </>
+        {!paymentPending || useAppleIAP() ? (
+          <>
+            <TouchableOpacity
+              style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+              onPress={handleContinue}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.continueButtonText}>
+                    {selectedPlan === 'free' 
+                      ? 'Continuar gratis' 
+                      : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !useAppleIAP()
+                        ? `Empezar ${TRIAL_DAYS} días gratis`
+                        : useAppleIAP()
+                          ? 'Suscribirse'
+                          : 'Continuar al pago'}
+                  </Text>
+                  <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+            
+            {/* Restore Purchases Button (iOS only) */}
+            {useAppleIAP() && (
+              <TouchableOpacity
+                style={styles.restorePurchasesButton}
+                onPress={handleRestorePurchases}
+                disabled={isRestoringPurchases}
+              >
+                {isRestoringPurchases ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text style={styles.restorePurchasesText}>Restaurar compras anteriores</Text>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </>
         ) : (
           <View style={styles.paymentPendingContainer}>
             <Text style={styles.paymentPendingText}>
@@ -476,11 +593,15 @@ export default function SelectPlanScreen({
         {/* Terms */}
         <Text style={styles.termsText}>
           Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad.
-          {selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
-            ? ` La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
-            : selectedPlan !== 'free' 
-              ? ' La suscripción se renovará automáticamente cada mes.'
-              : ''}
+          {useAppleIAP() && selectedPlan !== 'free' ? (
+            ` El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
+          ) : (
+            selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
+              ? ` La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
+              : selectedPlan !== 'free' 
+                ? ' La suscripción se renovará automáticamente cada mes.'
+                : ''
+          )}
         </Text>
       </ScrollView>
 
@@ -869,5 +990,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
+  },
+  restorePurchasesButton: {
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restorePurchasesText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    textDecorationLine: 'underline',
   },
 });

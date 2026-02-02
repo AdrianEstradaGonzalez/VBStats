@@ -19,6 +19,7 @@ export interface SubscriptionPlan {
   features: string[];
   limitations?: string[];
   stripePriceId?: string;
+  appleProductId?: string;
   recommended?: boolean;
 }
 
@@ -56,6 +57,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Estadísticas de seguimiento y progreso del equipo (Pro)',
     ],
     stripePriceId: 'price_1SsWrGJAUMhTgnDDYlr1nUcQ',
+    appleProductId: 'com.vbstats.basico.mensual',
   },
   {
     id: 'pro',
@@ -71,9 +73,14 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Sin limitaciones',
     ],
     stripePriceId: 'price_1SsWsEJAUMhTgnDDKSO78qnD',
+    appleProductId: 'com.vbstats.pro.mensual',
     recommended: true,
   },
 ];
+
+// Check if current platform uses Apple IAP (iOS) or Stripe (Android/Web)
+export const isApplePlatform = (): boolean => Platform.OS === 'ios';
+export const useAppleIAP = (): boolean => Platform.OS === 'ios';
 
 // Basic settings categories - only these can be ENABLED in basic plan
 export const BASIC_ENABLED_STATS = {

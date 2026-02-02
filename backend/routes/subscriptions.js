@@ -589,7 +589,7 @@ router.post('/:userId/cancel', async (req, res) => {
 
   try {
     const [users] = await pool.query(
-      'SELECT stripe_subscription_id, stripe_customer_id, subscription_type FROM users WHERE id = ?',
+      'SELECT stripe_subscription_id, stripe_customer_id, subscription_type, apple_original_transaction_id FROM users WHERE id = ?',
       [req.params.userId]
     );
 
@@ -602,8 +602,17 @@ router.post('/:userId/cancel', async (req, res) => {
     console.log('👤 User data:', { 
       subscriptionId: user.stripe_subscription_id, 
       customerId: user.stripe_customer_id,
+      appleTransactionId: user.apple_original_transaction_id,
       type: user.subscription_type 
     });
+
+    // If user has Apple subscription, they need to cancel via App Store
+    if (user.apple_original_transaction_id && !user.stripe_subscription_id) {
+      return res.status(400).json({ 
+        error: 'Para cancelar tu suscripción de Apple, ve a Ajustes > Apple ID > Suscripciones en tu dispositivo iOS.',
+        code: 'APPLE_SUBSCRIPTION_CANCEL_VIA_APPSTORE'
+      });
+    }
 
     let subscriptionId = user.stripe_subscription_id;
     
@@ -653,6 +662,347 @@ router.post('/:userId/cancel', async (req, res) => {
   } catch (error) {
     console.error('❌ Error cancelling subscription:', error.message);
     res.status(500).json({ error: 'Failed to cancel subscription', details: error.message });
+  }
+});
+
+// ============================================
+// APPLE IN-APP PURCHASE ENDPOINTS
+// ============================================
+
+// Apple IAP Product ID to subscription type mapping
+const APPLE_PRODUCT_IDS = {
+  'com.vbstats.basico.mensual': 'basic',
+  'com.vbstats.pro.mensual': 'pro',
+};
+
+// Apple App Store Connect Shared Secret (configure in environment)
+const APPLE_SHARED_SECRET = process.env.APPLE_SHARED_SECRET || '';
+
+// Apple verification URLs
+const APPLE_VERIFY_RECEIPT_SANDBOX = 'https://sandbox.itunes.apple.com/verifyReceipt';
+const APPLE_VERIFY_RECEIPT_PRODUCTION = 'https://buy.itunes.apple.com/verifyReceipt';
+
+/**
+ * Verify Apple receipt with Apple's servers
+ * @param {string} receiptData - Base64 encoded receipt data
+ * @param {boolean} useSandbox - Whether to use sandbox environment
+ */
+const verifyAppleReceipt = async (receiptData, useSandbox = false) => {
+  const verifyUrl = useSandbox ? APPLE_VERIFY_RECEIPT_SANDBOX : APPLE_VERIFY_RECEIPT_PRODUCTION;
+  
+  try {
+    const response = await fetch(verifyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        'receipt-data': receiptData,
+        'password': APPLE_SHARED_SECRET,
+        'exclude-old-transactions': true,
+      }),
+    });
+
+    const result = await response.json();
+    
+    // Status 21007 means it's a sandbox receipt sent to production
+    // Retry with sandbox URL
+    if (result.status === 21007 && !useSandbox) {
+      console.log('🔄 Receipt is from sandbox, retrying with sandbox URL...');
+      return verifyAppleReceipt(receiptData, true);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error verifying Apple receipt:', error);
+    throw error;
+  }
+};
+
+/**
+ * Extract subscription info from Apple receipt verification response
+ */
+const extractSubscriptionInfo = (verificationResult) => {
+  if (verificationResult.status !== 0) {
+    return null;
+  }
+
+  // Get the latest receipt info (most recent subscription)
+  const latestReceiptInfo = verificationResult.latest_receipt_info || [];
+  const pendingRenewalInfo = verificationResult.pending_renewal_info || [];
+  
+  if (latestReceiptInfo.length === 0) {
+    return null;
+  }
+
+  // Sort by expires_date_ms to get the most recent subscription
+  const sortedReceipts = [...latestReceiptInfo].sort((a, b) => 
+    parseInt(b.expires_date_ms) - parseInt(a.expires_date_ms)
+  );
+  
+  const latestReceipt = sortedReceipts[0];
+  const productId = latestReceipt.product_id;
+  const expiresDateMs = parseInt(latestReceipt.expires_date_ms);
+  const originalTransactionId = latestReceipt.original_transaction_id;
+  const transactionId = latestReceipt.transaction_id;
+  
+  // Check if subscription is still active
+  const isActive = expiresDateMs > Date.now();
+  
+  // Check if in trial period
+  const isInTrial = latestReceipt.is_trial_period === 'true';
+  
+  // Check if will auto-renew
+  const renewalInfo = pendingRenewalInfo.find(r => r.original_transaction_id === originalTransactionId);
+  const willRenew = renewalInfo ? renewalInfo.auto_renew_status === '1' : false;
+  
+  return {
+    productId,
+    subscriptionType: APPLE_PRODUCT_IDS[productId] || 'free',
+    isActive,
+    isInTrial,
+    willRenew,
+    expiresAt: new Date(expiresDateMs),
+    originalTransactionId,
+    transactionId,
+  };
+};
+
+// Verify Apple purchase and update user subscription
+router.post('/apple/verify', async (req, res) => {
+  console.log('🍎 Apple purchase verification request');
+  
+  try {
+    const { userId, productId, transactionId, receipt, originalTransactionId } = req.body;
+    
+    if (!userId || !receipt) {
+      return res.status(400).json({ error: 'userId and receipt are required' });
+    }
+
+    // Check if APPLE_SHARED_SECRET is configured
+    if (!APPLE_SHARED_SECRET) {
+      console.error('❌ APPLE_SHARED_SECRET not configured');
+      return res.status(503).json({ 
+        error: 'Apple IAP service not configured. Set APPLE_SHARED_SECRET in environment.' 
+      });
+    }
+
+    // Verify receipt with Apple
+    console.log('🔍 Verifying receipt with Apple...');
+    const verificationResult = await verifyAppleReceipt(receipt);
+    
+    if (verificationResult.status !== 0) {
+      console.error('❌ Apple receipt verification failed, status:', verificationResult.status);
+      return res.status(400).json({ 
+        error: 'Verificación de recibo fallida',
+        code: `APPLE_VERIFY_ERROR_${verificationResult.status}`
+      });
+    }
+
+    // Extract subscription info
+    const subscriptionInfo = extractSubscriptionInfo(verificationResult);
+    
+    if (!subscriptionInfo) {
+      return res.status(400).json({ error: 'No se encontró información de suscripción válida' });
+    }
+
+    console.log('✅ Apple verification successful:', {
+      productId: subscriptionInfo.productId,
+      type: subscriptionInfo.subscriptionType,
+      active: subscriptionInfo.isActive,
+      trial: subscriptionInfo.isInTrial,
+      expiresAt: subscriptionInfo.expiresAt,
+    });
+
+    // Only update if subscription is active
+    if (!subscriptionInfo.isActive) {
+      return res.status(400).json({ 
+        error: 'La suscripción ha expirado',
+        code: 'SUBSCRIPTION_EXPIRED'
+      });
+    }
+
+    // Update user subscription in database
+    await pool.query(
+      `UPDATE users SET 
+        subscription_type = ?,
+        subscription_expires_at = ?,
+        apple_original_transaction_id = ?,
+        apple_transaction_id = ?,
+        apple_product_id = ?
+      WHERE id = ?`,
+      [
+        subscriptionInfo.subscriptionType,
+        subscriptionInfo.expiresAt,
+        subscriptionInfo.originalTransactionId,
+        subscriptionInfo.transactionId,
+        subscriptionInfo.productId,
+        userId
+      ]
+    );
+
+    console.log(`✅ User ${userId} subscription updated via Apple IAP: ${subscriptionInfo.subscriptionType}`);
+
+    res.json({
+      success: true,
+      subscriptionType: subscriptionInfo.subscriptionType,
+      expiresAt: subscriptionInfo.expiresAt,
+      isInTrial: subscriptionInfo.isInTrial,
+    });
+  } catch (error) {
+    console.error('❌ Error verifying Apple purchase:', error);
+    res.status(500).json({ error: 'Error al verificar la compra' });
+  }
+});
+
+// Get Apple subscription status for a user
+router.get('/apple/status/:userId', async (req, res) => {
+  console.log('🍎 Apple subscription status request for userId:', req.params.userId);
+  
+  try {
+    const [users] = await pool.query(
+      `SELECT subscription_type, subscription_expires_at, 
+              apple_original_transaction_id, apple_product_id
+       FROM users WHERE id = ?`,
+      [req.params.userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+    
+    // If user has Apple subscription, check if still active
+    if (user.apple_original_transaction_id) {
+      const isActive = user.subscription_expires_at && new Date(user.subscription_expires_at) > new Date();
+      
+      res.json({
+        isActive,
+        productId: user.apple_product_id,
+        expirationDate: user.subscription_expires_at,
+        willRenew: isActive, // We'd need to check with Apple for accurate renewal status
+        isInTrial: false, // Would need receipt data to determine this
+      });
+    } else {
+      res.json({
+        isActive: false,
+        productId: null,
+        expirationDate: null,
+        willRenew: false,
+        isInTrial: false,
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error fetching Apple subscription status:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription status' });
+  }
+});
+
+// Apple Server-to-Server Notifications endpoint
+// Apple sends notifications here when subscription status changes
+router.post('/apple/webhook', async (req, res) => {
+  console.log('🍎 Apple S2S Notification received');
+  
+  try {
+    const notification = req.body;
+    
+    // Log the notification type
+    console.log('📨 Notification type:', notification.notification_type);
+    
+    // Handle different notification types
+    switch (notification.notification_type) {
+      case 'INITIAL_BUY':
+      case 'DID_RENEW':
+      case 'DID_RECOVER':
+      case 'INTERACTIVE_RENEWAL': {
+        // Subscription is active, update user
+        const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
+        if (latestReceipt) {
+          const originalTransactionId = latestReceipt.original_transaction_id;
+          const productId = latestReceipt.product_id;
+          const expiresDateMs = parseInt(latestReceipt.expires_date_ms);
+          const subscriptionType = APPLE_PRODUCT_IDS[productId] || 'free';
+          
+          // Find user by Apple transaction ID
+          const [users] = await pool.query(
+            'SELECT id FROM users WHERE apple_original_transaction_id = ?',
+            [originalTransactionId]
+          );
+          
+          if (users.length > 0) {
+            const userId = users[0].id;
+            await pool.query(
+              `UPDATE users SET 
+                subscription_type = ?,
+                subscription_expires_at = FROM_UNIXTIME(? / 1000)
+              WHERE id = ?`,
+              [subscriptionType, expiresDateMs, userId]
+            );
+            console.log(`✅ User ${userId} subscription renewed: ${subscriptionType}`);
+          }
+        }
+        break;
+      }
+      
+      case 'CANCEL':
+      case 'DID_FAIL_TO_RENEW':
+      case 'EXPIRED': {
+        // Subscription cancelled or expired
+        const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
+        if (latestReceipt) {
+          const originalTransactionId = latestReceipt.original_transaction_id;
+          
+          // Find user and downgrade to free
+          const [users] = await pool.query(
+            'SELECT id FROM users WHERE apple_original_transaction_id = ?',
+            [originalTransactionId]
+          );
+          
+          if (users.length > 0) {
+            const userId = users[0].id;
+            await pool.query(
+              `UPDATE users SET subscription_type = 'free' WHERE id = ?`,
+              [userId]
+            );
+            console.log(`⚠️ User ${userId} subscription expired/cancelled`);
+          }
+        }
+        break;
+      }
+      
+      case 'REFUND': {
+        // User got a refund, revoke access
+        const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
+        if (latestReceipt) {
+          const originalTransactionId = latestReceipt.original_transaction_id;
+          
+          const [users] = await pool.query(
+            'SELECT id FROM users WHERE apple_original_transaction_id = ?',
+            [originalTransactionId]
+          );
+          
+          if (users.length > 0) {
+            const userId = users[0].id;
+            await pool.query(
+              `UPDATE users SET 
+                subscription_type = 'free',
+                subscription_expires_at = NULL
+              WHERE id = ?`,
+              [userId]
+            );
+            console.log(`⚠️ User ${userId} subscription refunded, access revoked`);
+          }
+        }
+        break;
+      }
+      
+      default:
+        console.log('ℹ️ Unhandled notification type:', notification.notification_type);
+    }
+
+    res.json({ received: true });
+  } catch (error) {
+    console.error('❌ Error processing Apple webhook:', error);
+    res.status(500).json({ error: 'Failed to process notification' });
   }
 });
 
