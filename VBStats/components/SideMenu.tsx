@@ -99,7 +99,7 @@ export default function SideMenu({
       case 'pro':
         return { text: 'PRO', color: '#f59e0b' };
       case 'basic':
-        return { text: 'BÁSICA', color: '#3b82f6' };
+        return { text: 'BÁSICO', color: '#3b82f6' };
       default:
         return { text: 'GRATIS', color: Colors.textSecondary };
     }

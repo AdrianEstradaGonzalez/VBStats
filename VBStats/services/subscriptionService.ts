@@ -42,7 +42,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   },
   {
     id: 'basic',
-    name: 'Básica',
+    name: 'Básico',
     price: 4.99,
     priceString: '4,99€/mes',
     features: [

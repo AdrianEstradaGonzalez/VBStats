@@ -103,7 +103,7 @@ export default function ProfileScreen({
   };
 
   const getSubscriptionName = (type: SubscriptionType): string => {
-    if (type === 'basic') return 'Básica';
+    if (type === 'basic') return 'Básico';
     if (type === 'pro') return 'Pro';
     return 'Gratuita';
   };

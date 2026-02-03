@@ -358,7 +358,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
 
     switch (activeTemplate) {
       case 'basic':
-        return 'Básica activa';
+        return 'Básico activo';
       case 'advanced':
         return 'Avanzada activa';
       case 'custom':
@@ -611,7 +611,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
         buttonLayout="column"
         buttons={[
           {
-            text: applyingVersion === 'basic' ? 'Aplicando...' : 'Básica',
+            text: applyingVersion === 'basic' ? 'Aplicando...' : 'Básico',
             icon: applyingVersion === 'basic'
               ? undefined
               : <MaterialCommunityIcons name="tune-variant" size={18} color={Colors.textOnPrimary} />,

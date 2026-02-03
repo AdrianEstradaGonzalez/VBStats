@@ -699,7 +699,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
         iconBackgroundColor="#f59e0b15"
         title="Límite de equipos alcanzado"
-        message={`Con la cuenta Básica puedes crear hasta ${BASIC_MAX_TEAMS} equipos. Actualmente tienes ${teams.length} equipos.`}
+        message={`Con la cuenta Básico puedes crear hasta ${BASIC_MAX_TEAMS} equipos. Actualmente tienes ${teams.length} equipos.`}
         warning="Mejora a VBStats Pro para crear equipos ilimitados."
         buttonLayout="column"
         buttons={[
