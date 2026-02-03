@@ -246,7 +246,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
         </View>
         <View style={styles.roleColumn}>
           <View style={[styles.roleBadge, { backgroundColor: '#3b82f6' + '20' }]}>
-            <Text style={[styles.roleBadgeText, { color: '#3b82f6' }]}>BÁSICA</Text>
+            <Text style={[styles.roleBadgeText, { color: '#3b82f6' }]}>BÁSICO</Text>
           </View>
         </View>
         <View style={styles.roleColumn}>
@@ -313,7 +313,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
         <View style={styles.roleDescriptionCard}>
           <View style={styles.roleDescriptionHeader}>
             <View style={[styles.roleDescBadge, { backgroundColor: '#3b82f6' + '20' }]}>
-              <Text style={[styles.roleDescBadgeText, { color: '#3b82f6' }]}>BÁSICA</Text>
+              <Text style={[styles.roleDescBadgeText, { color: '#3b82f6' }]}>BÁSICO</Text>
             </View>
             <Text style={styles.rolePrice}>4,99€/mes</Text>
           </View>
@@ -444,7 +444,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
           <View style={[styles.infoModalBadge, { backgroundColor: isBasic ? '#3b82f620' : '#f59e0b20' }]}>
             {!isBasic && <MaterialCommunityIcons name="crown" size={16} color="#f59e0b" style={{ marginRight: 4 }} />}
             <Text style={[styles.infoModalBadgeText, { color: isBasic ? '#3b82f6' : '#f59e0b' }]}>
-              {isBasic ? 'BÁSICA' : 'PRO'}
+              {isBasic ? 'BÁSICO' : 'PRO'}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setInfoModal(null)} activeOpacity={0.7}>
