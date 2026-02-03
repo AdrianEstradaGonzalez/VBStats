@@ -65,6 +65,16 @@ export default function SelectPlanScreen({
   const [showTrialInfo, setShowTrialInfo] = useState(false);
   const [appleProducts, setAppleProducts] = useState<AppleProduct[]>([]);
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
+  const [showProAlert, setShowProAlert] = useState(false);
+
+  // Si el usuario ya es PRO, mostrar alerta y no permitir continuar al pago
+  const isAlreadyPro = currentPlan === 'pro';
+
+  useEffect(() => {
+    if (isAlreadyPro) {
+      setShowProAlert(true);
+    }
+  }, [isAlreadyPro]);
 
   // Initialize Apple IAP for iOS
   useEffect(() => {
@@ -149,29 +159,13 @@ export default function SelectPlanScreen({
       }
 
       // Android/other platforms - use Stripe
-      // If using free trial without requiring payment upfront (PRO only)
-      if (selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible) {
-        const result = await subscriptionService.startTrial(userId, selectedPlan, deviceId);
-        
-        if (result.error) {
-          setErrorMessage(result.error);
-          setShowErrorAlert(true);
-          return;
-        }
-        
-        if (result.success) {
-          // Trial started successfully, proceed to app
-          onPlanSelected(selectedPlan);
-          return;
-        }
-      }
-      
-      // Regular Stripe payment flow
+      // SIEMPRE usar Stripe checkout, incluso para trials
+      // Esto asegura que el método de pago esté configurado y se cobre automáticamente al finalizar el trial
       const result = await subscriptionService.createCheckoutSessionWithTrial(
         userId, 
         selectedPlan, 
         deviceId,
-        useFreeTrial && trialEligibility?.eligible
+        selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible
       );
       
       if (result.error) {
@@ -454,7 +448,7 @@ export default function SelectPlanScreen({
                   Probar {TRIAL_DAYS} días gratis
                 </Text>
                 <Text style={styles.trialToggleSubtext}>
-                  Sin cargo durante la prueba. Después se cobra automáticamente.
+                  Introduce tu método de pago. No se cobra hasta que termine la prueba.
                 </Text>
               </View>
             </TouchableOpacity>
@@ -480,8 +474,8 @@ export default function SelectPlanScreen({
           </View>
         )}
 
-        {/* Payment Methods */}
-        {selectedPlan !== 'free' && !(selectedPlan === 'pro' && useFreeTrial && !useAppleIAP()) && (
+        {/* Payment Methods - Siempre mostrar para planes de pago */}
+        {selectedPlan !== 'free' && (
           <View style={styles.paymentSection}>
             <Text style={styles.paymentTitle}>
               {useAppleIAP() ? 'Pago seguro con Apple' : 'Métodos de pago seguros'}
@@ -525,12 +519,17 @@ export default function SelectPlanScreen({
         {!paymentPending || useAppleIAP() ? (
           <>
             <TouchableOpacity
-              style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+              style={[styles.continueButton, (isLoading || isAlreadyPro) && styles.continueButtonDisabled]}
               onPress={handleContinue}
-              disabled={isLoading}
+              disabled={isLoading || isAlreadyPro}
             >
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
+              ) : isAlreadyPro ? (
+                <>
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                  <Text style={styles.continueButtonText}>Ya tienes PRO</Text>
+                </>
               ) : (
                 <>
                   <Text style={styles.continueButtonText}>
@@ -616,7 +615,7 @@ export default function SelectPlanScreen({
           if (!plan) return '¿Confirmas seleccionar este plan?';
           
           if (useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro') {
-            return `Vas a comenzar una prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+            return `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
           }
           
           return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
@@ -645,7 +644,7 @@ export default function SelectPlanScreen({
       <CustomAlert
         visible={showTrialInfo}
         title={`Prueba gratuita de ${TRIAL_DAYS} días`}
-        message={`¿Cómo funciona la prueba gratuita?\n\nDisfruta de todas las funciones del plan PRO durante ${TRIAL_DAYS} días completamente gratis.\n\nPuedes cancelar en cualquier momento desde tu perfil.\n\nIMPORTANTE: Si no cancelas antes de que termine la prueba, se activará la suscripción y se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente cada mes.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        message={`¿Cómo funciona la prueba gratuita?\n\n1. Introduce tu método de pago (tarjeta)\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\n⚠️ IMPORTANTE: Se requiere método de pago para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
             text: 'Entendido',
@@ -669,6 +668,29 @@ export default function SelectPlanScreen({
           },
         ]}
         onClose={() => setShowErrorAlert(false)}
+      />
+
+      {/* Alerta para usuarios PRO */}
+      <CustomAlert
+        visible={showProAlert}
+        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        title="¡Ya tienes VBStats Pro!"
+        message="Actualmente disfrutas de todas las funciones del plan PRO. No necesitas realizar ningún pago adicional."
+        buttons={[
+          {
+            text: 'Volver',
+            onPress: () => {
+              setShowProAlert(false);
+              onBack();
+            },
+            style: 'primary',
+          },
+        ]}
+        onClose={() => {
+          setShowProAlert(false);
+          onBack();
+        }}
       />
     </SafeAreaView>
   );

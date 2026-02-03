@@ -17,6 +17,7 @@ import {
   GuideScreen,
   Team,
   MatchDetails,
+  MatchStatsScreen,
 } from "./pages";
 import SelectPlanScreen from "./pages/SelectPlanScreen";
 import SearchByCodeScreen from "./pages/SearchByCodeScreen";
@@ -28,7 +29,7 @@ import { teamsService, playersService, usersService, Match } from "./services/ap
 import { SubscriptionType, subscriptionService, TrialInfo } from "./services/subscriptionService";
 import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode';
 
 // Keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -408,7 +409,28 @@ export default function App() {
             onOpenMenu={handleOpenMenu}
             onMatchFound={(match) => {
               setViewingMatch(match);
-              openStatsScreen();
+              setCurrentScreen('matchStatsFromCode');
+            }}
+          />
+        );
+      case 'matchStatsFromCode':
+        if (!viewingMatch) {
+          return (
+            <SearchByCodeScreen
+              onMatchFound={(match) => {
+                setViewingMatch(match);
+                setCurrentScreen('matchStatsFromCode');
+              }}
+            />
+          );
+        }
+        return (
+          <MatchStatsScreen
+            match={viewingMatch}
+            subscriptionType="free"
+            onBack={() => {
+              setViewingMatch(null);
+              setCurrentScreen('searchByCode');
             }}
           />
         );
@@ -650,7 +672,7 @@ export default function App() {
       ) : (
         <>
           {renderCurrentScreen()}
-          {currentScreen !== 'selectPlan' && subscriptionLoaded && (
+          {currentScreen !== 'selectPlan' && currentScreen !== 'matchStatsFromCode' && subscriptionLoaded && (
             <SideMenu
               visible={menuVisible}
               onClose={() => setMenuVisible(false)}

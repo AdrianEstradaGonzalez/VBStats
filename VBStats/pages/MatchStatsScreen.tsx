@@ -868,7 +868,11 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
-            <MenuIcon size={28} color={Colors.text} />
+            {onOpenMenu ? (
+              <MenuIcon size={28} color={Colors.text} />
+            ) : (
+              <MaterialCommunityIcons name="arrow-left" size={28} color={Colors.text} />
+            )}
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Estadísticas</Text>
           <Image 
@@ -891,7 +895,11 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
-          <MenuIcon size={28} color={Colors.text} />
+          {onOpenMenu ? (
+            <MenuIcon size={28} color={Colors.text} />
+          ) : (
+            <MaterialCommunityIcons name="arrow-left" size={28} color={Colors.text} />
+          )}
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <StatsIcon size={20} color={Colors.primary} />

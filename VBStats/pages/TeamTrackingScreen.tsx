@@ -22,7 +22,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import { POSITION_STATS } from '../services/statTemplates';
-import type { Match, MatchStatsSummary, MatchStat } from '../services/types';
+import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 
@@ -97,7 +97,7 @@ export default function TeamTrackingScreen({
   onBack, 
   onOpenMenu 
 }: TeamTrackingScreenProps) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
   const [matchesData, setMatchesData] = useState<{ match: Match; stats: MatchStat[] }[]>([]);
@@ -106,12 +106,13 @@ export default function TeamTrackingScreen({
   const [infoAlertVisible, setInfoAlertVisible] = useState(false);
   const [infoAlertTitle, setInfoAlertTitle] = useState('');
   const [infoAlertContent, setInfoAlertContent] = useState<string | React.ReactNode>('');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedTeam && teamSelectionConfirmed) {
       loadTeamData(selectedTeam);
     }
-  }, [selectedTeam, teamSelectionConfirmed]);
+  }, [selectedTeam, teamSelectionConfirmed, userId]);
 
   const confirmTeamSelection = (teamId: number) => {
     setSelectedTeam(teamId);
@@ -127,6 +128,27 @@ export default function TeamTrackingScreen({
 
   const selectedTeamName = teams.find(t => t.id === selectedTeam)?.name;
 
+  const buildStatsFromMatchState = (matchId: number, state: MatchState | null): MatchStat[] => {
+    if (!state?.action_history || !Array.isArray(state.action_history)) return [];
+    return state.action_history
+      .filter(a => a.type === 'add_stat' && a.data)
+      .map(a => a.data)
+      .filter((d): d is NonNullable<typeof d> => !!d)
+      .map(d => ({
+        user_id: userId || 0,
+        match_id: matchId,
+        player_id: d.playerId || 0,
+        set_number: d.setNumber || 1,
+        stat_setting_id: d.statSettingId || 0,
+        stat_category: d.statCategory || '',
+        stat_type: d.statType || '',
+        player_name: d.playerName || '',
+        player_number: d.playerNumber || undefined,
+        created_at: d.timestamp ? new Date(d.timestamp).toISOString() : undefined,
+      }))
+      .filter(s => s.player_id && s.stat_setting_id && s.stat_category && s.stat_type);
+  };
+
   const renderHeader = (showActions: boolean) => (
     <View style={styles.header}>
       <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -134,23 +156,17 @@ export default function TeamTrackingScreen({
       </TouchableOpacity>
       <View style={styles.headerCenter}>
         <StatsIcon size={24} color={Colors.primary} />
-        <View style={styles.headerTextBlock}>
-          <Text style={styles.headerTitle}>Seguimiento</Text>
-          {selectedTeamName ? (
-            <Text style={styles.headerSubtitle}>{selectedTeamName}</Text>
-          ) : null}
-        </View>
+        <Text style={styles.headerTitle} numberOfLines={1}>Seguimiento</Text>
       </View>
       <View style={styles.headerActions}>
         {showActions && teamSelectionConfirmed && teams.length > 1 && (
           <TouchableOpacity style={styles.changeTeamButton} onPress={reopenTeamSelector}>
-            <MaterialCommunityIcons name="swap-horizontal" size={20} color={Colors.primary} />
-            <Text style={styles.changeTeamText}>Cambiar</Text>
+            <MaterialCommunityIcons name="swap-horizontal" size={18} color={Colors.primary} />
           </TouchableOpacity>
         )}
         {showActions && (
           <TouchableOpacity style={styles.exportButton} onPress={() => setShowExportAlert(true)}>
-            <MaterialCommunityIcons name="export-variant" size={24} color={Colors.primary} />
+            <MaterialCommunityIcons name="export-variant" size={22} color={Colors.primary} />
           </TouchableOpacity>
         )}
       </View>
@@ -159,7 +175,10 @@ export default function TeamTrackingScreen({
 
   const loadTeamData = async (teamId: number) => {
     setLoading(true);
+    setLoadError(null);
     try {
+      console.log('📊 Loading team data for team:', teamId, 'user:', userId);
+      
       // Cargar todos los partidos finalizados del equipo
       const matches = await matchesService.getAll({ 
         user_id: userId, 
@@ -167,21 +186,44 @@ export default function TeamTrackingScreen({
         team_id: teamId 
       });
 
+      console.log('📊 Found matches:', matches.length);
+
+      if (matches.length === 0) {
+        setMatchesData([]);
+        setLoading(false);
+        return;
+      }
+
       // Cargar estadísticas de cada partido
       const matchesWithStats = await Promise.all(
         matches.map(async (match) => {
           try {
             const statsData = await matchesService.getStats(match.id);
-            return { match, stats: statsData?.stats || [] };
+            const statsFromApi = statsData?.stats || [];
+            if (statsFromApi.length > 0) {
+              console.log(`📊 Stats for match ${match.id}:`, statsFromApi.length, 'entries');
+              return { match, stats: statsFromApi };
+            }
+
+            const state = await matchesService.getMatchState(match.id);
+            const fallbackStats = buildStatsFromMatchState(match.id, state);
+            console.log(`📊 Fallback stats for match ${match.id}:`, fallbackStats.length, 'entries');
+            return { match, stats: fallbackStats };
           } catch (e) {
+            console.warn(`⚠️ Error loading stats for match ${match.id}:`, e);
             return { match, stats: [] };
           }
         })
       );
 
-      setMatchesData(matchesWithStats);
+      // Filtrar partidos que tienen estadísticas
+      const matchesWithValidStats = matchesWithStats.filter(m => m.stats.length > 0 || true);
+      console.log('📊 Matches with stats loaded:', matchesWithValidStats.length);
+      
+      setMatchesData(matchesWithValidStats);
     } catch (error) {
-      console.error('Error loading team data:', error);
+      console.error('❌ Error loading team data:', error);
+      setLoadError('Error al cargar los datos del equipo. Inténtalo de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -1732,18 +1774,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    minHeight: 56,
   },
   menuButton: {
-    padding: Spacing.sm,
+    padding: Spacing.xs,
+    minWidth: 40,
   },
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: Spacing.xs,
+    overflow: 'hidden',
   },
   headerTitle: {
     fontSize: FontSizes.xl,
@@ -1752,10 +1798,10 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
   },
   headerRight: {
-    width: 44,
+    width: 40,
   },
   exportButton: {
-    padding: Spacing.sm,
+    padding: Spacing.xs,
   },
   loadingContainer: {
     flex: 1,
@@ -2003,22 +2049,23 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   headerTextBlock: {
-    marginLeft: Spacing.sm,
+    marginLeft: Spacing.xs,
+    flex: 1,
+    overflow: 'hidden',
   },
   headerSubtitle: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
+    maxWidth: 120,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flexShrink: 0,
   },
   changeTeamButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    padding: Spacing.xs,
     borderWidth: 1,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.full,

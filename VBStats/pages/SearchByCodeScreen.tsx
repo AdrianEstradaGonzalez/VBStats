@@ -16,6 +16,7 @@ import {
   StatusBar,
   Image,
   KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -125,7 +126,13 @@ export default function SearchByCodeScreen({
       <KeyboardAvoidingView 
         style={styles.content}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <View style={styles.iconContainer}>
@@ -244,6 +251,7 @@ export default function SearchByCodeScreen({
             Pídelo al entrenador o responsable del equipo.
           </Text>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Error Alert */}
@@ -304,6 +312,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     padding: Spacing.lg,
   },
   welcomeSection: {
