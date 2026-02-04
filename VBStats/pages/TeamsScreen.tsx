@@ -447,133 +447,111 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
 
       {/* Modal para añadir jugador */}
       <Modal visible={showPlayerModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.playerModalKeyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={styles.playerModalContent}>
-            {/* Modern Header with Logo and App Name */}
-            <View style={styles.playerModalHeader}>
-              <View style={styles.logoWrapper}>
-                <Image
-                  source={require('../assets/VBStats_logo_sinfondo.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.addPlayerModalContent}>
+            {/* Header compacto */}
+            <View style={styles.addPlayerModalHeader}>
+              <View style={styles.addPlayerIconWrapper}>
+                <VolleyballIcon size={24} color={Colors.primary} />
               </View>
-              <Text style={styles.appName}>VBStats</Text>
+              <Text style={styles.addPlayerModalTitle}>Añadir Jugador</Text>
+              <TouchableOpacity 
+                style={styles.addPlayerCloseButton}
+                onPress={() => {
+                  setShowPlayerModal(false);
+                  setNewPlayer({ name: '', number: '', position: 'Receptor' });
+                }}
+              >
+                <CloseIcon size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
             </View>
 
-            {/* Content Area - White Background */}
-            <View style={styles.playerModalContentArea}>
-              <View style={styles.playerModalIconContainer}>
-                <VolleyballIcon size={32} color={Colors.primary} />
+            {/* Formulario */}
+            <ScrollView 
+              style={styles.addPlayerFormScroll}
+              contentContainerStyle={styles.addPlayerFormContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.addPlayerLabel}>Nombre del jugador *</Text>
+              <TextInput
+                style={styles.addPlayerInput}
+                placeholder="Ej: Juan García"
+                placeholderTextColor={Colors.textTertiary}
+                value={newPlayer.name}
+                onChangeText={(text) => setNewPlayer(prev => ({ ...prev, name: text }))}
+                autoCapitalize="words"
+                autoFocus
+              />
+
+              <Text style={styles.addPlayerLabel}>Número de dorsal</Text>
+              <TextInput
+                style={styles.addPlayerInput}
+                placeholder="Ej: 7"
+                placeholderTextColor={Colors.textTertiary}
+                value={newPlayer.number}
+                onChangeText={(text) => {
+                  const numericValue = text.replace(/[^0-9]/g, '');
+                  setNewPlayer(prev => ({ ...prev, number: numericValue }));
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+              />
+
+              <Text style={styles.addPlayerLabel}>Posición *</Text>
+              <View style={styles.addPlayerPositionsGrid}>
+                {POSITIONS.map((pos) => (
+                  <TouchableOpacity
+                    key={pos}
+                    style={[
+                      styles.addPlayerPositionChip,
+                      newPlayer.position === pos && styles.addPlayerPositionChipSelected,
+                    ]}
+                    onPress={() => setNewPlayer(prev => ({ ...prev, position: pos }))}
+                  >
+                    <Text style={[
+                      styles.addPlayerPositionText,
+                      newPlayer.position === pos && styles.addPlayerPositionTextSelected,
+                    ]}>
+                      {pos}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+            </ScrollView>
 
-              <Text style={styles.playerModalTitle}>Añadir Jugador</Text>
-              <Text style={styles.playerModalSubtitle}>Completa los datos del jugador</Text>
-
-              <ScrollView 
-                style={styles.playerFormScrollView}
-                contentContainerStyle={styles.playerFormScrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
+            {/* Botones */}
+            <View style={styles.addPlayerButtonsContainer}>
+              <TouchableOpacity
+                style={styles.addPlayerCancelBtn}
+                onPress={() => {
+                  setShowPlayerModal(false);
+                  setNewPlayer({ name: '', number: '', position: 'Receptor' });
+                }}
+                activeOpacity={0.7}
               >
-                <View style={styles.playerFormSection}>
-                  <Text style={styles.playerInputLabel}>Nombre *</Text>
-                  <TextInput
-                    style={styles.playerInput}
-                    placeholder="Nombre completo"
-                    placeholderTextColor={Colors.textTertiary}
-                    value={newPlayer.name}
-                    onChangeText={(text) => {
-                      try {
-                        setNewPlayer(prev => ({ ...prev, name: text }));
-                      } catch (error) {
-                        console.error('Error updating player name:', error);
-                      }
-                    }}
-                    autoCapitalize="words"
-                  />
+                <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
+              </TouchableOpacity>
 
-                  <Text style={styles.playerInputLabel}>Dorsal</Text>
-                  <TextInput
-                    style={styles.playerInput}
-                    placeholder="Número del dorsal"
-                    placeholderTextColor={Colors.textTertiary}
-                    value={newPlayer.number}
-                    onChangeText={(text) => {
-                      try {
-                        const numericValue = text.replace(/[^0-9]/g, '');
-                        setNewPlayer(prev => ({ ...prev, number: numericValue }));
-                      } catch (error) {
-                        console.error('Error updating player number:', error);
-                      }
-                    }}
-                    keyboardType="numeric"
-                    maxLength={2}
-                  />
-
-                  <Text style={styles.playerInputLabel}>Posición *</Text>
-                  <View style={styles.positionsGrid}>
-                    {POSITIONS.map((pos) => (
-                      <TouchableOpacity
-                        key={pos}
-                        style={[
-                          styles.positionOption,
-                          newPlayer.position === pos && styles.positionOptionSelected,
-                        ]}
-                        onPress={() => {
-                          try {
-                            setNewPlayer(prev => ({ ...prev, position: pos }));
-                          } catch (error) {
-                            console.error('Error updating position:', error);
-                          }
-                        }}
-                      >
-                        <Text style={[
-                          styles.positionOptionText,
-                          newPlayer.position === pos && styles.positionOptionTextSelected,
-                        ]}>
-                          {pos}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </ScrollView>
-
-              <View style={styles.playerModalButtons}>
-                <TouchableOpacity
-                  style={styles.playerCancelButton}
-                  onPress={() => {
-                    setShowPlayerModal(false);
-                    setNewPlayer({ name: '', number: '', position: 'Receptor' });
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.playerCancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.playerCreateButton,
-                    (!newPlayer.name.trim() || loading) && styles.playerCreateButtonDisabled,
-                  ]}
-                  onPress={handleAddPlayer}
-                  disabled={!newPlayer.name.trim() || loading}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.playerCreateButtonText}>
-                    {loading ? 'Guardando...' : 'Añadir'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={[
+                  styles.addPlayerSubmitBtn,
+                  (!newPlayer.name.trim() || loading) && styles.addPlayerSubmitBtnDisabled,
+                ]}
+                onPress={handleAddPlayer}
+                disabled={!newPlayer.name.trim() || loading}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addPlayerSubmitBtnText}>
+                  {loading ? 'Guardando...' : 'Añadir'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-          </KeyboardAvoidingView>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal para editar jugador */}
@@ -1028,138 +1006,133 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
-  // Estilos del modal de añadir jugador (estilo CustomAlert)
-  playerModalContent: {
+  // Estilos del modal de añadir jugador - Diseño limpio y funcional
+  addPlayerModalContent: {
     width: '100%',
-    maxWidth: 400,
-    maxHeight: '85%',
-    minHeight: 360,
-    backgroundColor: '#ffffff',
+    maxWidth: 380,
+    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
+    maxHeight: '80%',
     ...Shadows.lg,
   },
-  playerModalKeyboardContainer: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  playerModalHeader: {
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
+  addPlayerModalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
   },
-  playerModalContentArea: {
-    backgroundColor: '#ffffff',
-    paddingTop: Spacing.lg,
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.xl,
-    alignItems: 'center',
-    width: '100%',
-    flexShrink: 1,
-  },
-  playerFormScrollView: {
-    width: '100%',
-    minHeight: 140,
-    maxHeight: 260,
-    marginBottom: Spacing.lg,
-  },
-  playerFormScrollContent: {
-    flexGrow: 1,
-  },
-  playerModalIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary + '15',
+  addPlayerIconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginRight: Spacing.sm,
   },
-  playerModalTitle: {
-    fontSize: FontSizes.xxl,
+  addPlayerModalTitle: {
+    flex: 1,
+    fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: Spacing.xs,
-    textAlign: 'center',
+    color: Colors.text,
   },
-  playerModalSubtitle: {
-    fontSize: FontSizes.md,
-    color: '#4a4a4a',
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-    lineHeight: 22,
+  addPlayerCloseButton: {
+    padding: Spacing.xs,
   },
-  playerFormSection: {
-    width: '100%',
-    paddingBottom: Spacing.sm,
+  addPlayerFormScroll: {
+    maxHeight: 320,
   },
-  playerInputLabel: {
+  addPlayerFormContent: {
+    padding: Spacing.lg,
+  },
+  addPlayerLabel: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.text,
     marginBottom: Spacing.sm,
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
   },
-  playerInput: {
-    width: '100%',
-    backgroundColor: '#ffffff',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
+  addPlayerInput: {
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md + 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
     fontSize: FontSizes.md,
-    color: '#1a1a1a',
+    color: Colors.text,
+  },
+  addPlayerPositionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  addPlayerPositionChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  addPlayerPositionChipSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  addPlayerPositionText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
-  playerModalButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: Spacing.md,
-    marginTop: 'auto',
-    paddingTop: Spacing.md,
+  addPlayerPositionTextSelected: {
+    color: Colors.textOnPrimary,
+    fontWeight: '600',
   },
-  playerCancelButton: {
+  addPlayerButtonsContainer: {
+    flexDirection: 'row',
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.backgroundLight,
+  },
+  addPlayerCancelBtn: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
     borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md + 2,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    minHeight: 48,
+    borderColor: Colors.border,
   },
-  playerCancelButtonText: {
-    color: '#424242',
+  addPlayerCancelBtnText: {
+    color: Colors.textSecondary,
     fontSize: FontSizes.md,
     fontWeight: '600',
-    textAlign: 'center',
   },
-  playerCreateButton: {
+  addPlayerSubmitBtn: {
     flex: 1,
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md + 2,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
-    ...Shadows.md,
+    ...Shadows.sm,
   },
-  playerCreateButtonDisabled: {
+  addPlayerSubmitBtnDisabled: {
     backgroundColor: Colors.border,
     opacity: 0.6,
   },
-  playerCreateButtonText: {
+  addPlayerSubmitBtnText: {
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
-    textAlign: 'center',
   },
   // Estilos del modal de editar jugador (se mantienen como estaban)
   modalContent: {

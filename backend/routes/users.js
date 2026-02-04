@@ -9,13 +9,19 @@ const { StatTemplates } = require('../config/statTemplates');
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
-// Configuración del transporter de nodemailer para Gmail
+// Configuración del transporter de nodemailer para Gmail (forzar IPv4 y puerto 587)
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+  port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 587,
+  secure: false, // STARTTLS
   auth: {
     user: process.env.EMAIL_USER || 'bluedebug.contactme@gmail.com',
     pass: process.env.EMAIL_PASSWORD, // App password de Gmail
   },
+  tls: {
+    rejectUnauthorized: true,
+  },
+  family: 4, // fuerza IPv4 para evitar fallos IPv6 en Render
 });
 
 // Función para generar token seguro
