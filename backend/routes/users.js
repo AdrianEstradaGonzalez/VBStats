@@ -2,10 +2,26 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const { pool } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
+const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
+
+// Configuración del transporter de nodemailer para Gmail
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'bluedebug.contactme@gmail.com',
+    pass: process.env.EMAIL_PASSWORD, // App password de Gmail
+  },
+});
+
+// Función para generar token seguro
+function generateSecureToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
 
 async function ensureUserSettings(userId) {
   const conn = await pool.getConnection();
@@ -333,6 +349,290 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting user:', err);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ==========================================
+// PASSWORD RECOVERY ENDPOINTS
+// ==========================================
+
+// Request password reset - sends email with reset link
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Buscar usuario por email
+    const [users] = await pool.query(
+      'SELECT id, email, name FROM users WHERE email = ?',
+      [email.toLowerCase().trim()]
+    );
+
+    // IMPORTANTE: Siempre responder con éxito para evitar enumeration attack
+    // No revelar si el email existe o no en la base de datos
+    if (users.length === 0) {
+      console.log(`Password reset requested for non-existent email: ${email}`);
+      // Responder igual que si existiera para no revelar información
+      return res.json({ 
+        message: 'Si el correo existe, recibirás un enlace de recuperación.' 
+      });
+    }
+
+    const user = users[0];
+
+    // Invalidar tokens anteriores del usuario (seguridad adicional)
+    await pool.query(
+      'UPDATE password_reset_tokens SET used = TRUE WHERE user_id = ? AND used = FALSE',
+      [user.id]
+    );
+
+    // Generar nuevo token seguro
+    const resetToken = generateSecureToken();
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    // Guardar token en la base de datos
+    await pool.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+      [user.id, resetToken, expiresAt]
+    );
+
+    // Construir URL de reset (la app móvil manejará deep links)
+    const appResetUrl = `vbstats://reset-password?token=${resetToken}`;
+    const webResetUrl = `${process.env.FRONTEND_URL || 'https://vbstats.app'}/reset-password?token=${resetToken}`;
+
+    // Configurar email
+    const mailOptions = {
+      from: {
+        name: 'VBStats',
+        address: process.env.EMAIL_USER || 'bluedebug.contactme@gmail.com'
+      },
+      to: user.email,
+      subject: 'Recuperar contraseña - VBStats',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; padding: 20px 0; }
+            .logo { font-size: 32px; font-weight: bold; color: #3B82F6; }
+            .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+            .token-box { background: #fff; border: 2px dashed #3B82F6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+            .token { font-size: 24px; font-weight: bold; color: #3B82F6; letter-spacing: 2px; word-break: break-all; }
+            .btn { display: inline-block; background: #3B82F6; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 5px; }
+            .btn:hover { background: #2563EB; }
+            .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+            .code-label { font-size: 14px; color: #6b7280; margin-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">🏐 VBStats</div>
+            </div>
+            
+            <div class="content">
+              <h2>Hola${user.name ? ` ${user.name}` : ''},</h2>
+              
+              <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta de VBStats.</p>
+              
+              <div class="token-box">
+                <div class="code-label">Tu código de recuperación es:</div>
+                <div class="token">${resetToken.substring(0, 8).toUpperCase()}</div>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 10px;">
+                  Ingresa este código en la app para verificar tu identidad
+                </p>
+              </div>
+              
+              <p style="text-align: center;">
+                <a href="${appResetUrl}" class="btn">Abrir en la App</a>
+              </p>
+              
+              <div class="warning">
+                <strong>⚠️ Importante:</strong>
+                <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                  <li>Este código expira en <strong>1 hora</strong></li>
+                  <li>Si no solicitaste este cambio, ignora este correo</li>
+                  <li>Nunca compartas este código con nadie</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <p>Este correo fue enviado automáticamente por VBStats.</p>
+              <p>Si no solicitaste restablecer tu contraseña, puedes ignorar este mensaje de forma segura.</p>
+              <p>© ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+Hola${user.name ? ` ${user.name}` : ''},
+
+Recibimos una solicitud para restablecer la contraseña de tu cuenta de VBStats.
+
+Tu código de recuperación es: ${resetToken.substring(0, 8).toUpperCase()}
+
+Ingresa este código en la app para verificar tu identidad y establecer una nueva contraseña.
+
+IMPORTANTE:
+- Este código expira en 1 hora
+- Si no solicitaste este cambio, ignora este correo
+- Nunca compartas este código con nadie
+
+© ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
+      `
+    };
+
+    // Enviar email
+    await transporter.sendMail(mailOptions);
+    console.log(`Password reset email sent to: ${user.email}`);
+
+    res.json({ 
+      message: 'Si el correo existe, recibirás un enlace de recuperación.',
+      // En desarrollo, incluir el token para testing (quitar en producción)
+      ...(process.env.NODE_ENV === 'development' && { debug_token: resetToken })
+    });
+
+  } catch (err) {
+    console.error('Error in forgot-password:', err);
+    // No revelar detalles del error al cliente
+    res.status(500).json({ error: 'Error al procesar la solicitud. Inténtalo de nuevo.' });
+  }
+});
+
+// Verify reset token - check if token is valid
+router.post('/verify-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    // Buscar token en la base de datos (usamos los primeros 8 caracteres en mayúscula)
+    // El usuario ingresa solo los primeros 8 caracteres
+    const tokenPrefix = token.toLowerCase();
+    
+    const [tokens] = await pool.query(
+      `SELECT prt.*, u.email 
+       FROM password_reset_tokens prt 
+       JOIN users u ON prt.user_id = u.id 
+       WHERE LOWER(LEFT(prt.token, ?)) = ? 
+         AND prt.used = FALSE 
+         AND prt.expires_at > NOW()
+       ORDER BY prt.created_at DESC 
+       LIMIT 1`,
+      [tokenPrefix.length, tokenPrefix]
+    );
+
+    if (tokens.length === 0) {
+      return res.status(400).json({ 
+        error: 'Código inválido o expirado. Solicita uno nuevo.',
+        valid: false 
+      });
+    }
+
+    const resetToken = tokens[0];
+    
+    // Obtener email parcialmente oculto para confirmación
+    const email = resetToken.email;
+    const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+
+    res.json({ 
+      valid: true,
+      email: maskedEmail,
+      fullToken: resetToken.token // Necesario para el siguiente paso
+    });
+
+  } catch (err) {
+    console.error('Error verifying reset token:', err);
+    res.status(500).json({ error: 'Error al verificar el código' });
+  }
+});
+
+// Reset password with valid token
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    }
+
+    // Buscar token válido
+    const [tokens] = await pool.query(
+      `SELECT prt.*, u.id as user_id, u.email 
+       FROM password_reset_tokens prt 
+       JOIN users u ON prt.user_id = u.id 
+       WHERE prt.token = ? 
+         AND prt.used = FALSE 
+         AND prt.expires_at > NOW()`,
+      [token]
+    );
+
+    if (tokens.length === 0) {
+      return res.status(400).json({ 
+        error: 'Código inválido o expirado. Solicita uno nuevo.' 
+      });
+    }
+
+    const resetToken = tokens[0];
+    const conn = await pool.getConnection();
+    
+    try {
+      await conn.beginTransaction();
+
+      // Hash nueva contraseña
+      const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+      // Actualizar contraseña del usuario
+      await conn.query(
+        'UPDATE users SET password = ?, session_token = NULL WHERE id = ?',
+        [hashedPassword, resetToken.user_id]
+      );
+
+      // Marcar token como usado
+      await conn.query(
+        'UPDATE password_reset_tokens SET used = TRUE WHERE id = ?',
+        [resetToken.id]
+      );
+
+      // Invalidar cualquier otro token pendiente del usuario
+      await conn.query(
+        'UPDATE password_reset_tokens SET used = TRUE WHERE user_id = ? AND id != ?',
+        [resetToken.user_id, resetToken.id]
+      );
+
+      await conn.commit();
+      
+      console.log(`Password reset successful for user: ${resetToken.email}`);
+      
+      res.json({ 
+        message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.' 
+      });
+
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+
+  } catch (err) {
+    console.error('Error resetting password:', err);
+    res.status(500).json({ error: 'Error al restablecer la contraseña' });
   }
 });
 

@@ -4,6 +4,8 @@
 
 export { default as LoginScreen } from './LoginScreen';
 export { default as SignUpScreen } from './SignUpScreen';
+export { default as ForgotPasswordScreen } from './ForgotPasswordScreen';
+export { default as ResetPasswordScreen } from './ResetPasswordScreen';
 export { default as HomeScreen } from './HomeScreen';
 export { default as TeamsScreen } from './TeamsScreen';
 export { default as StartMatchScreen } from './StartMatchScreen';

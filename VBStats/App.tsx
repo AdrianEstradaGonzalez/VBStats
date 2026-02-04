@@ -5,6 +5,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { 
   LoginScreen,
   SignUpScreen,
+  ForgotPasswordScreen,
+  ResetPasswordScreen,
   HomeScreen, 
   TeamsScreen, 
   StartMatchScreen, 
@@ -47,6 +49,9 @@ export default function App() {
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resetPasswordEmail, setResetPasswordEmail] = useState('');
   const [showSelectPlan, setShowSelectPlan] = useState(false);
   const [pendingRegistration, setPendingRegistration] = useState<{ email: string; password: string; name?: string } | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
@@ -234,7 +239,26 @@ export default function App() {
   };
 
   const handleForgotPassword = () => {
-    console.log("Forgot password");
+    setShowForgotPassword(true);
+  };
+
+  const handleBackFromForgotPassword = () => {
+    setShowForgotPassword(false);
+    setShowResetPassword(false);
+    setResetPasswordEmail('');
+  };
+
+  const handleCodeSent = (email: string) => {
+    setResetPasswordEmail(email);
+    setShowForgotPassword(false);
+    setShowResetPassword(true);
+  };
+
+  const handlePasswordResetSuccess = () => {
+    setShowResetPassword(false);
+    setShowForgotPassword(false);
+    setResetPasswordEmail('');
+    // El usuario ahora puede iniciar sesión con su nueva contraseña
   };
 
   const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
@@ -661,6 +685,17 @@ export default function App() {
               setShowSignUp(false);
               setShowSelectPlan(true);
             }}
+          />
+        ) : showForgotPassword ? (
+          <ForgotPasswordScreen
+            onBack={handleBackFromForgotPassword}
+            onCodeSent={handleCodeSent}
+          />
+        ) : showResetPassword ? (
+          <ResetPasswordScreen
+            email={resetPasswordEmail}
+            onBack={handleBackFromForgotPassword}
+            onSuccess={handlePasswordResetSuccess}
           />
         ) : (
           <LoginScreen

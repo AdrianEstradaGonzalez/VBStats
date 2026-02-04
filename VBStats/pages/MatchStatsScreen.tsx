@@ -605,7 +605,6 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       csv += 'RESUMEN GENERAL\n';
       csv += `G-P Total,${totalPerformance.gp}\n`;
       csv += `Total Acciones,${totalPerformance.total}\n`;
-      csv += `Valoración,${totalPerformance.rating}\n\n`;
 
       // Rendimiento por categoría
       csv += 'RENDIMIENTO POR CATEGORÍA\n';
@@ -1067,12 +1066,6 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
                     totalPerformance.gp < 0 && styles.gpValueNegative,
                   ]}>
                     {totalPerformance.gp > 0 ? '+' : ''}{totalPerformance.gp}
-                  </Text>
-                </View>
-                <View style={styles.ratingBadge}>
-                  <Text style={styles.ratingLabel}>Valoración</Text>
-                  <Text style={styles.ratingValue}>
-                    {totalPerformance.total === 0 ? '-' : totalPerformance.rating.toFixed(1)}
                   </Text>
                 </View>
               </View>

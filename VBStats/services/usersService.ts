@@ -109,4 +109,52 @@ export const usersService = {
       throw new Error('Failed to logout');
     }
   },
+
+  // Request password reset - sends email with reset code
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const response = await fetch(`${USERS_URL}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Error al enviar el correo de recuperación');
+    }
+    
+    return response.json();
+  },
+
+  // Verify reset token
+  verifyResetToken: async (token: string): Promise<{ valid: boolean; email?: string; fullToken?: string }> => {
+    const response = await fetch(`${USERS_URL}/verify-reset-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Código inválido o expirado');
+    }
+    
+    return response.json();
+  },
+
+  // Reset password with token
+  resetPassword: async (token: string, newPassword: string): Promise<{ message: string }> => {
+    const response = await fetch(`${USERS_URL}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Error al restablecer la contraseña');
+    }
+    
+    return response.json();
+  },
 };
