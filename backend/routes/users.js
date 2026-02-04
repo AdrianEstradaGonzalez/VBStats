@@ -2,21 +2,34 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const { pool } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
-// Configuración de nodemailer para Gmail
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'vbstats.contact@gmail.com',
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+// Configuración de Resend para envío de emails (API HTTP)
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = process.env.EMAIL_FROM || 'VBStats <vbstats.contact@bluedebug.com>';
+
+// Función para enviar email usando Resend
+async function sendEmail({ to, subject, html, text }) {
+  const { data, error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: [to],
+    subject,
+    html,
+    text,
+  });
+
+  if (error) {
+    console.error('Resend error:', error);
+    throw new Error(error.message);
+  }
+
+  return data;
+}
 
 // Función para generar token seguro
 function generateSecureToken() {
@@ -484,9 +497,8 @@ IMPORTANTE:
 © ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
       `;
 
-    // Enviar email con nodemailer
-    await transporter.sendMail({
-      from: '"VBStats" <vbstats.contact@gmail.com>',
+    // Enviar email con Resend
+    await sendEmail({
       to: user.email,
       subject: 'Recuperar contraseña - VBStats',
       html: emailHtml,
