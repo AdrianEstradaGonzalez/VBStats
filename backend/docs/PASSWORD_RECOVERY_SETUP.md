@@ -2,37 +2,42 @@
 
 ## Configuración del Correo (Backend)
 
-Para que la funcionalidad de recuperación de contraseña funcione correctamente, necesitas configurar las credenciales de correo en el archivo `.env` del backend.
+Para que la funcionalidad de recuperación de contraseña funcione correctamente, necesitas configurar **Resend** (servicio de email via API HTTP que funciona en Render y otros hosting).
 
-### Pasos para configurar Gmail:
+### Pasos para configurar Resend:
 
-1. **Crear una contraseña de aplicación en Gmail:**
-   - Ve a tu cuenta de Google: https://myaccount.google.com/
-   - Navega a **Seguridad** > **Verificación en dos pasos** (debe estar habilitada)
-   - Baja hasta **Contraseñas de aplicación**
-   - Selecciona "Otra (nombre personalizado)" y escribe "VBStats"
-   - Copia la contraseña de 16 caracteres generada
+1. **Crear cuenta en Resend:**
+   - Ve a https://resend.com y crea una cuenta gratuita
+   - El plan gratuito incluye 100 emails/día (suficiente para la mayoría de apps)
 
-2. **Agregar las variables de entorno:**
+2. **Obtener API Key:**
+   - En el dashboard de Resend, ve a **API Keys**
+   - Crea una nueva API Key y cópiala
+
+3. **Verificar dominio (opcional pero recomendado):**
+   - Para enviar desde `vbstats.contact@gmail.com`, necesitas verificar el dominio
+   - Si no tienes dominio verificado, los emails se enviarán desde `onboarding@resend.dev`
+   - Para verificar un dominio propio, sigue las instrucciones en Resend > Domains
+
+4. **Agregar las variables de entorno en Render:**
    
-   Crea o edita el archivo `.env` en la carpeta `backend/`:
-
    ```env
-   # Configuración de correo para recuperación de contraseña
-   EMAIL_USER=bluedebug.contactme@gmail.com
-   EMAIL_PASSWORD=tu_contraseña_de_aplicacion_aqui
+   # Configuración de Resend para envío de emails
+   RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxx
    
-   # URL del frontend (opcional, para deep links)
-   FRONTEND_URL=https://vbstats.app
+   # Email remitente (requiere dominio verificado en Resend)
+   # Sin dominio verificado, usa: VBStats <onboarding@resend.dev>
+   EMAIL_FROM=VBStats <vbstats.contact@gmail.com>
    
    # Entorno (development/production)
    NODE_ENV=production
    ```
 
-3. **Reiniciar el servidor:**
-   ```bash
-   npm run dev
-   ```
+5. **Desplegar cambios en Render**
+
+### ¿Por qué Resend en lugar de Gmail SMTP?
+
+Render (y muchos otros hostings) bloquean las conexiones SMTP salientes en los puertos 465 y 587 para prevenir spam. Resend usa una API HTTP que no tiene este problema.
 
 ## Seguridad Implementada
 

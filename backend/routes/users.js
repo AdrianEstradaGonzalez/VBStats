@@ -2,27 +2,40 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const { pool } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
-// Configuración del transporter de nodemailer para Gmail (forzar IPv4 y puerto 587)
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: process.env.EMAIL_USER || 'bluedebug.contactme@gmail.com',
-    pass: process.env.EMAIL_PASSWORD, // App password de Gmail
-  },
-  tls: {
-    rejectUnauthorized: true,
-  },
-  family: 4, // fuerza IPv4 para evitar fallos IPv6 en Render
-});
+// Configuración de Resend para envío de emails (API HTTP, funciona en Render)
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = process.env.EMAIL_FROM || 'VBStats <onboarding@resend.dev>';
+
+// Función para enviar email usando Resend
+async function sendEmail({ to, subject, html, text }) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [to],
+      subject,
+      html,
+      text,
+    });
+    
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error(error.message);
+    }
+    
+    console.log('Email sent successfully:', data?.id);
+    return data;
+  } catch (err) {
+    console.error('Error sending email:', err);
+    throw err;
+  }
+}
 
 // Función para generar token seguro
 function generateSecureToken() {
@@ -409,15 +422,8 @@ router.post('/forgot-password', async (req, res) => {
     const appResetUrl = `vbstats://reset-password?token=${resetToken}`;
     const webResetUrl = `${process.env.FRONTEND_URL || 'https://vbstats.app'}/reset-password?token=${resetToken}`;
 
-    // Configurar email
-    const mailOptions = {
-      from: {
-        name: 'VBStats',
-        address: process.env.EMAIL_USER || 'bluedebug.contactme@gmail.com'
-      },
-      to: user.email,
-      subject: 'Recuperar contraseña - VBStats',
-      html: `
+    // Contenido del email
+    const emailHtml = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -426,12 +432,12 @@ router.post('/forgot-password', async (req, res) => {
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { text-align: center; padding: 20px 0; }
-            .logo { font-size: 32px; font-weight: bold; color: #3B82F6; }
+            .logo { font-size: 32px; font-weight: bold; color: #e21d66; }
             .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
-            .token-box { background: #fff; border: 2px dashed #3B82F6; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
-            .token { font-size: 24px; font-weight: bold; color: #3B82F6; letter-spacing: 2px; word-break: break-all; }
-            .btn { display: inline-block; background: #3B82F6; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 5px; }
-            .btn:hover { background: #2563EB; }
+            .token-box { background: #fff; border: 2px dashed #e21d66; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+            .token { font-size: 24px; font-weight: bold; color: #e21d66; letter-spacing: 2px; word-break: break-all; }
+            .btn { display: inline-block; background: #e21d66; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 5px; }
+            .btn:hover { background: #b31551; }
             .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
             .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
             .code-label { font-size: 14px; color: #6b7280; margin-bottom: 10px; }
@@ -478,8 +484,9 @@ router.post('/forgot-password', async (req, res) => {
           </div>
         </body>
         </html>
-      `,
-      text: `
+      `;
+
+    const emailText = `
 Hola${user.name ? ` ${user.name}` : ''},
 
 Recibimos una solicitud para restablecer la contraseña de tu cuenta de VBStats.
@@ -494,11 +501,15 @@ IMPORTANTE:
 - Nunca compartas este código con nadie
 
 © ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
-      `
-    };
+      `;
 
-    // Enviar email
-    await transporter.sendMail(mailOptions);
+    // Enviar email usando Resend
+    await sendEmail({
+      to: user.email,
+      subject: 'Recuperar contraseña - VBStats',
+      html: emailHtml,
+      text: emailText,
+    });
     console.log(`Password reset email sent to: ${user.email}`);
 
     res.json({ 
