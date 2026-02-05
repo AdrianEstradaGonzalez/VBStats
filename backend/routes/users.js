@@ -12,7 +12,34 @@ const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 // Configuración de Resend para envío de emails (API HTTP)
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'VBStats <onboarding@resend.dev>';
+const DEFAULT_EMAIL_FROM = 'VBStats <onboarding@resend.dev>';
+const EMAIL_FROM = normalizeFromAddress(process.env.EMAIL_FROM, DEFAULT_EMAIL_FROM);
+
+function normalizeFromAddress(rawFrom, fallback) {
+  if (!rawFrom) {
+    return fallback;
+  }
+
+  const trimmed = rawFrom.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  // Accept already valid formats: email@example.com or Name <email@example.com>
+  const hasAngleAddress = /<[^<>@\s]+@[^<>@\s]+>/.test(trimmed);
+  const isSimpleEmail = /^[^<>@\s]+@[^<>@\s]+$/.test(trimmed);
+  if (hasAngleAddress || isSimpleEmail) {
+    return trimmed;
+  }
+
+  // Convert "Name email@example.com" to "Name <email@example.com>"
+  const match = trimmed.match(/^(.*)\s+([^<>@\s]+@[^<>@\s]+)$/);
+  if (match) {
+    return `${match[1].trim()} <${match[2]}>`;
+  }
+
+  return fallback;
+}
 
 // Función para enviar email usando Resend
 async function sendEmail({ to, subject, html, text }) {
