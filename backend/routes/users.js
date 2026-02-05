@@ -10,11 +10,16 @@ const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
 // Configuración de Resend para envío de emails (API HTTP)
-const resend = new Resend(process.env.RESEND_API_KEY);
-const EMAIL_FROM = process.env.EMAIL_FROM || 'VBStats <vbstats.contact@bluedebug.com>';
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'VBStats <onboarding@resend.dev>';
 
 // Función para enviar email usando Resend
 async function sendEmail({ to, subject, html, text }) {
+  if (!resend) {
+    throw new Error('RESEND_API_KEY is not configured');
+  }
+
   const { data, error } = await resend.emails.send({
     from: EMAIL_FROM,
     to: [to],
