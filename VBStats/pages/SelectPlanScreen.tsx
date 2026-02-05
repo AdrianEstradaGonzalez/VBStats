@@ -36,6 +36,10 @@ import GuideScreen from './GuideScreen';
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
+// Legal URLs - Replace with your actual URLs
+const PRIVACY_POLICY_URL = 'https://bluedebug.com/vistas/vbstats-privacidad';
+const TERMS_OF_SERVICE_URL = 'https://bluedebug.com/vistas/vbstats-terminos';
+
 interface SelectPlanScreenProps {
   onPlanSelected: (planType: SubscriptionType) => void;
   onBack: () => void;
@@ -486,11 +490,7 @@ export default function SelectPlanScreen({
                 <>
                   <View style={styles.paymentMethod}>
                     <MaterialCommunityIcons name="apple" size={24} color={Colors.textSecondary} />
-                    <Text style={styles.paymentMethodText}>Apple Pay</Text>
-                  </View>
-                  <View style={styles.paymentMethod}>
-                    <MaterialCommunityIcons name="credit-card" size={24} color={Colors.textSecondary} />
-                    <Text style={styles.paymentMethodText}>Tarjeta</Text>
+                    <Text style={styles.paymentMethodText}>App Store</Text>
                   </View>
                 </>
               ) : (
@@ -590,18 +590,36 @@ export default function SelectPlanScreen({
         )}
 
         {/* Terms */}
-        <Text style={styles.termsText}>
-          Al continuar, aceptas nuestros Términos de Servicio y Política de Privacidad.
-          {useAppleIAP() && selectedPlan !== 'free' ? (
-            ` El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
-          ) : (
-            selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
-              ? ` La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
-              : selectedPlan !== 'free' 
-                ? ' La suscripción se renovará automáticamente cada mes.'
-                : ''
-          )}
-        </Text>
+        <View style={styles.termsContainer}>
+          <Text style={styles.termsText}>
+            Al continuar, aceptas nuestros{' '}
+            <Text 
+              style={styles.termsLink} 
+              onPress={() => Linking.openURL(TERMS_OF_SERVICE_URL)}
+            >
+              Términos de Servicio
+            </Text>
+            {' '}y{' '}
+            <Text 
+              style={styles.termsLink} 
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+            >
+              Política de Privacidad
+            </Text>
+            .
+          </Text>
+          <Text style={styles.termsText}>
+            {useAppleIAP() && selectedPlan !== 'free' ? (
+              `El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
+            ) : (
+              selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
+                ? `La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
+                : selectedPlan !== 'free' 
+                  ? 'La suscripción se renovará automáticamente cada mes.'
+                  : ''
+            )}
+          </Text>
+        </View>
       </ScrollView>
 
       {/* Error Alert */}
@@ -920,8 +938,16 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
     textAlign: 'center',
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
     lineHeight: 18,
+  },
+  termsContainer: {
+    marginTop: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
+  },
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: 'underline',
   },
   paymentPendingContainer: {
     alignItems: 'center',
