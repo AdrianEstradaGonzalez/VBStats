@@ -6,11 +6,22 @@ import { API_BASE_URL } from './api';
 import { User, LoginCredentials, RegisterData } from './types';
 
 const USERS_URL = `${API_BASE_URL}/users`;
+const REQUEST_TIMEOUT_MS = 15000;
+
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
 
 export const usersService = {
   // Login user
   login: async (credentials: LoginCredentials): Promise<User> => {
-    const response = await fetch(`${USERS_URL}/login`, {
+    const response = await fetchWithTimeout(`${USERS_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -93,7 +104,7 @@ export const usersService = {
 
   // Get current session token
   getSession: async (id: number): Promise<{ session_token: string | null }> => {
-    const response = await fetch(`${USERS_URL}/${id}/session`);
+    const response = await fetchWithTimeout(`${USERS_URL}/${id}/session`);
     if (!response.ok) {
       throw new Error('Failed to fetch session');
     }

@@ -53,6 +53,7 @@ export default function SelectPlanScreen({
   currentPlan,
   userId 
 }: SelectPlanScreenProps) {
+  const isApple = useAppleIAP();
   // Default selected plan should be the next upgrade
   const defaultSelectedPlan = currentPlan === 'basic' ? 'pro' : 'basic';
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionType>(defaultSelectedPlan);
@@ -82,7 +83,7 @@ export default function SelectPlanScreen({
 
   // Initialize Apple IAP for iOS
   useEffect(() => {
-    if (useAppleIAP()) {
+    if (isApple) {
       const initAppleIAP = async () => {
         await appleIAPService.initialize();
         const products = await appleIAPService.getProducts();
@@ -95,7 +96,7 @@ export default function SelectPlanScreen({
         appleIAPService.endConnection();
       };
     }
-  }, []);
+  }, [isApple]);
 
   // Generate or get device ID for trial tracking
   useEffect(() => {
@@ -157,7 +158,7 @@ export default function SelectPlanScreen({
     setIsLoading(true);
     try {
       // Check if we're on iOS - use Apple IAP
-      if (useAppleIAP()) {
+      if (isApple) {
         await performApplePurchase();
         return;
       }
@@ -212,6 +213,25 @@ export default function SelectPlanScreen({
     }
 
     try {
+      let availableProducts = appleProducts;
+      if (availableProducts.length === 0) {
+        availableProducts = await appleIAPService.getProducts();
+        setAppleProducts(availableProducts);
+      }
+
+      if (availableProducts.length === 0) {
+        setErrorMessage('No se pudieron cargar los productos de App Store. Inténtalo de nuevo.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      const hasProduct = availableProducts.some(product => product.productId === plan.appleProductId);
+      if (!hasProduct) {
+        setErrorMessage('El producto no está disponible en App Store. Inténtalo de nuevo más tarde.');
+        setShowErrorAlert(true);
+        return;
+      }
+
       const result = await appleIAPService.purchaseSubscription(plan.appleProductId, userId);
       
       if (result.success) {
@@ -234,7 +254,7 @@ export default function SelectPlanScreen({
 
   // Restore Apple purchases (iOS only)
   const handleRestorePurchases = async () => {
-    if (!userId || !useAppleIAP()) return;
+    if (!userId || !isApple) return;
 
     setIsRestoringPurchases(true);
     try {
@@ -452,7 +472,9 @@ export default function SelectPlanScreen({
                   Probar {TRIAL_DAYS} días gratis
                 </Text>
                 <Text style={styles.trialToggleSubtext}>
-                  Introduce tu método de pago. No se cobra hasta que termine la prueba.
+                  {isApple
+                    ? 'Se requiere un método de pago en tu Apple ID. No se cobra hasta que termine la prueba.'
+                    : 'Introduce tu método de pago. No se cobra hasta que termine la prueba.'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -482,10 +504,10 @@ export default function SelectPlanScreen({
         {selectedPlan !== 'free' && (
           <View style={styles.paymentSection}>
             <Text style={styles.paymentTitle}>
-              {useAppleIAP() ? 'Pago seguro con Apple' : 'Métodos de pago seguros'}
+              {isApple ? 'Pago seguro en App Store' : 'Métodos de pago seguros'}
             </Text>
             <View style={styles.paymentMethods}>
-              {useAppleIAP() ? (
+              {isApple ? (
                 // iOS: Apple In-App Purchase
                 <>
                   <View style={styles.paymentMethod}>
@@ -508,15 +530,15 @@ export default function SelectPlanScreen({
               )}
             </View>
             <Text style={styles.stripeNote}>
-              {useAppleIAP() 
-                ? 'Pagos procesados de forma segura por Apple' 
+              {isApple 
+                ? 'Pagos procesados de forma segura por App Store' 
                 : 'Pagos procesados de forma segura por Stripe'}
             </Text>
           </View>
         )}
 
         {/* Continue Button */}
-        {!paymentPending || useAppleIAP() ? (
+        {!paymentPending || isApple ? (
           <>
             <TouchableOpacity
               style={[styles.continueButton, (isLoading || isAlreadyPro) && styles.continueButtonDisabled]}
@@ -535,9 +557,9 @@ export default function SelectPlanScreen({
                   <Text style={styles.continueButtonText}>
                     {selectedPlan === 'free' 
                       ? 'Continuar gratis' 
-                      : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !useAppleIAP()
+                      : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !isApple
                         ? `Empezar ${TRIAL_DAYS} días gratis`
-                        : useAppleIAP()
+                        : isApple
                           ? 'Suscribirse'
                           : 'Continuar al pago'}
                   </Text>
@@ -547,7 +569,7 @@ export default function SelectPlanScreen({
             </TouchableOpacity>
             
             {/* Restore Purchases Button (iOS only) */}
-            {useAppleIAP() && (
+            {isApple && (
               <TouchableOpacity
                 style={styles.restorePurchasesButton}
                 onPress={handleRestorePurchases}
@@ -609,7 +631,7 @@ export default function SelectPlanScreen({
             .
           </Text>
           <Text style={styles.termsText}>
-            {useAppleIAP() && selectedPlan !== 'free' ? (
+            {isApple && selectedPlan !== 'free' ? (
               `El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
             ) : (
               selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
@@ -633,7 +655,9 @@ export default function SelectPlanScreen({
           if (!plan) return '¿Confirmas seleccionar este plan?';
           
           if (useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro') {
-            return `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+            return isApple
+              ? `Se te pedirá confirmar la compra con tu Apple ID para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
+              : `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
           }
           
           return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
@@ -662,7 +686,7 @@ export default function SelectPlanScreen({
       <CustomAlert
         visible={showTrialInfo}
         title={`Prueba gratuita de ${TRIAL_DAYS} días`}
-        message={`¿Cómo funciona la prueba gratuita?\n\n1. Introduce tu método de pago (tarjeta)\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\n⚠️ IMPORTANTE: Se requiere método de pago para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\n⚠️ IMPORTANTE: ${isApple ? 'Se requiere Apple ID con un método de pago válido' : 'Se requiere método de pago'} para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
             text: 'Entendido',
