@@ -155,7 +155,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         setStatsData(data);
       }
     } catch (error) {
-      console.error('❌ Error cargando estadísticas:', error);
+      console.error('Error cargando estadisticas:', error);
       setStatsData({ stats: [], summary: [], bySet: [] });
     } finally {
       setLoading(false);

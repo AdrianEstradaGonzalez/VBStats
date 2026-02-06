@@ -11,10 +11,12 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  TextInput,
   Platform,
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, Team } from '../services/types';
@@ -76,6 +78,11 @@ export default function StatsScreen({
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [showTracking, setShowTracking] = useState(false);
   const [showProAlert, setShowProAlert] = useState(false);
+  const [filterFromDate, setFilterFromDate] = useState<Date | null>(null);
+  const [filterToDate, setFilterToDate] = useState<Date | null>(null);
+  const [opponentQuery, setOpponentQuery] = useState('');
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
 
   const isProSubscription = subscriptionType === 'pro';
 
@@ -99,9 +106,9 @@ export default function StatsScreen({
     try {
       const finishedMatches = await matchesService.getFinishedByUser(userId);
       setMatches(finishedMatches);
-      console.log('✅ Partidos finalizados cargados:', finishedMatches.length);
+      console.log('Partidos finalizados cargados:', finishedMatches.length);
     } catch (error) {
-      console.error('❌ Error cargando partidos:', error);
+      console.error('Error cargando partidos:', error);
     } finally {
       setLoading(false);
     }
@@ -129,9 +136,9 @@ export default function StatsScreen({
     try {
       await matchesService.delete(matchToDelete.id);
       setMatches(prev => prev.filter(m => m.id !== matchToDelete.id));
-      console.log('✅ Partido eliminado:', matchToDelete.id);
+      console.log('Partido eliminado:', matchToDelete.id);
     } catch (error) {
-      console.error('❌ Error eliminando partido:', error);
+      console.error('Error eliminando partido:', error);
     } finally {
       setShowDeleteAlert(false);
       setMatchToDelete(null);
@@ -150,6 +157,37 @@ export default function StatsScreen({
       setShowProAlert(true);
     }
   };
+
+  const formatFilterDate = (value: Date | null) => {
+    if (!value) return '';
+    const year = value.getFullYear();
+    const month = `${value.getMonth() + 1}`.padStart(2, '0');
+    const day = `${value.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const matchesFiltered = matches
+    .filter(match => {
+      const opponent = (match.opponent || '').toLowerCase();
+      const query = opponentQuery.trim().toLowerCase();
+      if (query && !opponent.includes(query)) return false;
+
+      const matchDate = match.date ? new Date(match.date) : null;
+      const fromDate = filterFromDate ? new Date(filterFromDate.getFullYear(), filterFromDate.getMonth(), filterFromDate.getDate()) : null;
+      const toDate = filterToDate ? new Date(filterToDate.getFullYear(), filterToDate.getMonth(), filterToDate.getDate(), 23, 59, 59, 999) : null;
+      if (fromDate && (!matchDate || matchDate < fromDate)) return false;
+      if (toDate && (!matchDate || matchDate > toDate)) {
+        return false;
+      }
+
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      const aTime = a.date ? new Date(a.date).getTime() : 0;
+      const bTime = b.date ? new Date(b.date).getTime() : 0;
+      return bTime - aTime;
+    });
   
   // If showing tracking screen
   if (showTracking && userId) {
@@ -250,76 +288,158 @@ export default function StatsScreen({
           <>
             <Text style={styles.sectionTitle}>Historial de Partidos</Text>
             <Text style={styles.sectionSubtitle}>
-              {matches.length} {matches.length === 1 ? 'partido finalizado' : 'partidos finalizados'}
+              {matchesFiltered.length} {matchesFiltered.length === 1 ? 'partido finalizado' : 'partidos finalizados'}
             </Text>
 
-            {matches.map((match) => (
-              <View key={match.id} style={styles.matchCard}>
+            <View style={styles.filterContainer}>
+              <Text style={styles.filterLabel}>Filtrar por fechas</Text>
+              <View style={styles.filterRow}>
                 <TouchableOpacity
-                  style={styles.matchCardContent}
-                  onPress={() => handleViewMatch(match)}
+                  style={styles.dateInput}
+                  onPress={() => setShowFromPicker(true)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.matchHeader}>
-                    <View style={styles.matchDateContainer}>
-                      <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
-                    </View>
-                    <View style={styles.matchHeaderRight}>
-                      <View style={styles.resultBadge}>
-                        <Text style={styles.resultText}>
-                          {match.total_sets || 0} {match.total_sets === 1 ? 'Set' : 'Sets'}
-                        </Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.deleteButton}
-                        onPress={() => handleDeleteMatch(match)}
-                        activeOpacity={0.7}
-                      >
-                        <DeleteIcon size={18} color={Colors.error} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <View style={styles.matchInfo}>
-                    <View style={styles.matchTeams}>
-                      <Text style={styles.teamName}>{match.team_name || 'Mi Equipo'}</Text>
-                      {match.opponent && (
-                        <>
-                          <Text style={styles.vsText}>vs</Text>
-                          <Text style={styles.opponentName}>{match.opponent}</Text>
-                        </>
-                      )}
-                    </View>
-                    {(match.score_home !== null && match.score_home !== undefined &&
-                      match.score_away !== null && match.score_away !== undefined) && (
-                      <View style={styles.matchScoreRow}>
-                        <MaterialCommunityIcons name="scoreboard-outline" size={18} color={Colors.primary} />
-                        <Text style={styles.matchScoreText}>
-                          {match.score_home} - {match.score_away}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.matchFooter}>
-                    <View style={styles.locationContainer}>
-                      <MaterialCommunityIcons 
-                        name={match.location === 'home' ? 'home' : 'airplane'} 
-                        size={18} 
-                        color={match.location === 'home' ? Colors.primary : Colors.textSecondary} 
-                      />
-                      <Text style={[styles.locationText, match.location === 'home' && styles.locationTextHome]}>
-                        {match.location === 'home' ? 'Local' : 'Visitante'}
-                      </Text>
-                    </View>
-                    <View style={styles.viewMore}>
-                      <Text style={styles.viewMoreText}>Ver estadísticas</Text>
-                      <ChevronRightIcon size={16} color={Colors.primary} />
-                    </View>
-                  </View>
+                  <MaterialCommunityIcons name="calendar" size={18} color={Colors.textTertiary} />
+                  <Text style={filterFromDate ? styles.dateInputText : styles.dateInputPlaceholder}>
+                    {filterFromDate ? formatFilterDate(filterFromDate) : 'Desde'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => setShowToPicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="calendar" size={18} color={Colors.textTertiary} />
+                  <Text style={filterToDate ? styles.dateInputText : styles.dateInputPlaceholder}>
+                    {filterToDate ? formatFilterDate(filterToDate) : 'Hasta'}
+                  </Text>
                 </TouchableOpacity>
               </View>
-            ))}
+
+              <Text style={styles.filterLabel}>Buscar por rival</Text>
+              <View style={styles.searchRow}>
+                <MaterialCommunityIcons name="magnify" size={18} color={Colors.textTertiary} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Nombre del equipo rival"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={opponentQuery}
+                  onChangeText={setOpponentQuery}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            {showFromPicker && (
+              <DateTimePicker
+                value={filterFromDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                onChange={(event, selectedDate) => {
+                  if (Platform.OS !== 'ios') {
+                    setShowFromPicker(false);
+                  }
+                  if (event.type === 'dismissed') return;
+                  if (selectedDate) {
+                    setFilterFromDate(selectedDate);
+                  }
+                }}
+              />
+            )}
+
+            {showToPicker && (
+              <DateTimePicker
+                value={filterToDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                onChange={(event, selectedDate) => {
+                  if (Platform.OS !== 'ios') {
+                    setShowToPicker(false);
+                  }
+                  if (event.type === 'dismissed') return;
+                  if (selectedDate) {
+                    setFilterToDate(selectedDate);
+                  }
+                }}
+              />
+            )}
+
+            {matchesFiltered.length === 0 ? (
+              <View style={styles.emptyFilterState}>
+                <Text style={styles.emptyFilterTitle}>Sin resultados</Text>
+                <Text style={styles.emptyFilterText}>
+                  Ajusta las fechas o el nombre del rival para ver partidos
+                </Text>
+              </View>
+            ) : (
+              matchesFiltered.map((match) => (
+                <View key={match.id} style={styles.matchCard}>
+                  <TouchableOpacity
+                    style={styles.matchCardContent}
+                    onPress={() => handleViewMatch(match)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.matchHeader}>
+                      <View style={styles.matchDateContainer}>
+                        <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
+                      </View>
+                      <View style={styles.matchHeaderRight}>
+                        <View style={styles.resultBadge}>
+                          <Text style={styles.resultText}>
+                            {match.total_sets || 0} {match.total_sets === 1 ? 'Set' : 'Sets'}
+                          </Text>
+                        </View>
+                        <TouchableOpacity 
+                          style={styles.deleteButton}
+                          onPress={() => handleDeleteMatch(match)}
+                          activeOpacity={0.7}
+                        >
+                          <DeleteIcon size={18} color={Colors.error} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.matchInfo}>
+                      <View style={styles.matchTeams}>
+                        <Text style={styles.teamName}>{match.team_name || 'Mi Equipo'}</Text>
+                        {match.opponent && (
+                          <>
+                            <Text style={styles.vsText}>vs</Text>
+                            <Text style={styles.opponentName}>{match.opponent}</Text>
+                          </>
+                        )}
+                      </View>
+                      {(match.score_home !== null && match.score_home !== undefined &&
+                        match.score_away !== null && match.score_away !== undefined) && (
+                        <View style={styles.matchScoreRow}>
+                          <MaterialCommunityIcons name="scoreboard-outline" size={18} color={Colors.primary} />
+                          <Text style={styles.matchScoreText}>
+                            {match.score_home} - {match.score_away}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.matchFooter}>
+                      <View style={styles.locationContainer}>
+                        <MaterialCommunityIcons 
+                          name={match.location === 'home' ? 'home' : 'airplane'} 
+                          size={18} 
+                          color={match.location === 'home' ? Colors.primary : Colors.textSecondary} 
+                        />
+                        <Text style={[styles.locationText, match.location === 'home' && styles.locationTextHome]}>
+                          {match.location === 'home' ? 'Local' : 'Visitante'}
+                        </Text>
+                      </View>
+                      <View style={styles.viewMore}>
+                        <Text style={styles.viewMoreText}>Ver estadísticas</Text>
+                        <ChevronRightIcon size={16} color={Colors.primary} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>
@@ -505,6 +625,81 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.textSecondary,
     marginBottom: Spacing.xl,
+  },
+  filterContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  dateInput: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  dateInputText: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  dateInputPlaceholder: {
+    fontSize: FontSizes.sm,
+    color: Colors.textTertiary,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+  },
+  emptyFilterState: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  emptyFilterTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  emptyFilterText: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   matchCard: {
     backgroundColor: Colors.surface,

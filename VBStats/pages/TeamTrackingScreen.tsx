@@ -177,7 +177,7 @@ export default function TeamTrackingScreen({
     setLoading(true);
     setLoadError(null);
     try {
-      console.log('📊 Loading team data for team:', teamId, 'user:', userId);
+      console.log('Loading team data for team:', teamId, 'user:', userId);
       
       // Cargar todos los partidos finalizados del equipo
       const matches = await matchesService.getAll({ 
@@ -186,7 +186,7 @@ export default function TeamTrackingScreen({
         team_id: teamId 
       });
 
-      console.log('📊 Found matches:', matches.length);
+      console.log('Found matches:', matches.length);
 
       if (matches.length === 0) {
         setMatchesData([]);
@@ -201,16 +201,16 @@ export default function TeamTrackingScreen({
             const statsData = await matchesService.getStats(match.id);
             const statsFromApi = statsData?.stats || [];
             if (statsFromApi.length > 0) {
-              console.log(`📊 Stats for match ${match.id}:`, statsFromApi.length, 'entries');
+              console.log(`Stats for match ${match.id}:`, statsFromApi.length, 'entries');
               return { match, stats: statsFromApi };
             }
 
             const state = await matchesService.getMatchState(match.id);
             const fallbackStats = buildStatsFromMatchState(match.id, state);
-            console.log(`📊 Fallback stats for match ${match.id}:`, fallbackStats.length, 'entries');
+            console.log(`Fallback stats for match ${match.id}:`, fallbackStats.length, 'entries');
             return { match, stats: fallbackStats };
           } catch (e) {
-            console.warn(`⚠️ Error loading stats for match ${match.id}:`, e);
+            console.warn(`Error loading stats for match ${match.id}:`, e);
             return { match, stats: [] };
           }
         })
@@ -218,11 +218,11 @@ export default function TeamTrackingScreen({
 
       // Filtrar partidos que tienen estadísticas
       const matchesWithValidStats = matchesWithStats.filter(m => m.stats.length > 0 || true);
-      console.log('📊 Matches with stats loaded:', matchesWithValidStats.length);
+      console.log('Matches with stats loaded:', matchesWithValidStats.length);
       
       setMatchesData(matchesWithValidStats);
     } catch (error) {
-      console.error('❌ Error loading team data:', error);
+      console.error('Error loading team data:', error);
       setLoadError('Error al cargar los datos del equipo. Inténtalo de nuevo.');
     } finally {
       setLoading(false);

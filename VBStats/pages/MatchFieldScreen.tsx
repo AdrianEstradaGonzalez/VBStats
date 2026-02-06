@@ -237,15 +237,15 @@ export default function MatchFieldScreen({
                 playerName: p.playerName,
                 playerNumber: p.playerNumber,
               }));
-              console.log('👥 Posiciones restauradas:', restoredPositions.filter(p => p.playerId).length);
+              console.log('Posiciones restauradas:', restoredPositions.filter(p => p.playerId).length);
               setPositions(restoredPositions);
             }
             if (matchState.current_set !== undefined) {
-              console.log('🔢 Set restaurado:', matchState.current_set);
+              console.log('Set restaurado:', matchState.current_set);
               setCurrentSet(matchState.current_set);
             }
             if (matchState.is_set_active !== undefined) {
-              console.log('▶️ Set activo:', matchState.is_set_active);
+              console.log('Set activo:', matchState.is_set_active);
               setIsSetActive(matchState.is_set_active);
             }
             if (matchState.action_history && Array.isArray(matchState.action_history)) {
@@ -255,7 +255,7 @@ export default function MatchFieldScreen({
                 data: a.data,
                 timestamp: a.timestamp || a.data?.timestamp || Date.now(),
               }));
-              console.log('📜 Historial restaurado:', restoredHistory.length, 'acciones');
+              console.log('Historial restaurado:', restoredHistory.length, 'acciones');
               setActionHistory(restoredHistory);
             }
             if (matchState.pending_stats && Array.isArray(matchState.pending_stats)) {
@@ -271,22 +271,22 @@ export default function MatchFieldScreen({
                 statType: s.statType,
                 timestamp: s.timestamp,
               }));
-              console.log('📊 Estadísticas pendientes restauradas:', restoredStats.length);
+              console.log('Estadisticas pendientes restauradas:', restoredStats.length);
               setPendingStats(restoredStats);
             }
             
             // Mark restoration as complete - now auto-save can work
-            console.log('✅ Restauración completa, habilitando auto-save');
+            console.log('Restauracion completa, habilitando auto-save');
             setIsRestoringState(false);
           } else {
-            console.log('⚠️ No hay estado guardado para este partido');
+            console.log('No hay estado guardado para este partido');
             // No saved state, allow normal auto-save
             setIsRestoringState(false);
           }
           
-          console.log('✅ Partido resumido exitosamente:', existingMatch.id);
+          console.log('Partido resumido exitosamente:', existingMatch.id);
         } catch (error) {
-          console.error('❌ Error resumiendo partido:', error);
+          console.error('Error resumiendo partido:', error);
           // On error, still allow auto-save (will start fresh)
           setIsRestoringState(false);
         }
@@ -306,9 +306,9 @@ export default function MatchFieldScreen({
         });
         setMatchId(newMatch.id);
         setMatchCreated(true);
-        console.log('✅ Partido creado en BD:', newMatch.id);
+        console.log('Partido creado en BD:', newMatch.id);
       } catch (error) {
-        console.error('❌ Error creando partido:', error);
+        console.error('Error creando partido:', error);
       }
     };
     
@@ -348,7 +348,7 @@ export default function MatchFieldScreen({
         action_history: serializedHistory,
         pending_stats: serializedStats,
       });
-      console.log('💾 Estado del partido guardado:', {
+      console.log('Estado del partido guardado:', {
         matchId: state.matchId,
         positions: state.positions.filter(p => p.playerId).length,
         currentSet: state.currentSet,
@@ -356,7 +356,7 @@ export default function MatchFieldScreen({
         pendingStats: state.pendingStats.length,
       });
     } catch (error) {
-      console.error('❌ Error guardando estado:', error);
+      console.error('Error guardando estado:', error);
     }
   }, []); // No dependencies - uses ref
 
@@ -365,7 +365,7 @@ export default function MatchFieldScreen({
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       // Don't save while restoring
       if (stateRef.current.isRestoringState) {
-        console.log('⏸️ AppState save skipped: still restoring state');
+        console.log('AppState save skipped: still restoring state');
         return;
       }
       if (nextAppState === 'background' || nextAppState === 'inactive') {
@@ -390,7 +390,7 @@ export default function MatchFieldScreen({
     
     // Don't save while we're still restoring state (prevents overwriting good state)
     if (isRestoringState) {
-      console.log('⏸️ Auto-save skipped: still restoring state');
+      console.log('Auto-save skipped: still restoring state');
       return;
     }
     
@@ -458,7 +458,7 @@ export default function MatchFieldScreen({
   const loadStatSettings = async () => {
     setLoadingStats(true);
     try {
-      console.log('🔍 Loading stats for userId:', userId);
+      console.log('Loading stats for userId:', userId);
       const positionTypes = ['Opuesto', 'Central', 'Receptor', 'Colocador', 'Líbero'];
       const statsMap: Record<string, StatSetting[]> = {};
       
@@ -467,18 +467,18 @@ export default function MatchFieldScreen({
         
         // If no settings exist, initialize them
         if (positionSettings.length === 0) {
-          console.log(`⚠️ ${position}: No settings found, initializing...`);
+          console.log(`${position}: No settings found, initializing...`);
           positionSettings = await settingsService.initPosition(position, userId || undefined);
-          console.log(`✨ ${position}: ${positionSettings.length} settings initialized`);
+          console.log(`${position}: ${positionSettings.length} settings initialized`);
         }
         
-        console.log(`📊 ${position}: ${positionSettings.length} settings loaded`);
+        console.log(`${position}: ${positionSettings.length} settings loaded`);
         const enabledSettings = positionSettings.filter(s => s.enabled);
-        console.log(`✅ ${position}: ${enabledSettings.length} enabled settings`);
+        console.log(`${position}: ${enabledSettings.length} enabled settings`);
         statsMap[position] = enabledSettings;
       }
       
-      console.log('📦 Final statsMap:', Object.keys(statsMap).map(k => `${k}: ${statsMap[k].length}`));
+      console.log('Final statsMap:', Object.keys(statsMap).map(k => `${k}: ${statsMap[k].length}`));
       setStatsByPosition(statsMap);
     } catch (error) {
       console.error('Error loading stat settings:', error);
@@ -489,7 +489,7 @@ export default function MatchFieldScreen({
 
   const getStatsForPosition = (positionLabel: string): StatCategory[] => {
     const settings = statsByPosition[positionLabel] || [];
-    console.log(`🎯 getStatsForPosition(${positionLabel}): ${settings.length} settings available`);
+    console.log(`getStatsForPosition(${positionLabel}): ${settings.length} settings available`);
     const categoryMap = new Map<string, StatSetting[]>();
     
     // Función helper para normalizar stat_type para comparación
@@ -739,13 +739,13 @@ export default function MatchFieldScreen({
       }));
       
       const result = await statsService.saveMatchStatsBatch(statsToSave);
-      console.log(`✅ ${result.inserted} estadísticas guardadas en BD`);
+      console.log(`${result.inserted} estadisticas guardadas en BD`);
       
       // Limpiar stats pendientes del set actual
       setPendingStats([]);
       return true;
     } catch (error) {
-      console.error('❌ Error guardando estadísticas:', error);
+      console.error('Error guardando estadisticas:', error);
       return false;
     } finally {
       setSavingStats(false);
@@ -756,7 +756,7 @@ export default function MatchFieldScreen({
     // Guardar estadísticas antes de finalizar el set
     const saved = await savePendingStats();
     if (!saved) {
-      console.warn('⚠️ No se pudieron guardar las estadísticas');
+      console.warn('No se pudieron guardar las estadisticas');
     }
     
     const finishedSetNumber = currentSet;
@@ -770,7 +770,7 @@ export default function MatchFieldScreen({
       timestamp: Date.now(),
     }]);
     
-    console.log(`🏐 Set ${finishedSetNumber} finalizado`);
+    console.log(`Set ${finishedSetNumber} finalizado`);
     setShowEndSetAlert(false);
     
     // Guardar el número del set completado y mostrar estadísticas del set recién finalizado
@@ -813,7 +813,7 @@ export default function MatchFieldScreen({
           }
         }
       } catch (error) {
-        console.error('❌ Error reconstruyendo estadísticas:', error);
+        console.error('Error reconstruyendo estadisticas:', error);
       }
     }
     
@@ -831,17 +831,17 @@ export default function MatchFieldScreen({
           scoreAwayNum
         );
         setFinishedMatch(updatedMatch);
-        console.log('🏆 Partido finalizado y guardado', { scoreHome: scoreHomeNum, scoreAway: scoreAwayNum });
+        console.log('Partido finalizado y guardado', { scoreHome: scoreHomeNum, scoreAway: scoreAwayNum });
         
         // Delete saved match state since match is finished
         try {
           await matchesService.deleteMatchState(matchId);
-          console.log('🗑️ Estado del partido eliminado');
+          console.log('Estado del partido eliminado');
         } catch (stateError) {
           console.log('No state to delete or error:', stateError);
         }
       } catch (error) {
-        console.error('❌ Error finalizando partido:', error);
+        console.error('Error finalizando partido:', error);
       }
     }
     
@@ -865,7 +865,7 @@ export default function MatchFieldScreen({
     if (actionHistory.length > 0) {
       const lastAction = actionHistory[actionHistory.length - 1];
       
-      console.log('↩️ Deshaciendo última acción:', lastAction.type);
+      console.log('Deshaciendo ultima accion:', lastAction.type);
       
       // Revertir según el tipo de acción
       if (lastAction.type === 'start_set') {
@@ -895,7 +895,7 @@ export default function MatchFieldScreen({
           setLastPressedButton(null);
         }
         
-        console.log(`❌ Estadística eliminada: ${statToRemove.playerName} - ${statToRemove.statCategory}: ${statToRemove.statType}`);
+        console.log(`Estadistica eliminada: ${statToRemove.playerName} - ${statToRemove.statCategory}: ${statToRemove.statType}`);
       }
       
       // Eliminar la acción del historial
