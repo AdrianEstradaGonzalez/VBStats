@@ -83,6 +83,7 @@ export default function StatsScreen({
   const [opponentQuery, setOpponentQuery] = useState('');
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | 'all'>('all');
 
   const isProSubscription = subscriptionType === 'pro';
 
@@ -168,6 +169,7 @@ export default function StatsScreen({
 
   const matchesFiltered = matches
     .filter(match => {
+      if (selectedTeamId !== 'all' && match.team_id !== selectedTeamId) return false;
       const opponent = (match.opponent || '').toLowerCase();
       const query = opponentQuery.trim().toLowerCase();
       if (query && !opponent.includes(query)) return false;
@@ -315,6 +317,52 @@ export default function StatsScreen({
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              <Text style={styles.filterLabel}>Equipo</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.teamFilterRow}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.teamFilterChip,
+                    selectedTeamId === 'all' && styles.teamFilterChipActive,
+                  ]}
+                  onPress={() => setSelectedTeamId('all')}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.teamFilterChipText,
+                      selectedTeamId === 'all' && styles.teamFilterChipTextActive,
+                    ]}
+                  >
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                {teams.map(team => (
+                  <TouchableOpacity
+                    key={team.id}
+                    style={[
+                      styles.teamFilterChip,
+                      selectedTeamId === team.id && styles.teamFilterChipActive,
+                    ]}
+                    onPress={() => setSelectedTeamId(team.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.teamFilterChipText,
+                        selectedTeamId === team.id && styles.teamFilterChipTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {team.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
 
               <Text style={styles.filterLabel}>Buscar por rival</Text>
               <View style={styles.searchRow}>
@@ -675,6 +723,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     gap: Spacing.sm,
+  },
+  teamFilterRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
+  teamFilterChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  teamFilterChipActive: {
+    backgroundColor: Colors.primary + '15',
+    borderColor: Colors.primary,
+  },
+  teamFilterChipText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  teamFilterChipTextActive: {
+    color: Colors.primary,
   },
   searchInput: {
     flex: 1,
