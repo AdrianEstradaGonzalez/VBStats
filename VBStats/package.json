@@ -12,13 +12,15 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "^8.6.0",
+    "buffer": "^6.0.3",
     "react": "19.1.0",
     "react-native": "0.81.4",
+    "react-native-fs": "^2.20.0",
     "react-native-iap": "^14.7.7",
     "react-native-nitro-modules": "^0.31.10",
-    "react-native-fs": "^2.20.0",
     "react-native-svg": "^15.15.1",
-    "react-native-vector-icons": "^10.3.0"
+    "react-native-vector-icons": "^10.3.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

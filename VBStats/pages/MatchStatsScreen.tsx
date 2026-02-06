@@ -27,6 +27,7 @@ import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 import { SubscriptionType } from '../services/subscriptionService';
 import CustomAlert from '../components/CustomAlert';
 import RNFS from 'react-native-fs';
+import { exportMatchToExcel } from '../services/excelExportService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -131,6 +132,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const [shareCode, setShareCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [showExportAlert, setShowExportAlert] = useState(false);
+  const [showExportSuccessAlert, setShowExportSuccessAlert] = useState(false);
+  const [exportedFilePath, setExportedFilePath] = useState('');
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
@@ -604,99 +607,49 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
     }
   };
 
-  // Función para exportar a Excel (CSV)
+  // Función para exportar a Excel (.xlsx profesional)
   const exportToExcel = async () => {
     try {
       const matchInfo = `${match.team_name || 'Mi equipo'}${match.opponent ? ` vs ${match.opponent}` : ''}`;
       const dateStr = formatDate(match.date);
-      
-      let csv = 'INFORME DE ESTADÍSTICAS - VBStats Pro\n\n';
-      csv += `Fecha,${dateStr}\n`;
-      csv += `Partido,${matchInfo}\n`;
-      if (match.score_home !== null && match.score_away !== null) {
-        csv += `Resultado,${match.score_home} - ${match.score_away}\n`;
-      }
-      csv += `Localización,${match.location === 'home' ? 'Local' : 'Visitante'}\n`;
-      csv += `Total Sets,${match.total_sets || 0}\n\n`;
 
-      // Filtros aplicados
-      if (selectedSet !== 'all') {
-        csv += `Filtro Set,${selectedSet}\n`;
-      }
-      if (selectedPlayer !== null) {
-        const player = uniquePlayers.find(p => p.id === selectedPlayer);
-        if (player) csv += `Filtro Jugador,${player.name} (#${player.number})\n`;
-      }
-      csv += '\n';
+      const selectedPlayerObj = selectedPlayer !== null
+        ? uniquePlayers.find(p => p.id === selectedPlayer)
+        : null;
 
-      // Resumen general
-      csv += 'RESUMEN GENERAL\n';
-      csv += `G-P Total,${totalPerformance.gp}\n`;
-      csv += `Total Acciones,${totalPerformance.total}\n`;
-
-      // Rendimiento por categoría
-      csv += 'RENDIMIENTO POR CATEGORÍA\n';
-      csv += 'Categoría,G-P,Total Acciones,Doble Positivo,Positivo,Neutro,Error\n';
-      Object.entries(categoryPerformance).forEach(([category, perf]) => {
-        csv += `${category},${perf.gp},${perf.total},${perf.doblePositivo},${perf.positivo},${perf.neutro},${perf.error}\n`;
-      });
-      csv += '\n';
-
-      // Desglose detallado por categoría
-      csv += 'DESGLOSE POR TIPO DE ESTADÍSTICA\n';
-      csv += 'Categoría,Tipo,Cantidad,Porcentaje\n';
-      orderedCategoryKeys.forEach(category => {
-        const stats = statsByCategory[category] || [];
-        const total = stats.reduce((sum, s) => sum + s.count, 0);
-        stats.forEach(item => {
-          const percentage = total > 0 ? Math.round((item.count / total) * 100) : 0;
-          csv += `${category},${item.statType},${item.count},${percentage}%\n`;
-        });
-      });
-      csv += '\n';
-
-      // Participación de jugadores
-      if (selectedPlayer === null && playerStats.length > 0) {
-        csv += 'PARTICIPACIÓN DE JUGADORES\n';
-        csv += 'Posición,Número,Nombre,Acciones\n';
-        playerStats.forEach((player, index) => {
-          csv += `${index + 1},${player.number},${player.name},${player.total}\n`;
-        });
-        csv += '\n';
-      }
-
-      // Estadísticas detalladas
-      csv += 'ESTADÍSTICAS DETALLADAS\n';
-      csv += 'Set,Jugador,Número,Categoría,Tipo\n';
-      filteredStats.forEach(stat => {
-        csv += `${stat.set_number},${stat.player_name || ''},${stat.player_number || ''},${stat.stat_category},${stat.stat_type}\n`;
+      const result = await exportMatchToExcel({
+        matchInfo,
+        dateStr,
+        scoreHome: match.score_home,
+        scoreAway: match.score_away,
+        location: match.location === 'home' ? 'home' : 'away',
+        totalSets: match.total_sets || 0,
+        totalPerformance,
+        categoryPerformance,
+        statsByCategory,
+        orderedCategoryKeys,
+        playerStats,
+        rawStats: (statsData?.stats || []).map(stat => ({
+          set_number: stat.set_number,
+          player_id: stat.player_id,
+          player_name: stat.player_name || '',
+          player_number: stat.player_number || 0,
+          stat_category: stat.stat_category,
+          stat_type: stat.stat_type,
+        })),
+        selectedSet: selectedSet,
+        selectedPlayerName: selectedPlayerObj ? `${selectedPlayerObj.name} (#${selectedPlayerObj.number})` : undefined,
       });
 
-      csv += '\nGenerado con VBStats Pro - BlueDeBug.com';
-
-      const hasPermission = await ensureAndroidWritePermission();
-      if (!hasPermission) {
-        Alert.alert('Permiso denegado', 'No se puede guardar el archivo sin permisos de almacenamiento.');
-        return;
+      if (result.success) {
+        setExportedFilePath(result.filePath);
+        setShowExportSuccessAlert(true);
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo exportar el archivo');
       }
-
-      const safeTeamName = sanitizeFileName(match.team_name || 'Partido');
-      const safeDate = sanitizeFileName(dateStr || getDateStamp());
-      const fileName = `Estadisticas_${safeTeamName}_${safeDate}.csv`;
-      const directory = Platform.OS === 'android'
-        ? RNFS.DownloadDirectoryPath
-        : RNFS.DocumentDirectoryPath;
-      const filePath = `${directory}/${fileName}`;
-
-      await RNFS.writeFile(filePath, csv, 'utf8');
-
-      if (Platform.OS === 'android') {
-        await RNFS.scanFile(filePath);
-      }
-
-      Alert.alert('Archivo guardado', `Se guardo en: ${filePath}`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
+      Alert.alert('Error', 'Ocurrió un error al exportar');
     }
   };
 
@@ -1303,7 +1256,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
               style: 'primary',
             },
             {
-              text: 'Exportar a Excel (CSV)',
+              text: 'Exportar a Excel (.xlsx)',
               icon: <MaterialCommunityIcons name="microsoft-excel" size={18} color="#fff" />,
               onPress: () => {
                 setShowExportAlert(false);
@@ -1319,6 +1272,23 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
           ]}
         />
       )}
+
+      {/* Alert de éxito */}
+      <CustomAlert
+        visible={showExportSuccessAlert}
+        icon={<MaterialCommunityIcons name="check-circle" size={48} color={Colors.success} />}
+        iconBackgroundColor={Colors.success + '15'}
+        title="¡Archivo exportado!"
+        message={`El informe Excel se ha guardado correctamente en:\n\n📁 ${exportedFilePath.split('/').pop()}\n\n📂 ${Platform.OS === 'android' ? 'Carpeta Descargas' : 'Documentos'}`}
+        type="success"
+        buttons={[
+          {
+            text: 'Aceptar',
+            onPress: () => setShowExportSuccessAlert(false),
+            style: 'primary',
+          },
+        ]}
+      />
     </View>
   );
 }

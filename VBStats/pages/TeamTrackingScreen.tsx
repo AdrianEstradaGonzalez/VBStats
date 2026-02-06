@@ -27,6 +27,7 @@ import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../service
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 import RNFS from 'react-native-fs';
+import { exportTrackingToExcel } from '../services/excelExportService';
 
 
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -131,6 +132,8 @@ export default function TeamTrackingScreen({
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
   const [matchesData, setMatchesData] = useState<{ match: Match; stats: MatchStat[] }[]>([]);
   const [showExportAlert, setShowExportAlert] = useState(false);
+  const [showExportSuccessAlert, setShowExportSuccessAlert] = useState(false);
+  const [exportedFilePath, setExportedFilePath] = useState('');
   const [teamSelectionConfirmed, setTeamSelectionConfirmed] = useState(false);
   const [infoAlertVisible, setInfoAlertVisible] = useState(false);
   const [infoAlertTitle, setInfoAlertTitle] = useState('');
@@ -1462,60 +1465,56 @@ export default function TeamTrackingScreen({
         title: `Seguimiento: ${teamName}`,
       });
     } else {
-      // Para Excel, generamos un CSV y lo guardamos en el dispositivo
-      let csv = 'Informe de Seguimiento - VBStats Pro\n\n';
-      csv += `Equipo,${teamName}\n`;
-      if (playerName) csv += `Jugador,${playerName}\n`;
-      csv += '\n';
-
-      csv += 'RESUMEN GENERAL\n';
-      csv += `Partidos analizados,${aggregatedStats.matchCount}\n`;
-      csv += `Victorias,${aggregatedStats.wins}\n`;
-      csv += `Derrotas,${aggregatedStats.losses}\n`;
-      csv += `G-P Total,${aggregatedStats.totalGP}\n`;
-      csv += `G-P Promedio,${aggregatedStats.avgGP}\n`;
-      csv += `Acciones totales,${aggregatedStats.totalActions}\n\n`;
-
-      csv += 'RENDIMIENTO POR CATEGORÍA\n';
-      csv += 'Categoría,G-P Promedio,Efectividad %\n';
-      Object.entries(aggregatedStats.categoryAverages).forEach(([cat, data]) => {
-        csv += `${cat},${data.avgGP},${data.avgPercentage}\n`;
-      });
-
-      csv += '\nEVOLUCIÓN POR PARTIDO\n';
-      csv += 'Fecha,Rival,Resultado,G-P,Acciones,';
-      STAT_CATEGORIES.forEach(cat => csv += `${cat} G-P,${cat} %,`);
-      csv += '\n';
-
-      matchPerformances.forEach(mp => {
-        csv += `${formatDate(mp.date)},${mp.opponent},${mp.result},${mp.gp},${mp.totalActions},`;
-        STAT_CATEGORIES.forEach(cat => {
-          const catData = mp.categories[cat];
-          csv += `${catData?.gp || 0},${catData?.percentage || 0},`;
+      // Para Excel, generamos un .xlsx profesional
+      try {
+        const resultMap: Record<string, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
+        const result = await exportTrackingToExcel({
+          teamName,
+          playerName,
+          matchCount: aggregatedStats.matchCount,
+          wins: aggregatedStats.wins,
+          losses: aggregatedStats.losses,
+          totalGP: aggregatedStats.totalGP,
+          avgGP: aggregatedStats.avgGP,
+          totalActions: aggregatedStats.totalActions,
+          categoryAverages: aggregatedStats.categoryAverages,
+          matchPerformances: matchPerformances.map(mp => ({
+            date: formatDate(mp.date),
+            opponent: mp.opponent,
+            result: resultMap[mp.result] || mp.result,
+            gp: mp.gp,
+            totalActions: mp.totalActions,
+            scoreHome: mp.scoreHome,
+            scoreAway: mp.scoreAway,
+            categories: mp.categories,
+          })),
+          statCategories: STAT_CATEGORIES,
+          matchRawStats: matchesData.map(({ match, stats }) => ({
+            matchId: match.id,
+            opponent: match.opponent || 'Sin rival',
+            date: formatDate(match.date || ''),
+            stats: stats.map(st => ({
+              set_number: st.set_number,
+              player_id: st.player_id,
+              player_name: st.player_name || '',
+              player_number: st.player_number || 0,
+              stat_category: st.stat_category,
+              stat_type: st.stat_type,
+            })),
+          })),
+          players: uniquePlayers,
         });
-        csv += '\n';
-      });
 
-      const hasPermission = await ensureAndroidWritePermission();
-      if (!hasPermission) {
-        Alert.alert('Permiso denegado', 'No se puede guardar el archivo sin permisos de almacenamiento.');
-        return;
+        if (result.success) {
+          setExportedFilePath(result.filePath);
+          setShowExportSuccessAlert(true);
+        } else {
+          Alert.alert('Error', result.error || 'No se pudo exportar el archivo');
+        }
+      } catch (error) {
+        console.error('Error exporting to Excel:', error);
+        Alert.alert('Error', 'Ocurrió un error al exportar');
       }
-
-      const safeTeamName = sanitizeFileName(teamName);
-      const fileName = `Seguimiento_${safeTeamName}_${getDateStamp()}.csv`;
-      const directory = Platform.OS === 'android'
-        ? RNFS.DownloadDirectoryPath
-        : RNFS.DocumentDirectoryPath;
-      const filePath = `${directory}/${fileName}`;
-
-      await RNFS.writeFile(filePath, csv, 'utf8');
-
-      if (Platform.OS === 'android') {
-        await RNFS.scanFile(filePath);
-      }
-
-      Alert.alert('Archivo guardado', `Se guardo en: ${filePath}`);
     }
   };
 
@@ -1772,7 +1771,7 @@ export default function TeamTrackingScreen({
             style: 'primary',
           },
           {
-            text: 'Exportar a Excel (CSV)',
+            text: 'Exportar a Excel (.xlsx)',
             icon: <MaterialCommunityIcons name="microsoft-excel" size={18} color="#fff" />,
             onPress: () => {
               setShowExportAlert(false);
@@ -1784,6 +1783,23 @@ export default function TeamTrackingScreen({
             text: 'Cancelar',
             onPress: () => setShowExportAlert(false),
             style: 'cancel',
+          },
+        ]}
+      />
+
+      {/* Alert de éxito */}
+      <CustomAlert
+        visible={showExportSuccessAlert}
+        icon={<MaterialCommunityIcons name="check-circle" size={48} color={Colors.success} />}
+        iconBackgroundColor={Colors.success + '15'}
+        title="¡Archivo exportado!"
+        message={`El informe Excel se ha guardado correctamente en:\n\n📁 ${exportedFilePath.split('/').pop()}\n\n📂 ${Platform.OS === 'android' ? 'Carpeta Descargas' : 'Documentos'}`}
+        type="success"
+        buttons={[
+          {
+            text: 'Aceptar',
+            onPress: () => setShowExportSuccessAlert(false),
+            style: 'primary',
           },
         ]}
       />
