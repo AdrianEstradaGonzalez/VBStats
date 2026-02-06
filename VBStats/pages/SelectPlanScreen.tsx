@@ -71,6 +71,7 @@ export default function SelectPlanScreen({
   const [appleProducts, setAppleProducts] = useState<AppleProduct[]>([]);
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
   const [showProAlert, setShowProAlert] = useState(false);
+  const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
 
   // Si el usuario ya es PRO, mostrar alerta y no permitir continuar al pago
   const isAlreadyPro = currentPlan === 'pro';
@@ -180,6 +181,10 @@ export default function SelectPlanScreen({
       }
 
       if (result.sessionUrl) {
+        // Save session ID for verification
+        if (result.sessionId) {
+          setCheckoutSessionId(result.sessionId);
+        }
         // Open Stripe checkout in browser
         try {
           await Linking.openURL(result.sessionUrl);
@@ -286,13 +291,39 @@ export default function SelectPlanScreen({
 
     setIsVerifying(true);
     try {
+      // First, try to verify using the checkout session ID (most reliable)
+      if (checkoutSessionId) {
+        const verifyResult = await subscriptionService.verifyCheckoutSession(checkoutSessionId, userId);
+        
+        if (verifyResult.success && verifyResult.type && verifyResult.type !== 'free') {
+          // Payment verified successfully via session
+          onPlanSelected(verifyResult.type);
+          return;
+        }
+        
+        // If session verification failed with a specific error, show it
+        if (verifyResult.error) {
+          setErrorMessage(verifyResult.error);
+          setShowErrorAlert(true);
+          return;
+        }
+        
+        // If session not complete yet, show appropriate message
+        if (!verifyResult.success && verifyResult.message) {
+          setErrorMessage(verifyResult.message);
+          setShowErrorAlert(true);
+          return;
+        }
+      }
+      
+      // Fallback: check subscription status directly (for webhook-processed payments)
       const subscription = await subscriptionService.getSubscription(userId);
       
       if (subscription && subscription.type !== 'free') {
         // Payment was successful
         onPlanSelected(subscription.type);
       } else {
-        setErrorMessage('No hemos detectado el pago todavía. Si acabas de pagar, espera unos segundos e inténtalo de nuevo.');
+        setErrorMessage('No hemos detectado el pago todavía. Si acabas de completar el proceso de pago, espera unos segundos e inténtalo de nuevo.');
         setShowErrorAlert(true);
       }
     } catch (error) {
@@ -431,6 +462,39 @@ export default function SelectPlanScreen({
             <Text style={styles.viewDetailsText}>Ver qué incluye cada plan</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Free Trial Banner - Show prominently at the top if eligible */}
+        {trialEligibility?.eligible && !isApple && (
+          <TouchableOpacity
+            style={[
+              styles.freeTrialBanner,
+              selectedPlan === 'pro' && useFreeTrial && styles.freeTrialBannerSelected,
+            ]}
+            onPress={() => {
+              setSelectedPlan('pro');
+              setUseFreeTrial(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.freeTrialBannerIcon}>
+              <MaterialCommunityIcons name="gift" size={28} color="#fff" />
+            </View>
+            <View style={styles.freeTrialBannerContent}>
+              <View style={styles.freeTrialBannerHeader}>
+                <Text style={styles.freeTrialBannerTitle}>
+                  ¡Prueba PRO gratis {TRIAL_DAYS} días!
+                </Text>
+                {selectedPlan === 'pro' && useFreeTrial && (
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#22c55e" />
+                )}
+              </View>
+              <Text style={styles.freeTrialBannerSubtitle}>
+                Accede a todas las funciones sin compromiso. No se cobra hasta que termine la prueba.
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
 
         {/* Plans - filtered based on current plan */}
         <View style={styles.plansContainer}>
@@ -1074,5 +1138,49 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.primary,
     textDecorationLine: 'underline',
+  },
+  // Free Trial Banner styles (prominent at top)
+  freeTrialBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.xl,
+    borderWidth: 2,
+    borderColor: '#22c55e',
+    ...Shadows.md,
+  },
+  freeTrialBannerSelected: {
+    backgroundColor: '#22c55e' + '15',
+    borderColor: '#22c55e',
+  },
+  freeTrialBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#22c55e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  freeTrialBannerContent: {
+    flex: 1,
+  },
+  freeTrialBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  freeTrialBannerTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  freeTrialBannerSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
 });

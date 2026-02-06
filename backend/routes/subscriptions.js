@@ -465,6 +465,122 @@ router.post('/create-checkout', async (req, res) => {
   }
 });
 
+// Verify checkout session and update subscription if completed
+// This is called when the user clicks "I already paid" to handle webhook delays
+router.post('/verify-checkout-session', async (req, res) => {
+  console.log('🔍 Verify checkout session request:', req.body);
+  
+  if (!stripe) {
+    console.error('❌ Stripe not configured');
+    return res.status(503).json({ error: 'Servicio de pago no disponible' });
+  }
+
+  try {
+    const { sessionId, userId } = req.body;
+
+    if (!sessionId || !userId) {
+      return res.status(400).json({ error: 'sessionId y userId son requeridos' });
+    }
+
+    // Retrieve the checkout session from Stripe
+    console.log('📦 Retrieving checkout session:', sessionId);
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['subscription'],
+    });
+
+    console.log('📦 Session status:', session.status, 'Payment status:', session.payment_status);
+
+    // Check if the session is completed
+    if (session.status !== 'complete') {
+      return res.json({ 
+        success: false, 
+        status: session.status,
+        message: 'El pago no se ha completado todavía. Por favor, completa el proceso de pago en la ventana de Stripe.'
+      });
+    }
+
+    // Verify that this session belongs to this user
+    if (session.metadata.userId !== userId.toString()) {
+      console.warn(`⚠️ Session user mismatch: session userId ${session.metadata.userId} vs request userId ${userId}`);
+      return res.status(403).json({ error: 'Esta sesión de pago no corresponde a tu cuenta' });
+    }
+
+    const subscription = session.subscription;
+    const withTrial = session.metadata.withTrial === 'true';
+    const deviceId = session.metadata.deviceId;
+
+    if (!subscription) {
+      return res.status(400).json({ error: 'No se encontró información de suscripción' });
+    }
+
+    // Get subscription details (subscription could be expanded object or just ID)
+    let subscriptionData;
+    if (typeof subscription === 'string') {
+      subscriptionData = await stripe.subscriptions.retrieve(subscription);
+    } else {
+      subscriptionData = subscription;
+    }
+
+    const priceId = subscriptionData.items.data[0].price.id;
+    
+    // Determine subscription type from price ID
+    let subscriptionType = 'free';
+    if (priceId === PRICE_IDS.basic) {
+      subscriptionType = 'basic';
+    } else if (priceId === PRICE_IDS.pro) {
+      subscriptionType = 'pro';
+    }
+
+    console.log(`✅ Session verified for user ${userId}: ${subscriptionType}, trial: ${withTrial}`);
+
+    // If this was a trial checkout, record trial usage
+    if (withTrial && deviceId && subscriptionData.trial_end) {
+      console.log(`🎁 Recording trial usage for user ${userId}, device ${deviceId}`);
+      await recordTrialUsage(userId, deviceId, subscriptionType);
+    }
+
+    // Get the subscription end date (trial_end if on trial, otherwise current_period_end)
+    const endTimestamp = subscriptionData.trial_end || subscriptionData.current_period_end;
+
+    // Update user subscription in database
+    await pool.query(
+      `UPDATE users SET 
+        subscription_type = ?, 
+        subscription_expires_at = FROM_UNIXTIME(?),
+        stripe_subscription_id = ?
+      WHERE id = ?`,
+      [subscriptionType, endTimestamp, subscriptionData.id, userId]
+    );
+
+    console.log(`✅ Subscription activated for user ${userId}: ${subscriptionType}${withTrial ? ' (with trial)' : ''}`);
+
+    // Return updated subscription info
+    res.json({
+      success: true,
+      type: subscriptionType,
+      expiresAt: new Date(endTimestamp * 1000).toISOString(),
+      isTrial: !!subscriptionData.trial_end && subscriptionData.trial_end > Math.floor(Date.now() / 1000),
+      message: withTrial 
+        ? `¡Prueba gratuita de ${TRIAL_DAYS} días activada! Tu suscripción ${subscriptionType.toUpperCase()} está lista.`
+        : `¡Suscripción ${subscriptionType.toUpperCase()} activada!`
+    });
+  } catch (error) {
+    console.error('❌ Error verifying checkout session:', error.message);
+    
+    if (error.code === 'resource_missing') {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Sesión de pago no encontrada. Si acabas de pagar, espera unos segundos e inténtalo de nuevo.'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      error: 'Error al verificar el pago. Inténtalo de nuevo.'
+    });
+  }
+});
+
 // Stripe webhook to handle subscription events
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripe) {

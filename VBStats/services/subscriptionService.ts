@@ -420,7 +420,7 @@ export const subscriptionService = {
     planId: SubscriptionType, 
     deviceId: string,
     withTrial: boolean = false
-  ): Promise<{ sessionUrl?: string; error?: string }> => {
+  ): Promise<{ sessionUrl?: string; sessionId?: string; error?: string }> => {
     try {
       let plan: SubscriptionPlan | undefined;
       for (let i = 0; i < SUBSCRIPTION_PLANS.length; i++) {
@@ -451,10 +451,38 @@ export const subscriptionService = {
       }
 
       const data = await response.json();
-      return { sessionUrl: data.url };
+      return { sessionUrl: data.url, sessionId: data.sessionId };
     } catch (error) {
       console.error('Error creating checkout session with trial:', error);
       return { error: 'Error de conexión' };
+    }
+  },
+
+  // Verify checkout session directly with Stripe (handles webhook delays)
+  verifyCheckoutSession: async (
+    sessionId: string, 
+    userId: number
+  ): Promise<{ success: boolean; type?: SubscriptionType; isTrial?: boolean; message?: string; error?: string }> => {
+    try {
+      const response = await fetch(`${SUBSCRIPTIONS_URL}/verify-checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, userId }),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        return { 
+          success: false, 
+          error: data.error || 'Error al verificar el pago' 
+        };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error verifying checkout session:', error);
+      return { success: false, error: 'Error de conexión' };
     }
   },
 
