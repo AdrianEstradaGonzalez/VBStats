@@ -10,7 +10,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Platform,
   StatusBar,
   Dimensions,
@@ -524,7 +523,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       {/* Modal de información de estadísticas */}
       <Modal
         visible={infoModal !== null}
@@ -643,7 +642,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

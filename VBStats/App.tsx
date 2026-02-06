@@ -26,6 +26,7 @@ import SearchByCodeScreen from "./pages/SearchByCodeScreen";
 import ScoreboardScreen from "./pages/ScoreboardScreen";
 import { Colors } from "./styles";
 import { SideMenu } from "./components";
+import FooterNav from "./components/FooterNav";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
 import { SubscriptionType, subscriptionService, TrialInfo } from "./services/subscriptionService";
@@ -706,7 +707,16 @@ export default function App() {
         )
       ) : (
         <>
-          {renderCurrentScreen()}
+          <View style={{ flex: 1 }}>
+            {renderCurrentScreen()}
+          </View>
+          {!['selectTeam', 'matchDetails', 'matchField', 'matchStatsFromCode', 'selectPlan'].includes(currentScreen) && subscriptionLoaded && (
+            <FooterNav
+              currentScreen={currentScreen}
+              subscriptionType={subscriptionType}
+              onNavigate={handleNavigate}
+            />
+          )}
           {currentScreen !== 'selectPlan' && currentScreen !== 'matchStatsFromCode' && subscriptionLoaded && (
             <SideMenu
               visible={menuVisible}

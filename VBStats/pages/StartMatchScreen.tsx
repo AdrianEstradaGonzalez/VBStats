@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
   StatusBar,
   ActivityIndicator,
@@ -138,7 +137,7 @@ export default function StartMatchScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -394,7 +393,7 @@ export default function StartMatchScreen({
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

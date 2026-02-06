@@ -14,7 +14,6 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  SafeAreaView,
   StatusBar,
   ScrollView,
 } from 'react-native';
@@ -108,7 +107,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -318,7 +317,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

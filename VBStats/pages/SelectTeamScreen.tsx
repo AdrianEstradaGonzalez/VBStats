@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   Platform,
@@ -83,7 +82,7 @@ export default function SelectTeamScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -143,7 +142,7 @@ export default function SelectTeamScreen({
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator,
   Platform,
@@ -423,7 +422,7 @@ export default function SelectPlanScreen({
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       {/* Header */}
@@ -798,7 +797,7 @@ export default function SelectPlanScreen({
           onBack();
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

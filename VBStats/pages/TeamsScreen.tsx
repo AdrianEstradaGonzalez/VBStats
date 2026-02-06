@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  SafeAreaView,
   Alert,
   Platform,
   StatusBar,
@@ -248,7 +247,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -722,7 +721,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
           },
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

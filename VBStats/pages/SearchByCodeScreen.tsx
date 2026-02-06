@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   ActivityIndicator,
   Platform,
@@ -104,7 +103,7 @@ export default function SearchByCodeScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       {/* Header */}
@@ -270,7 +269,7 @@ export default function SearchByCodeScreen({
         ]}
         onClose={() => setShowErrorAlert(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

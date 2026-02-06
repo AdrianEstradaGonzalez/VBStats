@@ -14,7 +14,6 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -75,7 +74,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -216,7 +215,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -10,7 +10,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Platform,
   StatusBar,
@@ -1480,7 +1479,7 @@ export default function TeamTrackingScreen({
 
   if (!teamSelectionConfirmed) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         {renderHeader(false)}
         <ScrollView
           contentContainerStyle={styles.teamSelectionContent}
@@ -1525,24 +1524,24 @@ export default function TeamTrackingScreen({
             </View>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         {renderHeader(true)}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando datos...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderHeader(true)}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -1759,7 +1758,7 @@ export default function TeamTrackingScreen({
           },
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

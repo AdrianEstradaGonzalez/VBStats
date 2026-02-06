@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   ActivityIndicator,
   Platform,
@@ -212,7 +211,7 @@ export default function ProfileScreen({
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -447,7 +446,7 @@ export default function ProfileScreen({
         onClose={() => setShowCancelSuccessAlert(false)}
         icon={<MaterialCommunityIcons name="check-circle" size={48} color="#22c55e" />}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

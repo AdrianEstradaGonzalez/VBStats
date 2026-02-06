@@ -8,7 +8,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Modal,
   FlatList,
   ActivityIndicator,
@@ -1434,7 +1433,7 @@ export default function MatchFieldScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Background accents to match theme (soft pink blobs) */}
       <View style={styles.backgroundAccentTop} pointerEvents="none" />
       {/* Header oscuro compacto */}
@@ -2188,7 +2187,7 @@ export default function MatchFieldScreen({
           </View>
         </Animated.View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

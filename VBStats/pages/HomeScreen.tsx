@@ -8,17 +8,17 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Image,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface HomeScreenProps {
   userName?: string;
@@ -55,6 +55,12 @@ export default function HomeScreen({
       description: 'Revisa el historial de partidos',
       icon: <StatsIcon size={48} color={Colors.primary} />,
     },
+    {
+      id: 'searchByCode',
+      title: 'Buscar por Código',
+      description: 'Consulta estadísticas de un partido',
+      icon: <MaterialCommunityIcons name="qrcode-scan" size={48} color={Colors.primary} />,
+    },
   ];
 
   const handleNavigate = (screen: string) => {
@@ -62,7 +68,7 @@ export default function HomeScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
       
       {/* Header */}
@@ -88,8 +94,13 @@ export default function HomeScreen({
       </View>
 
       {/* Contenido principal */}
-      <View style={styles.content}>
-        <Text style={styles.welcomeText}>¡Hola, {userName}!</Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <Text style={styles.welcomeText}>{"¡Hola, "}{userName}{"!"}</Text>
 
         {/* Opciones principales */}
         <View style={styles.optionsContainer}>
@@ -110,8 +121,8 @@ export default function HomeScreen({
             </TouchableOpacity>
           ))}
         </View>
-      </View>
-    </SafeAreaView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -120,7 +131,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
-    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
   },
   header: {
     flexDirection: 'row',
@@ -151,24 +161,21 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 44,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
   },
   welcomeText: {
     fontSize: FontSizes.xxxl,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  subtitleText: {
-    fontSize: FontSizes.md,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   optionsContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    gap: Spacing.md,
   },
   optionCard: {
     flexDirection: 'row',
@@ -176,7 +183,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.lg,
     ...Shadows.md,
   },
   optionIconContainer: {

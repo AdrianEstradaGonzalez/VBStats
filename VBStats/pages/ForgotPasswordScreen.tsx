@@ -13,7 +13,6 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -92,7 +91,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -207,7 +206,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
           </View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

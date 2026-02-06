@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Switch,
   ActivityIndicator,
   Alert,
@@ -369,7 +368,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -668,7 +667,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
           },
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

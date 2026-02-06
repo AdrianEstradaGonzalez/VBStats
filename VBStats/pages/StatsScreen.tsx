@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   TextInput,
   Platform,
@@ -216,7 +215,7 @@ export default function StatsScreen({
   }
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
             <MenuIcon size={28} color={Colors.text} />
@@ -231,12 +230,12 @@ export default function StatsScreen({
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando partidos...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -541,7 +540,7 @@ export default function StatsScreen({
           },
         ]}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

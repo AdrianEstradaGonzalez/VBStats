@@ -13,7 +13,6 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  SafeAreaView,
   StatusBar,
   ScrollView,
 } from 'react-native';
@@ -172,7 +171,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
   const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -433,7 +432,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

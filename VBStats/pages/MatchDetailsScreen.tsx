@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   Alert,
   Platform,
@@ -85,7 +84,7 @@ export default function MatchDetailsScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
@@ -186,7 +185,7 @@ export default function MatchDetailsScreen({
           <Text style={styles.startButtonText}>Comenzar Partido</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

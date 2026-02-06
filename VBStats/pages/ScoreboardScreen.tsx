@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Platform,
   StatusBar,
   Alert,
@@ -198,7 +197,7 @@ export default function ScoreboardScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
       {/* Header */}
@@ -304,7 +303,7 @@ export default function ScoreboardScreen({
         ]}
         onClose={() => setShowWinnerAlert(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

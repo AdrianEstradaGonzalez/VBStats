@@ -10,7 +10,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Platform,
   StatusBar,
@@ -853,18 +852,18 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Cargando estadísticas...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!statsData || statsData.stats.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
             {onOpenMenu ? (
@@ -885,12 +884,12 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
           <Text style={styles.emptyTitle}>Sin estadísticas</Text>
           <Text style={styles.emptyText}>No hay estadísticas registradas para este partido</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => onOpenMenu ? onOpenMenu() : onBack()}>
@@ -1270,7 +1269,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
           ]}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
