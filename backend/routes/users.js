@@ -85,8 +85,20 @@ async function ensureUserSettings(userId) {
       return;
     }
 
-    const basicSettings = StatTemplates.getBasicSettings();
-    for (const setting of basicSettings) {
+    // Choose initial template based on current subscription type
+    const [userRows] = await conn.query(
+      'SELECT subscription_type FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+    const subscriptionType = userRows.length > 0
+      ? userRows[0].subscription_type
+      : 'free';
+
+    const initialSettings = subscriptionType === 'pro'
+      ? StatTemplates.getAdvancedSettings()
+      : StatTemplates.getBasicSettings();
+
+    for (const setting of initialSettings) {
       await conn.query(
         `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
          VALUES (?, ?, ?, ?, ?)
