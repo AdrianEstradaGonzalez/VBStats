@@ -12,8 +12,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  PermissionsAndroid,
   StatusBar,
   Share,
+  Alert,
   Dimensions,
 } from 'react-native';
 import Svg, { Path, Circle, Line, Text as SvgText, Rect } from 'react-native-svg';
@@ -24,6 +26,7 @@ import { POSITION_STATS } from '../services/statTemplates';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
+import RNFS from 'react-native-fs';
 
 
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -89,6 +92,33 @@ const CATEGORY_COLORS = Object.values(POSITION_STATS).reduce((map, configs) => {
   });
   return map;
 }, {} as Record<string, string>);
+
+const sanitizeFileName = (value: string) => value.replace(/[^a-zA-Z0-9._-]+/g, '_');
+
+const getDateStamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const ensureAndroidWritePermission = async (): Promise<boolean> => {
+  if (Platform.OS !== 'android') return true;
+  if (Platform.Version >= 29) return true;
+
+  const result = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    {
+      title: 'Permiso de almacenamiento',
+      message: 'Necesitamos permiso para guardar el archivo en Descargas.',
+      buttonPositive: 'Permitir',
+      buttonNegative: 'Cancelar',
+    }
+  );
+
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+};
 
 export default function TeamTrackingScreen({ 
   userId, 
@@ -1432,7 +1462,7 @@ export default function TeamTrackingScreen({
         title: `Seguimiento: ${teamName}`,
       });
     } else {
-      // Para Excel, generamos un CSV que se puede abrir en Excel
+      // Para Excel, generamos un CSV y lo guardamos en el dispositivo
       let csv = 'Informe de Seguimiento - VBStats Pro\n\n';
       csv += `Equipo,${teamName}\n`;
       if (playerName) csv += `Jugador,${playerName}\n`;
@@ -1466,10 +1496,26 @@ export default function TeamTrackingScreen({
         csv += '\n';
       });
 
-      await Share.share({
-        message: csv,
-        title: `Seguimiento_${teamName}.csv`,
-      });
+      const hasPermission = await ensureAndroidWritePermission();
+      if (!hasPermission) {
+        Alert.alert('Permiso denegado', 'No se puede guardar el archivo sin permisos de almacenamiento.');
+        return;
+      }
+
+      const safeTeamName = sanitizeFileName(teamName);
+      const fileName = `Seguimiento_${safeTeamName}_${getDateStamp()}.csv`;
+      const directory = Platform.OS === 'android'
+        ? RNFS.DownloadDirectoryPath
+        : RNFS.DocumentDirectoryPath;
+      const filePath = `${directory}/${fileName}`;
+
+      await RNFS.writeFile(filePath, csv, 'utf8');
+
+      if (Platform.OS === 'android') {
+        await RNFS.scanFile([{ path: filePath, mime: 'text/csv' }]);
+      }
+
+      Alert.alert('Archivo guardado', `Se guardo en: ${filePath}`);
     }
   };
 

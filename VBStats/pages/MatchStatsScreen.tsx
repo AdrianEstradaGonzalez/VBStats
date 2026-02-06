@@ -12,9 +12,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  PermissionsAndroid,
   StatusBar,
   Image,
   Share,
+  Alert,
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -24,6 +26,7 @@ import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../service
 import { StatsIcon, MenuIcon } from '../components/VectorIcons';
 import { SubscriptionType } from '../services/subscriptionService';
 import CustomAlert from '../components/CustomAlert';
+import RNFS from 'react-native-fs';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -75,6 +78,33 @@ const STAT_TYPE_ORDER = [
 
 // Orden fijo para categorías
 const CATEGORY_ORDER = ['ataque', 'recepcion', 'saque', 'bloqueo', 'defensa', 'colocacion'];
+
+const sanitizeFileName = (value: string) => value.replace(/[^a-zA-Z0-9._-]+/g, '_');
+
+const getDateStamp = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const ensureAndroidWritePermission = async (): Promise<boolean> => {
+  if (Platform.OS !== 'android') return true;
+  if (Platform.Version >= 29) return true;
+
+  const result = await PermissionsAndroid.request(
+    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    {
+      title: 'Permiso de almacenamiento',
+      message: 'Necesitamos permiso para guardar el archivo en Descargas.',
+      buttonPositive: 'Permitir',
+      buttonNegative: 'Cancelar',
+    }
+  );
+
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+};
 
 const normalizeCategory = (value: string): string => {
   return value
@@ -644,10 +674,27 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
 
       csv += '\nGenerado con VBStats Pro - BlueDeBug.com';
 
-      await Share.share({
-        message: csv,
-        title: `Estadisticas_${match.team_name || 'Partido'}_${dateStr}.csv`,
-      });
+      const hasPermission = await ensureAndroidWritePermission();
+      if (!hasPermission) {
+        Alert.alert('Permiso denegado', 'No se puede guardar el archivo sin permisos de almacenamiento.');
+        return;
+      }
+
+      const safeTeamName = sanitizeFileName(match.team_name || 'Partido');
+      const safeDate = sanitizeFileName(dateStr || getDateStamp());
+      const fileName = `Estadisticas_${safeTeamName}_${safeDate}.csv`;
+      const directory = Platform.OS === 'android'
+        ? RNFS.DownloadDirectoryPath
+        : RNFS.DocumentDirectoryPath;
+      const filePath = `${directory}/${fileName}`;
+
+      await RNFS.writeFile(filePath, csv, 'utf8');
+
+      if (Platform.OS === 'android') {
+        await RNFS.scanFile([{ path: filePath, mime: 'text/csv' }]);
+      }
+
+      Alert.alert('Archivo guardado', `Se guardo en: ${filePath}`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
     }
