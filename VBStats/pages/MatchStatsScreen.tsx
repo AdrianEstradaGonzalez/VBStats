@@ -691,7 +691,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       await RNFS.writeFile(filePath, csv, 'utf8');
 
       if (Platform.OS === 'android') {
-        await RNFS.scanFile([{ path: filePath, mime: 'text/csv' }]);
+        await RNFS.scanFile(filePath);
       }
 
       Alert.alert('Archivo guardado', `Se guardo en: ${filePath}`);
