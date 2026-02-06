@@ -23,7 +23,6 @@ import { subscriptionService, SubscriptionType, TrialInfo, TRIAL_DAYS } from '..
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface ProfileScreenProps {
   onOpenMenu?: () => void;
@@ -487,7 +486,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: Spacing.lg,
-    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT + Spacing.xl : Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
   profileSection: {
     alignItems: 'center',

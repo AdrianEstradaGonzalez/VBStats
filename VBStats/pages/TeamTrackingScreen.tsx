@@ -25,8 +25,8 @@ import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../service
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 
+
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
 const CHART_HEIGHT = 240;
@@ -1767,7 +1767,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
-    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+    paddingBottom: 0,
   },
   header: {
     flexDirection: 'row',
@@ -1814,6 +1814,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   section: {
     marginBottom: Spacing.lg,

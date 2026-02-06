@@ -27,7 +27,6 @@ import CustomAlert from '../components/CustomAlert';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface MatchStatsScreenProps {
   match: Match;
@@ -910,7 +909,11 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Info del partido */}
         <View style={styles.matchBanner}>
           <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
@@ -1278,7 +1281,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
-    paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+    paddingBottom: 0,
   },
   header: {
     flexDirection: 'row',
@@ -1387,6 +1390,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
+    paddingBottom: Spacing.xl,
   },
   filterSection: {
     paddingHorizontal: Spacing.lg,

@@ -20,6 +20,7 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, Team } from '../services/types';
 import CustomAlert from '../components/CustomAlert';
+
 import MatchStatsScreen from './MatchStatsScreen';
 import TeamTrackingScreen from './TeamTrackingScreen';
 import { SubscriptionType } from '../services/subscriptionService';
