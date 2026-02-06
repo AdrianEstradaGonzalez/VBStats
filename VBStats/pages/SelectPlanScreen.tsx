@@ -720,8 +720,8 @@ export default function SelectPlanScreen({
           
           if (useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro') {
             return isApple
-              ? `Se te pedirá confirmar la compra con tu Apple ID para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
-              : `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\n⚠️ IMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+              ? `Se te pedirá confirmar la compra con tu Apple ID para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
+              : `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
           }
           
           return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
@@ -750,7 +750,7 @@ export default function SelectPlanScreen({
       <CustomAlert
         visible={showTrialInfo}
         title={`Prueba gratuita de ${TRIAL_DAYS} días`}
-        message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\n⚠️ IMPORTANTE: ${isApple ? 'Se requiere Apple ID con un método de pago válido' : 'Se requiere método de pago'} para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\nIMPORTANTE: ${isApple ? 'Se requiere Apple ID con un método de pago válido' : 'Se requiere método de pago'} para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
             text: 'Entendido',

@@ -470,7 +470,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         reportText += `Partido: ${matchInfo}${scoreStr}\n\n`;
 
         // Summary performance
-        reportText += `📊 Resumen: G-P ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
+        reportText += `Resumen: G-P ${totalPerformance.gp >= 0 ? '+' : ''}${totalPerformance.gp} (${totalPerformance.total} acciones)\n\n`;
 
         // Simple category breakdown (just totals)
         reportText += `◆ POR CATEGORÍA\n`;
@@ -482,7 +482,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         });
 
         reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
-        reportText += `📱 CÓDIGO DEL PARTIDO: ${code}\n`;
+        reportText += `CÓDIGO DEL PARTIDO: ${code}\n`;
         reportText += `\nDescarga VBStats para ver el informe completo\n`;
         reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
         reportText += `Generado con VBStats\n`;
@@ -560,7 +560,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       }
 
       reportText += `\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
-      reportText += `📱 CÓDIGO: ${code}\n`;
+      reportText += `CÓDIGO: ${code}\n`;
       reportText += `Ver informe en la app con cuenta gratuita\n`;
       reportText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
       reportText += `Generado con VBStats\n`;

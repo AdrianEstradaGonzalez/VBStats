@@ -283,7 +283,7 @@ export default function ScoreboardScreen({
       {/* Winner Alert */}
       <CustomAlert
         visible={showWinnerAlert}
-        title="🏆 ¡Partido Finalizado!"
+        title="¡Partido Finalizado!"
         message={`${winner === 'home' ? homeTeam.name : awayTeam.name} gana el partido ${homeTeam.setsWon} - ${awayTeam.setsWon}`}
         type="success"
         icon={<MaterialCommunityIcons name="trophy" size={48} color="#f59e0b" />}

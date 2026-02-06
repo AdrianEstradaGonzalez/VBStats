@@ -452,10 +452,10 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={styles.addPlayerModalContent}>
-            {/* Header compacto */}
+            {/* Header estilo CustomAlert */}
             <View style={styles.addPlayerModalHeader}>
               <View style={styles.addPlayerIconWrapper}>
-                <VolleyballIcon size={24} color={Colors.primary} />
+                <VolleyballIcon size={22} color="#fff" />
               </View>
               <Text style={styles.addPlayerModalTitle}>Añadir Jugador</Text>
               <TouchableOpacity 
@@ -465,90 +465,92 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   setNewPlayer({ name: '', number: '', position: 'Receptor' });
                 }}
               >
-                <CloseIcon size={24} color={Colors.textSecondary} />
+                <CloseIcon size={22} color="#fff" />
               </TouchableOpacity>
             </View>
 
-            {/* Formulario */}
-            <ScrollView 
-              style={styles.addPlayerFormScroll}
-              contentContainerStyle={styles.addPlayerFormContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.addPlayerLabel}>Nombre del jugador *</Text>
-              <TextInput
-                style={styles.addPlayerInput}
-                placeholder="Ej: Juan García"
-                placeholderTextColor={Colors.textTertiary}
-                value={newPlayer.name}
-                onChangeText={(text) => setNewPlayer(prev => ({ ...prev, name: text }))}
-                autoCapitalize="words"
-                autoFocus
-              />
+            {/* Content Area */}
+            <View style={styles.addPlayerModalContentArea}>
+              <ScrollView 
+                style={styles.addPlayerFormScroll}
+                contentContainerStyle={styles.addPlayerFormContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.addPlayerLabel}>Nombre del jugador *</Text>
+                <TextInput
+                  style={styles.addPlayerInput}
+                  placeholder="Ej: Juan García"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={newPlayer.name}
+                  onChangeText={(text) => setNewPlayer(prev => ({ ...prev, name: text }))}
+                  autoCapitalize="words"
+                  autoFocus
+                />
 
-              <Text style={styles.addPlayerLabel}>Número de dorsal</Text>
-              <TextInput
-                style={styles.addPlayerInput}
-                placeholder="Ej: 7"
-                placeholderTextColor={Colors.textTertiary}
-                value={newPlayer.number}
-                onChangeText={(text) => {
-                  const numericValue = text.replace(/[^0-9]/g, '');
-                  setNewPlayer(prev => ({ ...prev, number: numericValue }));
-                }}
-                keyboardType="numeric"
-                maxLength={2}
-              />
+                <Text style={styles.addPlayerLabel}>Número de dorsal</Text>
+                <TextInput
+                  style={styles.addPlayerInput}
+                  placeholder="Ej: 7"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={newPlayer.number}
+                  onChangeText={(text) => {
+                    const numericValue = text.replace(/[^0-9]/g, '');
+                    setNewPlayer(prev => ({ ...prev, number: numericValue }));
+                  }}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
 
-              <Text style={styles.addPlayerLabel}>Posición *</Text>
-              <View style={styles.addPlayerPositionsGrid}>
-                {POSITIONS.map((pos) => (
-                  <TouchableOpacity
-                    key={pos}
-                    style={[
-                      styles.addPlayerPositionChip,
-                      newPlayer.position === pos && styles.addPlayerPositionChipSelected,
-                    ]}
-                    onPress={() => setNewPlayer(prev => ({ ...prev, position: pos }))}
-                  >
-                    <Text style={[
-                      styles.addPlayerPositionText,
-                      newPlayer.position === pos && styles.addPlayerPositionTextSelected,
-                    ]}>
-                      {pos}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.addPlayerLabel}>Posición *</Text>
+                <View style={styles.addPlayerPositionsGrid}>
+                  {POSITIONS.map((pos) => (
+                    <TouchableOpacity
+                      key={pos}
+                      style={[
+                        styles.addPlayerPositionChip,
+                        newPlayer.position === pos && styles.addPlayerPositionChipSelected,
+                      ]}
+                      onPress={() => setNewPlayer(prev => ({ ...prev, position: pos }))}
+                    >
+                      <Text style={[
+                        styles.addPlayerPositionText,
+                        newPlayer.position === pos && styles.addPlayerPositionTextSelected,
+                      ]}>
+                        {pos}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Botones */}
+              <View style={styles.addPlayerButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.addPlayerCancelBtn}
+                  onPress={() => {
+                    setShowPlayerModal(false);
+                    setNewPlayer({ name: '', number: '', position: 'Receptor' });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.addPlayerSubmitBtn,
+                    (!newPlayer.name.trim() || loading) && styles.addPlayerSubmitBtnDisabled,
+                  ]}
+                  onPress={handleAddPlayer}
+                  disabled={!newPlayer.name.trim() || loading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.addPlayerSubmitBtnText}>
+                    {loading ? 'Guardando...' : 'Añadir'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-
-            {/* Botones */}
-            <View style={styles.addPlayerButtonsContainer}>
-              <TouchableOpacity
-                style={styles.addPlayerCancelBtn}
-                onPress={() => {
-                  setShowPlayerModal(false);
-                  setNewPlayer({ name: '', number: '', position: 'Receptor' });
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.addPlayerSubmitBtn,
-                  (!newPlayer.name.trim() || loading) && styles.addPlayerSubmitBtnDisabled,
-                ]}
-                onPress={handleAddPlayer}
-                disabled={!newPlayer.name.trim() || loading}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.addPlayerSubmitBtnText}>
-                  {loading ? 'Guardando...' : 'Añadir'}
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -557,91 +559,114 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
       {/* Modal para editar jugador */}
       <Modal visible={showEditPlayerModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Jugador</Text>
-              <TouchableOpacity onPress={() => { setShowEditPlayerModal(false); setEditingPlayer(null); }}>
-                <CloseIcon size={24} color={Colors.text} />
+          <View style={styles.addPlayerModalContent}>
+            <View style={styles.addPlayerModalHeader}>
+              <View style={styles.addPlayerIconWrapper}>
+                <EditIcon size={18} color="#fff" />
+              </View>
+              <Text style={styles.addPlayerModalTitle}>Editar Jugador</Text>
+              <TouchableOpacity
+                style={styles.addPlayerCloseButton}
+                onPress={() => { setShowEditPlayerModal(false); setEditingPlayer(null); }}
+              >
+                <CloseIcon size={22} color="#fff" />
               </TouchableOpacity>
             </View>
-            
-            {editingPlayer && (
-              <>
-                <Text style={styles.inputLabel}>Nombre</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Nombre del jugador"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={editingPlayer.name}
-                  onChangeText={(text) => {
-                    try {
-                      setEditingPlayer(prev => prev ? { ...prev, name: text } : null);
-                    } catch (error) {
-                      console.error('Error updating edit player name:', error);
-                    }
-                  }}
-                  autoCapitalize="words"
-                />
-                
-                <Text style={styles.inputLabel}>Dorsal</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Número"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={editingPlayer.number?.toString() || ''}
-                  onChangeText={(text) => {
-                    try {
-                      const numericValue = text ? parseInt(text.replace(/[^0-9]/g, ''), 10) : undefined;
-                      setEditingPlayer(prev => prev ? { ...prev, number: numericValue } : null);
-                    } catch (error) {
-                      console.error('Error updating edit player number:', error);
-                    }
-                  }}
-                  keyboardType="numeric"
-                  maxLength={2}
-                />
-                
-                <Text style={styles.inputLabel}>Posición</Text>
-                <View style={styles.positionsGrid}>
-                  {POSITIONS.map((pos) => (
+
+            <View style={styles.addPlayerModalContentArea}>
+              {editingPlayer && (
+                <>
+                  <Text style={styles.addPlayerLabel}>Nombre</Text>
+                  <TextInput
+                    style={styles.addPlayerInput}
+                    placeholder="Nombre del jugador"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={editingPlayer.name}
+                    onChangeText={(text) => {
+                      try {
+                        setEditingPlayer(prev => prev ? { ...prev, name: text } : null);
+                      } catch (error) {
+                        console.error('Error updating edit player name:', error);
+                      }
+                    }}
+                    autoCapitalize="words"
+                  />
+
+                  <Text style={styles.addPlayerLabel}>Dorsal</Text>
+                  <TextInput
+                    style={styles.addPlayerInput}
+                    placeholder="Número"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={editingPlayer.number?.toString() || ''}
+                    onChangeText={(text) => {
+                      try {
+                        const numericValue = text ? parseInt(text.replace(/[^0-9]/g, ''), 10) : undefined;
+                        setEditingPlayer(prev => prev ? { ...prev, number: numericValue } : null);
+                      } catch (error) {
+                        console.error('Error updating edit player number:', error);
+                      }
+                    }}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+
+                  <Text style={styles.addPlayerLabel}>Posición</Text>
+                  <View style={styles.addPlayerPositionsGrid}>
+                    {POSITIONS.map((pos) => (
+                      <TouchableOpacity
+                        key={pos}
+                        style={[
+                          styles.addPlayerPositionChip,
+                          editingPlayer.position === pos && styles.addPlayerPositionChipSelected,
+                        ]}
+                        onPress={() => {
+                          try {
+                            setEditingPlayer(prev => prev ? { ...prev, position: pos } : null);
+                          } catch (error) {
+                            console.error('Error updating edit position:', error);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.addPlayerPositionText,
+                          editingPlayer.position === pos && styles.addPlayerPositionTextSelected,
+                        ]}>
+                          {pos}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {/* Botones */}
+                  <View style={styles.addPlayerButtonsContainer}>
                     <TouchableOpacity
-                      key={pos}
-                      style={[
-                        styles.positionOption,
-                        editingPlayer.position === pos && styles.positionOptionSelected,
-                      ]}
+                      style={styles.addPlayerCancelBtn}
                       onPress={() => {
-                        try {
-                          setEditingPlayer(prev => prev ? { ...prev, position: pos } : null);
-                        } catch (error) {
-                          console.error('Error updating edit position:', error);
-                        }
+                        setShowEditPlayerModal(false);
+                        setEditingPlayer(null);
                       }}
+                      activeOpacity={0.7}
                     >
-                      <Text style={[
-                        styles.positionOptionText,
-                        editingPlayer.position === pos && styles.positionOptionTextSelected,
-                      ]}>
-                        {pos}
+                      <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.addPlayerSubmitBtn,
+                        (!editingPlayer.name.trim() || loading) && styles.addPlayerSubmitBtnDisabled,
+                      ]}
+                      onPress={handleUpdatePlayer}
+                      disabled={!editingPlayer.name.trim() || loading}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.addPlayerSubmitBtnText}>
+                        {loading ? 'Guardando...' : 'Guardar'}
                       </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    !editingPlayer.name.trim() && styles.modalButtonDisabled,
-                  ]}
-                  onPress={handleUpdatePlayer}
-                  disabled={!editingPlayer.name.trim() || loading}
-                >
-                  <Text style={styles.modalButtonText}>
-                    {loading ? 'Guardando...' : 'Guardar Cambios'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
+                  </View>
+                </>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -1009,11 +1034,10 @@ const styles = StyleSheet.create({
   // Estilos del modal de añadir jugador - Diseño limpio y funcional
   addPlayerModalContent: {
     width: '100%',
-    maxWidth: 380,
-    backgroundColor: Colors.surface,
+    maxWidth: 400,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
-    maxHeight: '80%',
+    maxHeight: '85%',
     ...Shadows.lg,
   },
   addPlayerModalHeader: {
@@ -1021,15 +1045,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: Colors.primary,
   },
   addPlayerIconWrapper: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.primary + '20',
+    borderWidth: 2,
+    borderColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm,
@@ -1038,33 +1061,38 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.text,
+    color: '#ffffff',
   },
   addPlayerCloseButton: {
     padding: Spacing.xs,
   },
+  addPlayerModalContentArea: {
+    backgroundColor: '#ffffff',
+    padding: Spacing.lg,
+  },
   addPlayerFormScroll: {
-    maxHeight: 320,
+    maxHeight: 360,
   },
   addPlayerFormContent: {
-    padding: Spacing.lg,
+    paddingBottom: Spacing.lg,
   },
   addPlayerLabel: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
+    color: Colors.textSecondary,
     marginBottom: Spacing.sm,
     marginTop: Spacing.sm,
   },
   addPlayerInput: {
-    backgroundColor: Colors.backgroundLight,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     fontSize: FontSizes.md,
-    color: Colors.text,
+    color: '#1a1a1a',
+    fontWeight: '500',
   },
   addPlayerPositionsGrid: {
     flexDirection: 'row',
@@ -1077,8 +1105,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.backgroundLight,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
   },
   addPlayerPositionChipSelected: {
     backgroundColor: Colors.primary,
@@ -1095,11 +1123,8 @@ const styles = StyleSheet.create({
   },
   addPlayerButtonsContainer: {
     flexDirection: 'row',
-    padding: Spacing.lg,
+    paddingTop: Spacing.md,
     gap: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.backgroundLight,
   },
   addPlayerCancelBtn: {
     flex: 1,
@@ -1133,67 +1158,6 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     fontSize: FontSizes.md,
     fontWeight: '700',
-  },
-  // Estilos del modal de editar jugador (se mantienen como estaban)
-  modalContent: {
-    width: '100%',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    ...Shadows.lg,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  inputLabel: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  input: {
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    fontSize: FontSizes.md,
-    color: Colors.text,
-    marginBottom: Spacing.md,
-  },
-  positionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: Spacing.lg,
-  },
-  positionOption: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  positionOptionSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  positionOptionText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-  },
-  positionOptionTextSelected: {
-    color: Colors.textOnPrimary,
-    fontWeight: '600',
   },
   modalButton: {
     backgroundColor: Colors.primary,

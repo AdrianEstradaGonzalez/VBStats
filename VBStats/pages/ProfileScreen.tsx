@@ -271,7 +271,7 @@ export default function ProfileScreen({
                 Te quedan <Text style={styles.trialDaysHighlight}>{activeTrial.daysRemaining} días</Text> de prueba gratis del plan {getSubscriptionName(activeTrial.planType as SubscriptionType)}.
               </Text>
               <Text style={styles.trialWarningText}>
-                ⚠️ Recuerda: Al finalizar la prueba se cobrará automáticamente. Cancela antes si no deseas continuar.
+                Recuerda: Al finalizar la prueba se cobrará automáticamente. Cancela antes si no deseas continuar.
               </Text>
             </View>
           )}

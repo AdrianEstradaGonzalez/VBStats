@@ -1404,23 +1404,23 @@ export default function TeamTrackingScreen({
       if (playerName) report += `Jugador: ${playerName}\n`;
       report += `\n`;
 
-      report += `📊 RESUMEN GENERAL\n`;
+      report += `RESUMEN GENERAL\n`;
       report += `• Partidos analizados: ${aggregatedStats.matchCount}\n`;
       report += `• Victorias/Derrotas: ${aggregatedStats.wins}/${aggregatedStats.losses}\n`;
       report += `• G-P Total: ${aggregatedStats.totalGP >= 0 ? '+' : ''}${aggregatedStats.totalGP}\n`;
       report += `• G-P Promedio: ${aggregatedStats.avgGP >= 0 ? '+' : ''}${aggregatedStats.avgGP}\n`;
       report += `• Acciones totales: ${aggregatedStats.totalActions}\n\n`;
 
-      report += `📈 RENDIMIENTO POR CATEGORÍA\n`;
+      report += `RENDIMIENTO POR CATEGORÍA\n`;
       Object.entries(aggregatedStats.categoryAverages)
         .sort((a, b) => b[1].avgGP - a[1].avgGP)
         .forEach(([cat, data]) => {
           report += `• ${cat}: G-P ${data.avgGP >= 0 ? '+' : ''}${data.avgGP} | ${data.avgPercentage}% efectividad\n`;
         });
 
-      report += `\n📅 EVOLUCIÓN POR PARTIDO\n`;
+      report += `\nEVOLUCIÓN POR PARTIDO\n`;
       matchPerformances.forEach(mp => {
-        const resultIcon = mp.result === 'win' ? '✅' : mp.result === 'loss' ? '❌' : '➖';
+        const resultIcon = mp.result === 'win' ? '[V]' : mp.result === 'loss' ? '[D]' : '[-]';
         report += `${resultIcon} ${formatDate(mp.date)} vs ${mp.opponent}: G-P ${mp.gp >= 0 ? '+' : ''}${mp.gp} (${mp.totalActions} acc.)\n`;
       });
 

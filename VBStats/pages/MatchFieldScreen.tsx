@@ -698,31 +698,9 @@ export default function MatchFieldScreen({
     if (!isSetActive) {
       const newSetNumber = currentSet + 1;
       
-      // Al comenzar un nuevo set (no el primero), asegurar 8 posiciones manteniendo jugadores
-      if (newSetNumber > 1) {
-        // Obtener posiciones con jugador asignado
-        const positionsWithPlayers = positions.filter(p => p.playerId !== null);
-        
-        // Posiciones vacías estándar
-        const standardLabels = ['Receptor', 'Receptor', 'Central', 'Central', 'Opuesto', 'Colocador', 'Líbero', 'Líbero'];
-        
-        // Crear las 8 posiciones, manteniendo los jugadores asignados
-        const newPositions: Position[] = standardLabels.map((label, index) => {
-          const existingPosition = positionsWithPlayers[index];
-          return existingPosition || {
-            id: `pos${Date.now()}_${index}`,
-            label: label,
-            playerId: null,
-            playerName: null,
-            playerNumber: null,
-          };
-        });
-        
-        setPositions(newPositions);
-      } else {
-        // Primer set: quitar posiciones vacías (sin jugador asignado)
-        setPositions(prev => prev.filter(pos => pos.playerId !== null));
-      }
+      // Siempre eliminar posiciones vacías al iniciar cualquier set
+      // Esto ajusta el grid al espacio completo con solo los jugadores asignados
+      setPositions(prev => prev.filter(pos => pos.playerId !== null));
       
       setCurrentSet(newSetNumber);
       setIsSetActive(true);
@@ -1530,8 +1508,8 @@ export default function MatchFieldScreen({
           positions.map((pos, idx) => renderPlayerRow(pos, idx))
         )}
         
-        {/* Botón para añadir posición - solo visible cuando no hay set activo */}
-        {!isSetActive && positions.length < 8 && (
+        {/* Botón para añadir posición - visible siempre que haya menos de 8 jugadores */}
+        {positions.length < 8 && (
           <TouchableOpacity 
             style={styles.addPositionButton}
             onPress={() => setShowAddPositionModal(true)}
@@ -1852,25 +1830,51 @@ export default function MatchFieldScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.addPositionModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Añadir Posición</Text>
-              <TouchableOpacity onPress={() => setShowAddPositionModal(false)}>
-                <XIcon size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
+            {/* Header al estilo CustomAlert */}
+            <View style={styles.customAlertHeader}>
+              <View style={styles.customAlertLogoWrapper}>
+                <Image
+                  source={require('../assets/VBStats_logo_sinfondo.png')}
+                  style={styles.customAlertLogo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.customAlertAppName}>VBStats</Text>
             </View>
             
-            <View style={styles.positionOptionsContainer}>
-              {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
-                <TouchableOpacity
-                  key={pos}
-                  style={styles.positionOption}
-                  onPress={() => handleAddPosition(pos)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.positionOptionText}>{pos}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {/* Content area */}
+            <ScrollView 
+              style={styles.customAlertScrollView}
+              contentContainerStyle={styles.customAlertContentArea}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.customAlertIconContainer}>
+                <PlusIcon size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.customAlertTitle}>Añadir Posición</Text>
+              <Text style={styles.customAlertSubtitle}>Selecciona la posición del jugador</Text>
+              
+              <View style={styles.positionOptionsContainer}>
+                {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
+                  <TouchableOpacity
+                    key={pos}
+                    style={styles.positionOption}
+                    onPress={() => handleAddPosition(pos)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.positionOptionText}>{pos}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <TouchableOpacity
+                style={styles.customAlertCancelButton}
+                onPress={() => setShowAddPositionModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.customAlertCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1888,18 +1892,31 @@ export default function MatchFieldScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.addPositionModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cambiar Posición</Text>
-              <TouchableOpacity onPress={() => {
-                setShowChangePositionModal(false);
-                setSelectedPosition(null);
-                setSelectedPositionLabel('');
-              }}>
-                <XIcon size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
+            {/* Header al estilo CustomAlert */}
+            <View style={styles.customAlertHeader}>
+              <View style={styles.customAlertLogoWrapper}>
+                <Image
+                  source={require('../assets/VBStats_logo_sinfondo.png')}
+                  style={styles.customAlertLogo}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.customAlertAppName}>VBStats</Text>
             </View>
             
-            <View style={styles.positionOptionsContainer}>
+            {/* Content area */}
+            <ScrollView 
+              style={styles.customAlertScrollView}
+              contentContainerStyle={styles.customAlertContentArea}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.customAlertIconContainer}>
+                <MaterialCommunityIcons name="swap-horizontal" size={32} color={Colors.primary} />
+              </View>
+              <Text style={styles.customAlertTitle}>Cambiar Posición</Text>
+              <Text style={styles.customAlertSubtitle}>Selecciona la nueva posición</Text>
+              
+              <View style={styles.positionOptionsContainer}>
               {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
                 <TouchableOpacity
                   key={pos}
@@ -1910,7 +1927,20 @@ export default function MatchFieldScreen({
                   <Text style={styles.positionOptionText}>{pos}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.customAlertCancelButton}
+                onPress={() => {
+                  setShowChangePositionModal(false);
+                  setSelectedPosition(null);
+                  setSelectedPositionLabel('');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.customAlertCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2480,9 +2510,9 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   modalContent: {
-    width: '100%',
+    width: '95%',
     maxWidth: 400,
-    height: '70%',
+    maxHeight: '85%',
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
@@ -2632,12 +2662,94 @@ const styles = StyleSheet.create({
   
   // Modal añadir posición
   addPositionModalContent: {
-    width: '85%',
-    maxWidth: 350,
-    backgroundColor: Colors.surface,
+    width: '95%',
+    maxWidth: 400,
+    maxHeight: '90%',
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
+    ...Shadows.lg,
   },
+  
+  // Estilos CustomAlert para modales
+  customAlertHeader: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  customAlertLogoWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  customAlertLogo: {
+    width: 28,
+    height: 28,
+  },
+  customAlertAppName: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+    letterSpacing: 0.5,
+  },
+  customAlertScrollView: {
+    maxHeight: '100%',
+  },
+  customAlertContentArea: {
+    backgroundColor: '#ffffff',
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  customAlertIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  customAlertTitle: {
+    fontSize: FontSizes.xxl,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  customAlertSubtitle: {
+    fontSize: FontSizes.md,
+    color: '#4a4a4a',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  customAlertCancelButton: {
+    width: '100%',
+    backgroundColor: '#f5f5f5',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginTop: Spacing.md,
+  },
+  customAlertCancelButtonText: {
+    color: '#424242',
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  
   backgroundAccentTop: {
     position: 'absolute',
     top: -80,
@@ -2651,21 +2763,21 @@ const styles = StyleSheet.create({
   },
   
   positionOptionsContainer: {
-    padding: Spacing.lg,
+    width: '100%',
     gap: Spacing.sm,
   },
   positionOption: {
-    padding: Spacing.md,
+    padding: Spacing.md + 2,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.backgroundLight,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
     alignItems: 'center',
   },
   positionOptionText: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.text,
+    color: '#1a1a1a',
   },
   
   // Feedback Overlay Styles
