@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking, BackHandler } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { 
@@ -79,6 +79,9 @@ export default function App() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [showUpdateAlert, setShowUpdateAlert] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<VersionCheckResult | null>(null);
+  const screenHistoryRef = useRef<Screen[]>([]);
+  const isBackNavigationRef = useRef(false);
+  const previousScreenRef = useRef<Screen>('home');
 
   // Check app version on start
   useEffect(() => {
@@ -96,6 +99,72 @@ export default function App() {
   useEffect(() => {
     loadSavedSession();
   }, []);
+
+  // Track navigation history for Android back button
+  useEffect(() => {
+    if (previousScreenRef.current !== currentScreen) {
+      if (!isBackNavigationRef.current) {
+        screenHistoryRef.current.push(previousScreenRef.current);
+      }
+      isBackNavigationRef.current = false;
+      previousScreenRef.current = currentScreen;
+    }
+  }, [currentScreen]);
+
+  // Reset history when auth state changes
+  useEffect(() => {
+    if (!isLoggedIn) {
+      screenHistoryRef.current = [];
+      previousScreenRef.current = currentScreen;
+    }
+  }, [isLoggedIn, currentScreen]);
+
+  // Android hardware back button handling
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const onBackPress = (): boolean => {
+      if (menuVisible) {
+        setMenuVisible(false);
+        return true;
+      }
+
+      if (!isLoggedIn) {
+        if (showResetPassword) {
+          setShowResetPassword(false);
+          setShowForgotPassword(true);
+          return true;
+        }
+        if (showForgotPassword) {
+          setShowForgotPassword(false);
+          return true;
+        }
+        if (showSignUp) {
+          setShowSignUp(false);
+          return true;
+        }
+        if (showSelectPlan) {
+          setShowSelectPlan(false);
+          setShowSignUp(true);
+          return true;
+        }
+        return false;
+      }
+
+      const history = screenHistoryRef.current;
+      if (history.length > 0) {
+        const previous = history.pop() as Screen;
+        isBackNavigationRef.current = true;
+        setCurrentScreen(previous);
+        return true;
+      }
+
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [menuVisible, isLoggedIn, showResetPassword, showForgotPassword, showSignUp, showSelectPlan, currentScreen]);
 
   const loadSavedSession = async () => {
     try {
