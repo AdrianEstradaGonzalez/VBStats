@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { Resend } = require('resend');
-const { pool } = require('../db');
+const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
@@ -266,9 +266,11 @@ router.post('/register', async (req, res) => {
 router.get('/:id/session', async (req, res) => {
   try {
     const userId = req.params.id;
-    const [rows] = await pool.query(
-      'SELECT session_token FROM users WHERE id = ?',
-      [userId]
+    const [rows] = await retryQuery(() => 
+      pool.query(
+        'SELECT session_token FROM users WHERE id = ?',
+        [userId]
+      )
     );
 
     if (rows.length === 0) {

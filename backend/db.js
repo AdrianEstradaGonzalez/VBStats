@@ -6,9 +6,26 @@ dotenv.config();
 // mysql2 supports a connection string passed directly to createPool.
 const connectionUrl = process.env.MYSQL_PUBLIC_URL || process.env.MYSQL_URL;
 
+// Connection pool configuration
+const poolConfig = {
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+  // Prevent idle connection timeout issues
+  maxIdle: 10,
+  idleTimeout: 60000, // 60 seconds
+  // Handle connection errors
+  acquireTimeout: 60000, // 60 seconds
+};
+
 let pool;
 if (connectionUrl) {
-  pool = mysql.createPool(connectionUrl);
+  pool = mysql.createPool({
+    uri: connectionUrl,
+    ...poolConfig
+  });
 } else {
   pool = mysql.createPool({
     host: process.env.MYSQL_HOST || '127.0.0.1',
@@ -16,10 +33,14 @@ if (connectionUrl) {
     user: process.env.MYSQL_USER || 'root',
     password: process.env.MYSQL_PASSWORD || '',
     database: process.env.MYSQL_DATABASE || 'vbstats',
-    waitForConnections: true,
-    connectionLimit: 10,
+    ...poolConfig
   });
 }
+
+// Handle pool errors
+pool.on('error', (err) => {
+  console.error('MySQL pool error:', err);
+});
 
 async function init() {
   // create basic tables if they don't exist
@@ -246,4 +267,33 @@ async function init() {
   }
 }
 
-module.exports = { pool, init };
+/**
+ * Retry a database query on connection errors
+ * @param {Function} queryFn - Function that performs the query
+ * @param {number} maxRetries - Maximum number of retries
+ * @returns {Promise} Query result
+ */
+async function retryQuery(queryFn, maxRetries = 3) {
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await queryFn();
+    } catch (err) {
+      lastError = err;
+      // Only retry on connection errors
+      if (err.code === 'ECONNRESET' || err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ETIMEDOUT') {
+        console.log(`Database query failed (attempt ${attempt + 1}/${maxRetries}):`, err.code);
+        // Wait before retrying (exponential backoff)
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
+        }
+      }
+      // For other errors or final attempt, throw immediately
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
+module.exports = { pool, init, retryQuery };

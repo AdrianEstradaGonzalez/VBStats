@@ -134,6 +134,8 @@ export default function MatchFieldScreen({
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [statsByPosition, setStatsByPosition] = useState<Record<string, StatSetting[]>>({});
   const [loadingStats, setLoadingStats] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showErrorModal, setShowErrorModal] = useState(false);
   
   // Estados para control de sets y partido
   const [currentSet, setCurrentSet] = useState(0);
@@ -476,10 +478,11 @@ export default function MatchFieldScreen({
     }
   };
 
-  const loadStatSettings = async () => {
+  const loadStatSettings = async (retryCount = 0) => {
+    const maxRetries = 3;
     setLoadingStats(true);
     try {
-      console.log('Loading stats for userId:', userId);
+      console.log('[MatchField] Loading stat settings for userId:', userId, 'attempt:', retryCount + 1);
       const positionTypes = ['Opuesto', 'Central', 'Receptor', 'Colocador', 'Líbero'];
       const statsMap: Record<string, StatSetting[]> = {};
       
@@ -488,21 +491,33 @@ export default function MatchFieldScreen({
         
         // If no settings exist, initialize them
         if (positionSettings.length === 0) {
-          console.log(`${position}: No settings found, initializing...`);
+          console.log(`[MatchField] ${position}: No settings found, initializing...`);
           positionSettings = await settingsService.initPosition(position, userId || undefined);
-          console.log(`${position}: ${positionSettings.length} settings initialized`);
+          console.log(`[MatchField] ${position}: ${positionSettings.length} settings initialized`);
         }
         
-        console.log(`${position}: ${positionSettings.length} settings loaded`);
+        console.log(`[MatchField] ${position}: ${positionSettings.length} settings loaded`);
         const enabledSettings = positionSettings.filter(s => s.enabled);
-        console.log(`${position}: ${enabledSettings.length} enabled settings`);
+        console.log(`[MatchField] ${position}: ${enabledSettings.length} enabled settings`);
         statsMap[position] = enabledSettings;
       }
       
-      console.log('Final statsMap:', Object.keys(statsMap).map(k => `${k}: ${statsMap[k].length}`));
+      console.log('[MatchField] Final statsMap:', Object.keys(statsMap).map(k => `${k}: ${statsMap[k].length}`));
       setStatsByPosition(statsMap);
+      console.log('[MatchField] ✅ Stat settings loaded successfully');
     } catch (error) {
-      console.error('Error loading stat settings:', error);
+      console.error('[MatchField] ❌ Error loading stat settings:', error);
+      
+      // Retry logic for network/connection errors
+      if (retryCount < maxRetries) {
+        console.log(`[MatchField] Retrying... (${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => loadStatSettings(retryCount + 1), 1000 * (retryCount + 1));
+        return;
+      }
+      
+      // Show user-friendly error after all retries fail
+      setErrorMessage('No se pudo cargar la configuración de estadísticas. Por favor, verifica tu conexión a internet.');
+      setShowErrorModal(true);
     } finally {
       setLoadingStats(false);
     }
@@ -1741,56 +1756,75 @@ export default function MatchFieldScreen({
               </TouchableOpacity>
             </View>
 
-            {(() => {
-              if (!selectedPositionLabel) {
-                return (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Cargando...</Text>
-                  </View>
-                );
-              }
-              
-              if (loadingPlayers) {
-                return (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={styles.loadingText}>Cargando jugadores...</Text>
-                  </View>
-                );
-              }
-              
-              const availablePlayers = getAvailablePlayers();
-              
-              if (availablePlayers.length === 0) {
-                return (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>
-                      {players.length === 0 
-                        ? 'No hay jugadores en este equipo. Verifica que el equipo tenga jugadores asignados.'
-                        : 'Todos los jugadores ya están asignados'}
-                    </Text>
-                    {players.length === 0 && (
-                      <TouchableOpacity
-                        style={{ marginTop: Spacing.md, padding: Spacing.sm, backgroundColor: Colors.primary, borderRadius: BorderRadius.md }}
-                        onPress={() => loadPlayers(true)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: FontSizes.sm }}>Reintentar</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              }
-              
-              // Get players for the active tab
-              let playersToShow = activeTab === 'position' 
-                ? getPlayersByPosition(selectedPositionLabel)
-                : getOtherPlayers(selectedPositionLabel);
-              
-              // If position tab is empty but there are available players, show ALL available
-              if (playersToShow.length === 0 && activeTab === 'position' && availablePlayers.length > 0) {
-                playersToShow = availablePlayers;
-              }
+            {/* Content area wrapper with explicit flex */}
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+              {(() => {
+                console.log('[MatchField Modal] Rendering content...');
+                console.log('[MatchField Modal] Total players:', players.length);
+                console.log('[MatchField Modal] Players:', players.map(p => `${p.name} (${p.position})`).join(', '));
+                console.log('[MatchField Modal] selectedPositionLabel:', selectedPositionLabel);
+                console.log('[MatchField Modal] activeTab:', activeTab);
+                console.log('[MatchField Modal] loadingPlayers:', loadingPlayers);
+                
+                if (!selectedPositionLabel) {
+                  console.log('[MatchField Modal] No selectedPositionLabel');
+                  return (
+                    <View style={styles.loadingContainer}>
+                      <Text style={styles.loadingText}>Cargando...</Text>
+                    </View>
+                  );
+                }
+                
+                if (loadingPlayers) {
+                  console.log('[MatchField Modal] Still loading players');
+                  return (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color={Colors.primary} />
+                      <Text style={styles.loadingText}>Cargando jugadores...</Text>
+                    </View>
+                  );
+                }
+                
+                const availablePlayers = getAvailablePlayers();
+                console.log('[MatchField Modal] Available players:', availablePlayers.length);
+                console.log('[MatchField Modal] Available:', availablePlayers.map(p => `${p.name} (${p.position})`).join(', '));
+                
+                if (availablePlayers.length === 0) {
+                  console.log('[MatchField Modal] No available players');
+                  return (
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>
+                        {players.length === 0 
+                          ? 'No hay jugadores en este equipo. Verifica que el equipo tenga jugadores asignados.'
+                          : 'Todos los jugadores ya están asignados'}
+                      </Text>
+                      {players.length === 0 && (
+                        <TouchableOpacity
+                          style={{ marginTop: Spacing.md, padding: Spacing.sm, backgroundColor: Colors.primary, borderRadius: BorderRadius.md }}
+                          onPress={() => loadPlayers(true)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '600', fontSize: FontSizes.sm }}>Reintentar</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                }
+                
+                // Get players for the active tab
+                let playersToShow = activeTab === 'position' 
+                  ? getPlayersByPosition(selectedPositionLabel)
+                  : getOtherPlayers(selectedPositionLabel);
+                
+                console.log('[MatchField Modal] playersToShow (before fallback):', playersToShow.length);
+                
+                // If position tab is empty but there are available players, show ALL available
+                if (playersToShow.length === 0 && activeTab === 'position' && availablePlayers.length > 0) {
+                  console.log('[MatchField Modal] Applying fallback: showing all available players');
+                  playersToShow = availablePlayers;
+                }
+                
+                console.log('[MatchField Modal] Final playersToShow:', playersToShow.length);
               
               return (
                 <View style={styles.playerListWrapper}>
@@ -1828,8 +1862,9 @@ export default function MatchFieldScreen({
                     }
                   />
                 </View>
-              );
-            })()}
+                );
+              })()}
+            </View>
 
             {/* Footer con botones de eliminar y modificar posición */}
             {selectedPosition && (
@@ -2232,6 +2267,20 @@ export default function MatchFieldScreen({
           </View>
         </Animated.View>
       )}
+
+      {/* CustomAlert para errores de carga */}
+      <CustomAlert
+        visible={showErrorModal}
+        title="Error"
+        message={errorMessage}
+        buttons={[
+          {
+            text: 'OK',
+            onPress: () => setShowErrorModal(false),
+            style: 'default'
+          }
+        ]}
+      />
     </View>
   );
 }
@@ -2556,6 +2605,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '95%',
     maxWidth: 400,
+    height: '75%',
     maxHeight: '85%',
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.xl,
@@ -2634,6 +2684,7 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    minHeight: 200,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -2645,6 +2696,7 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
+    minHeight: 200,
     justifyContent: 'center',
     alignItems: 'center',
     padding: Spacing.xl,
@@ -2658,6 +2710,7 @@ const styles = StyleSheet.create({
   },
   playerListWrapper: {
     flex: 1,
+    minHeight: 200,
     backgroundColor: '#FFFFFF',
   },
   playerListContent: {

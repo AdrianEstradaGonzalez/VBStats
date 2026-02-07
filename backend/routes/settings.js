@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../db');
+const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 // Get all settings for a user
@@ -33,9 +33,11 @@ router.get('/position/:position', async (req, res) => {
     
     if (userId) {
       // Buscar configuraciones específicas del usuario
-      const [userSettings] = await pool.query(
-        'SELECT * FROM stat_settings WHERE position = ? AND user_id = ? ORDER BY stat_category, stat_type',
-        [position, userId]
+      const [userSettings] = await retryQuery(() =>
+        pool.query(
+          'SELECT * FROM stat_settings WHERE position = ? AND user_id = ? ORDER BY stat_category, stat_type',
+          [position, userId]
+        )
       );
       
       // Si el usuario tiene configuraciones personalizadas, usarlas
@@ -44,16 +46,20 @@ router.get('/position/:position', async (req, res) => {
       }
       
       // Si no tiene configuraciones personalizadas, devolver las globales
-      const [globalSettings] = await pool.query(
-        'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
-        [position]
+      const [globalSettings] = await retryQuery(() =>
+        pool.query(
+          'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
+          [position]
+        )
       );
       return res.json(globalSettings);
     } else {
       // Sin userId, devolver solo configuraciones globales
-      const [rows] = await pool.query(
-        'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
-        [position]
+      const [rows] = await retryQuery(() =>
+        pool.query(
+          'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
+          [position]
+        )
       );
       res.json(rows);
     }
@@ -181,7 +187,7 @@ router.post('/init/:position', async (req, res) => {
       
       await conn.commit();
       
-      // Return the initialized settings
+      // Return the initialized settings with retry
       let query = 'SELECT * FROM stat_settings WHERE position = ?';
       const params = [position];
       
@@ -194,7 +200,7 @@ router.post('/init/:position', async (req, res) => {
       
       query += ' ORDER BY stat_category, stat_type';
       
-      const [rows] = await pool.query(query, params);
+      const [rows] = await retryQuery(() => pool.query(query, params));
       
       res.json(rows);
     } catch (err) {
