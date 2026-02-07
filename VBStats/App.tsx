@@ -593,27 +593,33 @@ export default function App() {
               setSelectedTeamName(team.name);
               setCurrentScreen('matchDetails');
             }}
-            onContinueMatch={(match: Match) => {
-              // Set up for resume: find team and create match details
+            onContinueMatch={async (match: Match) => {
               console.log('🔄 [startMatch] Continuando partido:', match.id);
-              const team = teams.find(t => t.id === match.team_id);
-              console.log('👥 Equipo encontrado:', team?.name, 'con', team?.players?.length, 'jugadores');
-              if (team) {
-                setResumeMatchId(match.id);
-                const details = {
-                  teamId: match.team_id!,
-                  teamName: match.team_name || team.name,
-                  players: team.players || [],
-                  rivalTeam: match.opponent || '',
-                  date: match.date ? new Date(match.date) : new Date(),
-                  isHome: match.location === 'home',
-                };
-                console.log('📋 Match details:', details);
-                setMatchDetails(details);
-                setCurrentScreen('matchField');
-              } else {
-                console.error('❌ Equipo no encontrado para team_id:', match.team_id);
+              if (!match.team_id) {
+                console.error('❌ team_id no disponible para el partido:', match.id);
+                return;
               }
+
+              let team = teams.find(t => t.id === match.team_id);
+              if (!team && userId) {
+                try {
+                  team = await teamsService.getById(match.team_id, userId);
+                } catch (error) {
+                  console.error('❌ Error cargando equipo para reanudar:', error);
+                }
+              }
+
+              const details = {
+                teamId: match.team_id,
+                teamName: match.team_name || team?.name || 'Equipo',
+                rivalTeam: match.opponent || '',
+                date: match.date ? new Date(match.date) : new Date(),
+                isHome: match.location === 'home',
+              };
+
+              setResumeMatchId(match.id);
+              setMatchDetails(details);
+              setCurrentScreen('matchField');
             }}
           />
         );
@@ -631,27 +637,33 @@ export default function App() {
               setSelectedTeamName(team.name);
               setCurrentScreen('matchDetails');
             }}
-            onContinueMatch={(match: Match) => {
-              // Set up for resume: find team and create match details
+            onContinueMatch={async (match: Match) => {
               console.log('🔄 [startMatchFlow] Continuando partido:', match.id);
-              const team = teams.find(t => t.id === match.team_id);
-              console.log('👥 Equipo encontrado:', team?.name, 'con', team?.players?.length, 'jugadores');
-              if (team) {
-                setResumeMatchId(match.id);
-                const details = {
-                  teamId: match.team_id!,
-                  teamName: match.team_name || team.name,
-                  players: team.players || [],
-                  rivalTeam: match.opponent || '',
-                  date: match.date ? new Date(match.date) : new Date(),
-                  isHome: match.location === 'home',
-                };
-                console.log('📋 Match details:', details);
-                setMatchDetails(details);
-                setCurrentScreen('matchField');
-              } else {
-                console.error('❌ Equipo no encontrado para team_id:', match.team_id);
+              if (!match.team_id) {
+                console.error('❌ team_id no disponible para el partido:', match.id);
+                return;
               }
+
+              let team = teams.find(t => t.id === match.team_id);
+              if (!team && userId) {
+                try {
+                  team = await teamsService.getById(match.team_id, userId);
+                } catch (error) {
+                  console.error('❌ Error cargando equipo para reanudar:', error);
+                }
+              }
+
+              const details = {
+                teamId: match.team_id,
+                teamName: match.team_name || team?.name || 'Equipo',
+                rivalTeam: match.opponent || '',
+                date: match.date ? new Date(match.date) : new Date(),
+                isHome: match.location === 'home',
+              };
+
+              setResumeMatchId(match.id);
+              setMatchDetails(details);
+              setCurrentScreen('matchField');
             }}
           />
         );

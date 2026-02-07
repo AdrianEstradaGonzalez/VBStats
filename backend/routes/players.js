@@ -3,6 +3,11 @@ const router = express.Router();
 const { pool } = require('../db');
 
 router.get('/', async (req, res) => {
+  const { team_id } = req.query;
+  if (team_id) {
+    const [rows] = await pool.query('SELECT * FROM players WHERE team_id = ? ORDER BY id DESC', [team_id]);
+    return res.json(rows);
+  }
   const [rows] = await pool.query('SELECT * FROM players ORDER BY id DESC');
   res.json(rows);
 });

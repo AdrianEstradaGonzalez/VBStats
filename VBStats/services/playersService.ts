@@ -19,8 +19,29 @@ export const playersService = {
   },
 
   getByTeam: async (teamId: number): Promise<Player[]> => {
+    const normalizedTeamId = Number(teamId);
+    if (Number.isNaN(normalizedTeamId)) {
+      console.warn('[playersService.getByTeam] Invalid teamId:', teamId);
+      return [];
+    }
+    try {
+      // Use server-side filtering (preferred)
+      const url = `${API_ENDPOINTS.players}?team_id=${normalizedTeamId}`;
+      console.log('[playersService.getByTeam] Fetching:', url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      const players = await response.json();
+      console.log(`[playersService.getByTeam] Server returned ${players.length} players for team ${normalizedTeamId}`);
+      if (Array.isArray(players)) return players;
+      console.warn('[playersService.getByTeam] Response is not an array, falling back');
+    } catch (serverError) {
+      console.warn('[playersService.getByTeam] Server filter failed, falling back to client filter:', serverError);
+    }
+    // Fallback: fetch all and filter client-side
     const allPlayers = await playersService.getAll();
-    return allPlayers.filter(p => p.team_id === teamId);
+    const filtered = allPlayers.filter(p => Number(p.team_id) === normalizedTeamId);
+    console.log(`[playersService.getByTeam] Client filter: ${filtered.length}/${allPlayers.length} players for team ${normalizedTeamId}`);
+    return filtered;
   },
 
   create: async (data: { name: string; team_id: number; position: string; number?: number }): Promise<Player> => {

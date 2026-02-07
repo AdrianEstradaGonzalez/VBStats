@@ -442,13 +442,35 @@ export default function MatchFieldScreen({
     });
   }, [feedbackOpacity, feedbackScale]);
 
-  const loadPlayers = async () => {
+  const loadPlayers = async (force = false) => {
+    const teamId = matchDetails?.teamId;
+    if (!teamId) {
+      console.warn('[MatchField] loadPlayers skipped: no teamId');
+      return;
+    }
+    if (loadingPlayers && !force) {
+      console.log('[MatchField] loadPlayers skipped: already loading (force=false)');
+      return;
+    }
+    console.log(`[MatchField] loadPlayers called (teamId=${teamId}, force=${force})`);
     setLoadingPlayers(true);
     try {
-      const teamPlayers = await playersService.getByTeam(matchDetails.teamId);
+      const teamPlayers = await playersService.getByTeam(teamId);
+      console.log(`[MatchField] loadPlayers got ${teamPlayers.length} players for team ${teamId}`);
       setPlayers(teamPlayers);
     } catch (error) {
-      console.error('Error loading players:', error);
+      console.error('[MatchField] Error loading players:', error);
+      // Retry once after a short delay
+      if (!force) {
+        console.log('[MatchField] Retrying loadPlayers...');
+        try {
+          const retryPlayers = await playersService.getByTeam(teamId);
+          console.log(`[MatchField] Retry got ${retryPlayers.length} players`);
+          setPlayers(retryPlayers);
+        } catch (retryError) {
+          console.error('[MatchField] Retry also failed:', retryError);
+        }
+      }
     } finally {
       setLoadingPlayers(false);
     }
@@ -485,6 +507,14 @@ export default function MatchFieldScreen({
       setLoadingStats(false);
     }
   };
+
+  useEffect(() => {
+    if (showPlayerModal && matchDetails?.teamId) {
+      // Always refresh players when modal opens
+      console.log('[MatchField] Modal opened, refreshing players for team', matchDetails.teamId);
+      loadPlayers(true);
+    }
+  }, [showPlayerModal]);
 
   const getStatsForPosition = (positionLabel: string): StatCategory[] => {
     const settings = statsByPosition[positionLabel] || [];
@@ -1736,16 +1766,31 @@ export default function MatchFieldScreen({
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>
                       {players.length === 0 
-                        ? 'No hay jugadores en este equipo'
+                        ? 'No hay jugadores en este equipo. Verifica que el equipo tenga jugadores asignados.'
                         : 'Todos los jugadores ya están asignados'}
                     </Text>
+                    {players.length === 0 && (
+                      <TouchableOpacity
+                        style={{ marginTop: Spacing.md, padding: Spacing.sm, backgroundColor: Colors.primary, borderRadius: BorderRadius.md }}
+                        onPress={() => loadPlayers(true)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: FontSizes.sm }}>Reintentar</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               }
               
-              const playersToShow = activeTab === 'position' 
+              // Get players for the active tab
+              let playersToShow = activeTab === 'position' 
                 ? getPlayersByPosition(selectedPositionLabel)
                 : getOtherPlayers(selectedPositionLabel);
+              
+              // If position tab is empty but there are available players, show ALL available
+              if (playersToShow.length === 0 && activeTab === 'position' && availablePlayers.length > 0) {
+                playersToShow = availablePlayers;
+              }
               
               return (
                 <View style={styles.playerListWrapper}>
