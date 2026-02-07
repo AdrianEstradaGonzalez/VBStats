@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
-  Alert,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
@@ -33,11 +33,17 @@ interface TeamScore {
   setsWon: number;
 }
 
+interface SetResult {
+  setNumber: number;
+  home: number;
+  away: number;
+}
+
 const POINTS_TO_WIN = 25;
 const TIEBREAK_POINTS = 15;
 const MIN_DIFFERENCE = 2;
-const SETS_TO_WIN = 3;
-const MAX_SETS = 5;
+const DEFAULT_MODE = 'bestOf5' as const;
+type MatchMode = 'bestOf5' | 'bestOf3';
 
 export default function ScoreboardScreen({ 
   onOpenMenu,
@@ -50,8 +56,20 @@ export default function ScoreboardScreen({
   const [showResetAlert, setShowResetAlert] = React.useState(false);
   const [showWinnerAlert, setShowWinnerAlert] = React.useState(false);
   const [winner, setWinner] = React.useState<'home' | 'away' | null>(null);
+  const [matchMode, setMatchMode] = React.useState<MatchMode>(DEFAULT_MODE);
+  const [setResults, setSetResults] = React.useState<SetResult[]>([]);
+  const [previousState, setPreviousState] = React.useState<{
+    homeTeam: TeamScore;
+    awayTeam: TeamScore;
+    currentSet: number;
+    setResults: SetResult[];
+  } | null>(null);
+  const [showUndoOption, setShowUndoOption] = React.useState(false);
+  const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isTiebreak = currentSet === 5;
+  const setsToWin = matchMode === 'bestOf5' ? 3 : 2;
+  const maxSets = matchMode === 'bestOf5' ? 5 : 3;
+  const isTiebreak = matchMode === 'bestOf5' && currentSet === maxSets;
   const targetPoints = isTiebreak ? TIEBREAK_POINTS : POINTS_TO_WIN;
 
   const checkSetWinner = (home: number, away: number): 'home' | 'away' | null => {
@@ -84,7 +102,7 @@ export default function ScoreboardScreen({
     // Check for set winner
     const setWinner = checkSetWinner(newHome, newAway);
     if (setWinner) {
-      handleSetWin(setWinner);
+      handleSetWin(setWinner, newHome, newAway);
     }
   };
 
@@ -98,7 +116,26 @@ export default function ScoreboardScreen({
     }
   };
 
-  const handleSetWin = (winningTeam: 'home' | 'away') => {
+  const handleSetWin = (
+    winningTeam: 'home' | 'away',
+    finalHomePoints: number,
+    finalAwayPoints: number
+  ) => {
+    // Save state before making changes (for undo functionality)
+    setPreviousState({
+      homeTeam: { ...homeTeam },
+      awayTeam: { ...awayTeam },
+      currentSet,
+      setResults: [...setResults],
+    });
+
+    const finishedSet: SetResult = {
+      setNumber: currentSet,
+      home: finalHomePoints,
+      away: finalAwayPoints,
+    };
+    setSetResults((prev) => [...prev, finishedSet]);
+
     const newHomeSets = winningTeam === 'home' ? homeTeam.setsWon + 1 : homeTeam.setsWon;
     const newAwaySets = winningTeam === 'away' ? awayTeam.setsWon + 1 : awayTeam.setsWon;
 
@@ -114,18 +151,50 @@ export default function ScoreboardScreen({
     }));
 
     // Check for match winner
-    if (newHomeSets === SETS_TO_WIN) {
+    if (newHomeSets === setsToWin) {
       setWinner('home');
       setIsMatchOver(true);
       setShowWinnerAlert(true);
-    } else if (newAwaySets === SETS_TO_WIN) {
+    } else if (newAwaySets === setsToWin) {
       setWinner('away');
       setIsMatchOver(true);
       setShowWinnerAlert(true);
     } else {
       setCurrentSet((prev: number) => prev + 1);
+      // Show undo option for 5 seconds
+      setShowUndoOption(true);
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+      undoTimerRef.current = setTimeout(() => {
+        setShowUndoOption(false);
+        setPreviousState(null);
+      }, 5000);
     }
   };
+
+  const undoSetWin = () => {
+    if (previousState) {
+      setHomeTeam(previousState.homeTeam);
+      setAwayTeam(previousState.awayTeam);
+      setCurrentSet(previousState.currentSet);
+      setSetResults(previousState.setResults);
+      setPreviousState(null);
+      setShowUndoOption(false);
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+    }
+  };
+
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+    };
+  }, []);
 
   const resetMatch = () => {
     setHomeTeam({ name: 'Local', points: 0, setsWon: 0 });
@@ -134,11 +203,38 @@ export default function ScoreboardScreen({
     setIsMatchOver(false);
     setWinner(null);
     setShowResetAlert(false);
+    setSetResults([]);
+    setPreviousState(null);
+    setShowUndoOption(false);
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+    }
+  };
+
+  const renderSetResults = () => {
+    if (setResults.length === 0) return null;
+
+    return (
+      <View style={styles.setResults}
+        >
+        <Text style={styles.setResultsTitle}>Resultado por set</Text>
+        <View style={styles.setResultsList}>
+          {setResults.map((set) => (
+            <View key={set.setNumber} style={styles.setResultItem}>
+              <Text style={styles.setResultLabel}>Set {set.setNumber}</Text>
+              <Text style={styles.setResultScore}>
+                {set.home} - {set.away}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
   };
 
   const renderSetIndicators = (setsWon: number) => {
     const indicators = [];
-    for (let i = 0; i < SETS_TO_WIN; i++) {
+    for (let i = 0; i < setsToWin; i++) {
       indicators.push(
         <View 
           key={i}
@@ -217,45 +313,113 @@ export default function ScoreboardScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Set Info */}
-      <View style={styles.setInfo}>
-        <View style={styles.setInfoBadge}>
-          <Text style={styles.setInfoText}>
-            {isMatchOver ? 'Partido Finalizado' : `Set ${currentSet}`}
+      {/* Match Mode Toggle */}
+      <View style={styles.modeToggleContainer}>
+        <TouchableOpacity
+          style={[
+            styles.modeToggleButton,
+            matchMode === 'bestOf5' && styles.modeToggleButtonActive,
+          ]}
+          onPress={() => {
+            if (matchMode !== 'bestOf5') {
+              setMatchMode('bestOf5');
+              resetMatch();
+            }
+          }}
+        >
+          <Text
+            style={[
+              styles.modeToggleText,
+              matchMode === 'bestOf5' && styles.modeToggleTextActive,
+            ]}
+          >
+            Mejor de 5
           </Text>
-          {isTiebreak && !isMatchOver && (
-            <Text style={styles.tiebreakText}>Tiebreak (a {TIEBREAK_POINTS})</Text>
-          )}
-        </View>
-      </View>
-
-      {/* Score Display */}
-      <View style={styles.scoreContainer}>
-        {renderTeamScore(homeTeam, 'home')}
-        
-        <View style={styles.divider}>
-          <Text style={styles.vsText}>VS</Text>
-        </View>
-
-        {renderTeamScore(awayTeam, 'away')}
-      </View>
-
-      {/* Match Score Summary */}
-      <View style={styles.matchScore}>
-        <Text style={styles.matchScoreText}>
-          Sets: {homeTeam.setsWon} - {awayTeam.setsWon}
-        </Text>
-      </View>
-
-      {/* Instructions */}
-      {!isMatchOver && (
-        <View style={styles.instructions}>
-          <MaterialCommunityIcons name="gesture-tap" size={20} color={Colors.textSecondary} />
-          <Text style={styles.instructionsText}>
-            Toca + para sumar punto, - para restar
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.modeToggleButton,
+            matchMode === 'bestOf3' && styles.modeToggleButtonActive,
+          ]}
+          onPress={() => {
+            if (matchMode !== 'bestOf3') {
+              setMatchMode('bestOf3');
+              resetMatch();
+            }
+          }}
+        >
+          <Text
+            style={[
+              styles.modeToggleText,
+              matchMode === 'bestOf3' && styles.modeToggleTextActive,
+            ]}
+          >
+            Mejor de 3
           </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Undo Banner */}
+      {showUndoOption && (
+        <View style={styles.undoBanner}>
+          <View style={styles.undoContent}>
+            <MaterialCommunityIcons name="check-circle" size={20} color="#22c55e" />
+            <Text style={styles.undoText}>Set finalizado</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.undoButton}
+            onPress={undoSetWin}
+          >
+            <MaterialCommunityIcons name="undo" size={20} color={Colors.primary} />
+            <Text style={styles.undoButtonText}>Deshacer</Text>
+          </TouchableOpacity>
         </View>
       )}
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Set Info */}
+        <View style={styles.setInfo}>
+          <View style={styles.setInfoBadge}>
+            <Text style={styles.setInfoText}>
+              {isMatchOver ? 'Partido Finalizado' : `Set ${currentSet}`}
+            </Text>
+            {isTiebreak && !isMatchOver && (
+              <Text style={styles.tiebreakText}>Tiebreak (a {TIEBREAK_POINTS})</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Score Display */}
+        <View style={styles.scoreContainer}>
+          {renderTeamScore(homeTeam, 'home')}
+          
+          <View style={styles.divider}>
+            <Text style={styles.vsText}>VS</Text>
+          </View>
+
+          {renderTeamScore(awayTeam, 'away')}
+        </View>
+
+        {/* Match Score Summary */}
+        <View style={styles.matchScore}>
+          <Text style={styles.matchScoreText}>
+            Sets: {homeTeam.setsWon} - {awayTeam.setsWon}
+          </Text>
+        </View>
+
+        {/* Set Results */}
+        {renderSetResults()}
+
+        {/* Instructions */}
+        {!isMatchOver && (
+          <View style={styles.instructions}>
+            <MaterialCommunityIcons name="gesture-tap" size={20} color={Colors.textSecondary} />
+            <Text style={styles.instructionsText}>
+              Toca + para sumar punto, - para restar
+            </Text>
+          </View>
+        )}
+      </ScrollView>
 
       {/* Reset Confirmation Alert */}
       <CustomAlert
@@ -283,7 +447,10 @@ export default function ScoreboardScreen({
       <CustomAlert
         visible={showWinnerAlert}
         title="¡Partido Finalizado!"
-        message={`${winner === 'home' ? homeTeam.name : awayTeam.name} gana el partido ${homeTeam.setsWon} - ${awayTeam.setsWon}`}
+        message={`${winner === 'home' ? homeTeam.name : awayTeam.name} gana el partido ${homeTeam.setsWon} - ${awayTeam.setsWon}.
+
+      Resultado por set:
+      ${setResults.map((set) => `Set ${set.setNumber}: ${set.home} - ${set.away}`).join('\n')}`}
         type="success"
         icon={<MaterialCommunityIcons name="trophy" size={48} color="#f59e0b" />}
         buttons={[
@@ -322,6 +489,33 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  modeToggleContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modeToggleButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
+  modeToggleButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  modeToggleText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  modeToggleTextActive: {
+    color: Colors.textOnPrimary,
   },
   menuButton: {
     padding: Spacing.sm,
@@ -362,9 +556,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   scoreContainer: {
-    flex: 1,
     flexDirection: 'row',
     paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.lg,
+    minHeight: 280,
   },
   teamSection: {
     flex: 1,
@@ -453,6 +648,43 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
   },
+  setResults: {
+    marginHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  setResultsTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
+  },
+  setResultsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  setResultItem: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minWidth: 110,
+    alignItems: 'center',
+  },
+  setResultLabel: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  setResultScore: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
   instructions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -463,5 +695,47 @@ const styles = StyleSheet.create({
   instructionsText: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
+  },
+  undoBanner: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...Shadows.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  scrollContent: {
+    paddingBottom: Spacing.xl,
+  },
+  undoContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  undoText: {
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  undoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.primary + '15',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  undoButtonText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    fontWeight: '700',
   },
 });

@@ -7,7 +7,7 @@ export const Colors = {
   // Colores principales
   primary: '#e21d66',
   secondary: '#010000',
-  tertiary: '#51313d',
+  tertiary: '#1c1a22',
   accent: '#f59e0b',
   
   // Variantes del primario
@@ -17,8 +17,8 @@ export const Colors = {
   // Colores de fondo
   background: '#010000',
   backgroundLight: '#1a1a1a',
-  surface: '#51313d',
-  surfaceLight: '#6b4153',
+  surface: '#241f2b',
+  surfaceLight: '#2f2836',
   
   // Colores de texto
   text: '#ffffff',
@@ -33,8 +33,8 @@ export const Colors = {
   info: '#3b82f6',
   
   // Colores de borde y sombras
-  border: '#51313d',
-  borderLight: '#6b4153',
+  border: '#2f2836',
+  borderLight: '#3a3242',
   shadow: 'rgba(226, 29, 102, 0.3)',
 };
 
