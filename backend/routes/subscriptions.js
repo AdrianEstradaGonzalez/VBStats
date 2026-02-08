@@ -160,7 +160,8 @@ router.get('/:userId', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT subscription_type, subscription_expires_at, stripe_customer_id, stripe_subscription_id,
-              trial_used, trial_started_at, trial_ends_at, trial_plan_type
+              trial_used, trial_started_at, trial_ends_at, trial_plan_type,
+              auto_renew, cancelled_at, apple_original_transaction_id
        FROM users WHERE id = ?`,
       [req.params.userId]
     );
@@ -173,12 +174,16 @@ router.get('/:userId', async (req, res) => {
     
     // Check if subscription has expired
     if (user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date()) {
-      // Subscription expired, downgrade to free
-      await pool.query(
-        'UPDATE users SET subscription_type = ? WHERE id = ?',
-        ['free', req.params.userId]
-      );
-      user.subscription_type = 'free';
+      // Only downgrade if auto_renew is off (user cancelled)
+      if (!user.auto_renew) {
+        await pool.query(
+          'UPDATE users SET subscription_type = ? WHERE id = ?',
+          ['free', req.params.userId]
+        );
+        user.subscription_type = 'free';
+      }
+      // If auto_renew is on, the payment gateway should renew it via webhook
+      // We give a grace period handled by the scheduler
     }
 
     // Check if subscription is marked for cancellation in Stripe
@@ -210,9 +215,12 @@ router.get('/:userId', async (req, res) => {
       expiresAt: user.subscription_expires_at,
       stripeCustomerId: user.stripe_customer_id,
       stripeSubscriptionId: user.stripe_subscription_id,
-      cancelAtPeriodEnd: cancelAtPeriodEnd,
+      cancelAtPeriodEnd: cancelAtPeriodEnd || (!user.auto_renew && user.cancelled_at !== null),
+      autoRenew: user.auto_renew === 1 || user.auto_renew === true,
+      cancelledAt: user.cancelled_at,
       trialUsed: user.trial_used === 1,
       activeTrial: activeTrial,
+      hasAppleSubscription: !!user.apple_original_transaction_id,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -547,7 +555,9 @@ router.post('/verify-checkout-session', async (req, res) => {
       `UPDATE users SET 
         subscription_type = ?, 
         subscription_expires_at = FROM_UNIXTIME(?),
-        stripe_subscription_id = ?
+        stripe_subscription_id = ?,
+        auto_renew = TRUE,
+        cancelled_at = NULL
       WHERE id = ?`,
       [subscriptionType, endTimestamp, subscriptionData.id, userId]
     );
@@ -630,7 +640,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           `UPDATE users SET 
             subscription_type = ?, 
             subscription_expires_at = FROM_UNIXTIME(?),
-            stripe_subscription_id = ?
+            stripe_subscription_id = ?,
+            auto_renew = TRUE,
+            cancelled_at = NULL
           WHERE id = ?`,
           [subscriptionType, subscription.current_period_end, subscriptionId, userId]
         );
@@ -660,13 +672,24 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             subscriptionType = 'pro';
           }
 
+          // Update subscription info including auto_renew status from Stripe
+          const autoRenew = !subscription.cancel_at_period_end;
           await pool.query(
             `UPDATE users SET 
               subscription_type = ?, 
-              subscription_expires_at = FROM_UNIXTIME(?)
+              subscription_expires_at = FROM_UNIXTIME(?),
+              auto_renew = ?,
+              cancelled_at = ?
             WHERE id = ?`,
-            [subscriptionType, subscription.current_period_end, userId]
+            [
+              subscriptionType, 
+              subscription.current_period_end, 
+              autoRenew,
+              autoRenew ? null : new Date(),
+              userId
+            ]
           );
+          console.log(`🔄 Subscription updated for user ${userId}: ${subscriptionType}, auto_renew: ${autoRenew}`);
         }
         break;
       }
@@ -675,15 +698,18 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const subscription = event.data.object;
         const customerId = subscription.customer;
 
-        // Downgrade to free
+        // Downgrade to free - keep all user data!
         await pool.query(
           `UPDATE users SET 
             subscription_type = 'free', 
             subscription_expires_at = NULL,
-            stripe_subscription_id = NULL
+            stripe_subscription_id = NULL,
+            auto_renew = FALSE,
+            cancelled_at = COALESCE(cancelled_at, NOW())
           WHERE stripe_customer_id = ?`,
           [customerId]
         );
+        console.log(`⚠️ Subscription deleted for customer ${customerId}, downgraded to free`);
         break;
       }
     }
@@ -724,9 +750,15 @@ router.post('/:userId/cancel', async (req, res) => {
 
     // If user has Apple subscription, they need to cancel via App Store
     if (user.apple_original_transaction_id && !user.stripe_subscription_id) {
+      // Mark as cancelled in our DB even though Apple manages the actual cancellation
+      await pool.query(
+        `UPDATE users SET auto_renew = FALSE, cancelled_at = NOW() WHERE id = ?`,
+        [req.params.userId]
+      );
       return res.status(400).json({ 
-        error: 'Para cancelar tu suscripción de Apple, ve a Ajustes > Apple ID > Suscripciones en tu dispositivo iOS.',
-        code: 'APPLE_SUBSCRIPTION_CANCEL_VIA_APPSTORE'
+        error: 'Para cancelar tu suscripción de Apple, ve a Ajustes > Apple ID > Suscripciones en tu dispositivo iOS. Tu plan se mantendrá activo hasta la fecha de vencimiento.',
+        code: 'APPLE_SUBSCRIPTION_CANCEL_VIA_APPSTORE',
+        expiresAt: user.subscription_expires_at,
       });
     }
 
@@ -761,7 +793,7 @@ router.post('/:userId/cancel', async (req, res) => {
       console.error('❌ No active subscription found');
       // If still no subscription, just update the user to free
       await pool.query(
-        'UPDATE users SET subscription_type = ?, subscription_expires_at = NULL, stripe_subscription_id = NULL WHERE id = ?',
+        'UPDATE users SET subscription_type = ?, subscription_expires_at = NULL, stripe_subscription_id = NULL, auto_renew = FALSE, cancelled_at = NOW() WHERE id = ?',
         ['free', req.params.userId]
       );
       return res.json({ message: 'Subscription cancelled (no active Stripe subscription found)' });
@@ -773,8 +805,26 @@ router.post('/:userId/cancel', async (req, res) => {
       cancel_at_period_end: true,
     });
 
+    // Mark auto_renew as false and record cancellation date in our DB
+    await pool.query(
+      `UPDATE users SET auto_renew = FALSE, cancelled_at = NOW() WHERE id = ?`,
+      [req.params.userId]
+    );
+
     console.log('✅ Subscription marked for cancellation at period end');
-    res.json({ message: 'Subscription will be cancelled at period end' });
+    
+    // Get the expiration date to inform the user
+    const [subInfo] = await pool.query(
+      'SELECT subscription_expires_at FROM users WHERE id = ?',
+      [req.params.userId]
+    );
+    const expiresAt = subInfo.length > 0 ? subInfo[0].subscription_expires_at : null;
+    
+    res.json({ 
+      message: 'Subscription will be cancelled at period end',
+      expiresAt: expiresAt,
+      cancelledAt: new Date().toISOString()
+    });
   } catch (error) {
     console.error('❌ Error cancelling subscription:', error.message);
     res.status(500).json({ error: 'Failed to cancel subscription', details: error.message });
@@ -943,7 +993,9 @@ router.post('/apple/verify', async (req, res) => {
         subscription_expires_at = ?,
         apple_original_transaction_id = ?,
         apple_transaction_id = ?,
-        apple_product_id = ?
+        apple_product_id = ?,
+        auto_renew = TRUE,
+        cancelled_at = NULL
       WHERE id = ?`,
       [
         subscriptionInfo.subscriptionType,
@@ -1030,7 +1082,7 @@ router.post('/apple/webhook', async (req, res) => {
       case 'DID_RENEW':
       case 'DID_RECOVER':
       case 'INTERACTIVE_RENEWAL': {
-        // Subscription is active, update user
+        // Subscription is active/renewed, update user
         const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
         if (latestReceipt) {
           const originalTransactionId = latestReceipt.original_transaction_id;
@@ -1049,25 +1101,26 @@ router.post('/apple/webhook', async (req, res) => {
             await pool.query(
               `UPDATE users SET 
                 subscription_type = ?,
-                subscription_expires_at = FROM_UNIXTIME(? / 1000)
+                subscription_expires_at = FROM_UNIXTIME(? / 1000),
+                auto_renew = TRUE,
+                cancelled_at = NULL
               WHERE id = ?`,
               [subscriptionType, expiresDateMs, userId]
             );
-            console.log(`✅ User ${userId} subscription renewed: ${subscriptionType}`);
+            console.log(`✅ User ${userId} subscription renewed via Apple: ${subscriptionType}`);
           }
         }
         break;
       }
       
-      case 'CANCEL':
-      case 'DID_FAIL_TO_RENEW':
-      case 'EXPIRED': {
-        // Subscription cancelled or expired
-        const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
-        if (latestReceipt) {
-          const originalTransactionId = latestReceipt.original_transaction_id;
+      case 'DID_CHANGE_RENEWAL_STATUS': {
+        // User toggled auto-renewal off/on from App Store settings
+        const renewalInfo = notification.unified_receipt?.pending_renewal_info?.[0];
+        const latestReceiptRenewal = notification.unified_receipt?.latest_receipt_info?.[0];
+        if (renewalInfo && latestReceiptRenewal) {
+          const originalTransactionId = latestReceiptRenewal.original_transaction_id;
+          const willAutoRenew = renewalInfo.auto_renew_status === '1';
           
-          // Find user and downgrade to free
           const [users] = await pool.query(
             'SELECT id FROM users WHERE apple_original_transaction_id = ?',
             [originalTransactionId]
@@ -1076,10 +1129,59 @@ router.post('/apple/webhook', async (req, res) => {
           if (users.length > 0) {
             const userId = users[0].id;
             await pool.query(
-              `UPDATE users SET subscription_type = 'free' WHERE id = ?`,
-              [userId]
+              `UPDATE users SET 
+                auto_renew = ?,
+                cancelled_at = ?
+              WHERE id = ?`,
+              [willAutoRenew, willAutoRenew ? null : new Date(), userId]
             );
-            console.log(`⚠️ User ${userId} subscription expired/cancelled`);
+            console.log(`🔄 User ${userId} Apple auto_renew changed to: ${willAutoRenew}`);
+          }
+        }
+        break;
+      }
+
+      case 'CANCEL':
+      case 'DID_FAIL_TO_RENEW':
+      case 'EXPIRED': {
+        // Subscription cancelled or expired
+        const latestReceipt = notification.unified_receipt?.latest_receipt_info?.[0];
+        if (latestReceipt) {
+          const originalTransactionId = latestReceipt.original_transaction_id;
+          const expiresDateMs = parseInt(latestReceipt.expires_date_ms);
+          const isExpired = expiresDateMs <= Date.now();
+          
+          // Find user
+          const [users] = await pool.query(
+            'SELECT id, subscription_type FROM users WHERE apple_original_transaction_id = ?',
+            [originalTransactionId]
+          );
+          
+          if (users.length > 0) {
+            const userId = users[0].id;
+            
+            if (isExpired) {
+              // Subscription has expired, downgrade to free (keep all data!)
+              await pool.query(
+                `UPDATE users SET 
+                  subscription_type = 'free',
+                  auto_renew = FALSE,
+                  cancelled_at = COALESCE(cancelled_at, NOW())
+                WHERE id = ?`,
+                [userId]
+              );
+              console.log(`⚠️ User ${userId} subscription expired, downgraded to free`);
+            } else {
+              // Subscription not yet expired, mark as cancelled but keep plan until expiry
+              await pool.query(
+                `UPDATE users SET 
+                  auto_renew = FALSE,
+                  cancelled_at = NOW()
+                WHERE id = ?`,
+                [userId]
+              );
+              console.log(`⚠️ User ${userId} subscription cancelled, active until ${new Date(expiresDateMs).toISOString()}`);
+            }
           }
         }
         break;

@@ -61,6 +61,8 @@ export default function App() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType>('free');
   const [subscriptionCancelledPending, setSubscriptionCancelledPending] = useState(false);
+  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState<string | null>(null);
+  const [autoRenew, setAutoRenew] = useState(true);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const [activeTrial, setActiveTrial] = useState<TrialInfo | null>(null);
   const [showSessionAlert, setShowSessionAlert] = useState(false);
@@ -232,12 +234,16 @@ export default function App() {
       const subscription = await subscriptionService.getSubscription(userId);
       setSubscriptionType(subscription.type);
       setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+      setSubscriptionExpiresAt(subscription.expiresAt || null);
+      setAutoRenew(subscription.autoRenew !== false);
       setActiveTrial(subscription.activeTrial || null);
       setSubscriptionLoaded(true);
     } catch (error) {
       console.error('Error loading subscription:', error);
       setSubscriptionType('free');
       setSubscriptionCancelledPending(false);
+      setSubscriptionExpiresAt(null);
+      setAutoRenew(true);
       setActiveTrial(null);
       setSubscriptionLoaded(true);
     }
@@ -292,11 +298,16 @@ export default function App() {
         const subscription = await subscriptionService.getSubscription(user.id);
         setSubscriptionType(subscription.type);
         setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+        setSubscriptionExpiresAt(subscription.expiresAt || null);
+        setAutoRenew(subscription.autoRenew !== false);
+        setActiveTrial(subscription.activeTrial || null);
         setSubscriptionLoaded(true);
       } catch (subError) {
         console.error('Error loading subscription during login:', subError);
         setSubscriptionType('free');
         setSubscriptionCancelledPending(false);
+        setSubscriptionExpiresAt(null);
+        setAutoRenew(true);
         setSubscriptionLoaded(true);
       }
       
@@ -414,6 +425,8 @@ export default function App() {
     setSessionToken(null);
     setSubscriptionType('free');
     setSubscriptionCancelledPending(false);
+    setSubscriptionExpiresAt(null);
+    setAutoRenew(true);
     setSubscriptionLoaded(false);
     setActiveTrial(null);
     setCurrentScreen('home');
@@ -472,7 +485,9 @@ export default function App() {
         setShowCancelSubscriptionAlert(false);
         setShowCancelSuccessAlert(true);
         setSubscriptionCancelledPending(true);
+        setAutoRenew(false);
         // Don't change to free immediately - user keeps access until period ends
+        loadSubscription();
       } else {
         const errorData = await response.json();
         console.error('Cancel error:', errorData);
@@ -695,10 +710,13 @@ export default function App() {
             userName={userName}
             userEmail={userEmail}
             subscriptionType={subscriptionType}
+            subscriptionExpiresAt={subscriptionExpiresAt}
+            cancelAtPeriodEnd={subscriptionCancelledPending}
+            autoRenew={autoRenew}
             activeTrial={activeTrial}
             onSubscriptionCancelled={() => {
               // Don't change to free immediately - user keeps access until expiration
-              // Just show a message, the subscription type stays the same
+              // Just refresh the subscription state to show cancellation info
               loadSubscription();
             }}
           />

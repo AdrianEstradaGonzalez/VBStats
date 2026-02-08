@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { init } = require('./db');
+const { startSubscriptionScheduler } = require('./scripts/subscriptionScheduler');
 
 dotenv.config();
 
@@ -61,7 +62,11 @@ const PORT = process.env.PORT || 4000;
 
 init()
   .then(() => {
-    app.listen(PORT, () => console.log(`VBStats backend listening on port ${PORT}`));
+    app.listen(PORT, () => {
+      console.log(`VBStats backend listening on port ${PORT}`);
+      // Start the subscription expiry checker
+      startSubscriptionScheduler();
+    });
   })
   .catch((err) => {
     console.error('Failed to initialize DB', err);

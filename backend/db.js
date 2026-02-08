@@ -262,6 +262,38 @@ async function init() {
         INDEX idx_player_match (player_id, match_id)
       ) ENGINE=InnoDB;
     `);
+
+    // Add auto_renew and cancelled_at columns to users table
+    const renewalColumns = [
+      { name: 'auto_renew', definition: 'BOOLEAN DEFAULT TRUE AFTER subscription_expires_at' },
+      { name: 'cancelled_at', definition: 'DATETIME NULL AFTER auto_renew' },
+    ];
+    for (const col of renewalColumns) {
+      try {
+        await conn.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.definition};`);
+      } catch (err) {
+        if (err.code !== 'ER_DUP_FIELDNAME') {
+          console.error(`Error adding ${col.name} column to users:`, err);
+        }
+      }
+    }
+
+    // Add indexes for subscription expiry cron job
+    try {
+      await conn.query(`CREATE INDEX idx_subscription_expires ON users(subscription_expires_at);`);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_KEYNAME') {
+        // Index may already exist
+      }
+    }
+    try {
+      await conn.query(`CREATE INDEX idx_auto_renew ON users(auto_renew);`);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_KEYNAME') {
+        // Index may already exist
+      }
+    }
+
   } finally {
     conn.release();
   }

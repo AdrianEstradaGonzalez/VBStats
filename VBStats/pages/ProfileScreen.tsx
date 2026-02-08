@@ -31,6 +31,9 @@ interface ProfileScreenProps {
   userName: string;
   userEmail: string;
   subscriptionType?: SubscriptionType;
+  subscriptionExpiresAt?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  autoRenew?: boolean;
   activeTrial?: TrialInfo | null;
   onUserUpdate?: (name: string, email: string) => void;
   onSubscriptionCancelled?: () => void;
@@ -43,6 +46,9 @@ export default function ProfileScreen({
   userName,
   userEmail,
   subscriptionType = 'free',
+  subscriptionExpiresAt,
+  cancelAtPeriodEnd = false,
+  autoRenew = true,
   activeTrial,
   onUserUpdate,
   onSubscriptionCancelled,
@@ -257,6 +263,47 @@ export default function ProfileScreen({
               </Text>
             </View>
           </View>
+
+          {/* Renewal status info */}
+          {subscriptionType !== 'free' && subscriptionExpiresAt && (
+            <View style={styles.renewalInfoContainer}>
+              {cancelAtPeriodEnd || !autoRenew ? (
+                <>
+                  <View style={styles.renewalInfoHeader}>
+                    <MaterialCommunityIcons name="calendar-clock" size={20} color="#f59e0b" />
+                    <Text style={styles.renewalInfoTitleWarning}>Suscripción cancelada</Text>
+                  </View>
+                  <Text style={styles.renewalInfoText}>
+                    Tu plan {getSubscriptionName(subscriptionType)} estará activo hasta el{' '}
+                    <Text style={styles.renewalDateHighlight}>
+                      {new Date(subscriptionExpiresAt).toLocaleDateString('es-ES', { 
+                        day: 'numeric', month: 'long', year: 'numeric' 
+                      })}
+                    </Text>.
+                    {'\n'}Después cambiarás automáticamente al plan Gratuito.
+                  </Text>
+                  <Text style={styles.renewalSubText}>
+                    Tus datos se conservarán y podrás volver a suscribirte en cualquier momento.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <View style={styles.renewalInfoHeader}>
+                    <MaterialCommunityIcons name="autorenew" size={20} color="#22c55e" />
+                    <Text style={styles.renewalInfoTitleActive}>Renovación automática activa</Text>
+                  </View>
+                  <Text style={styles.renewalInfoText}>
+                    Tu suscripción se renovará automáticamente el{' '}
+                    <Text style={styles.renewalDateHighlight}>
+                      {new Date(subscriptionExpiresAt).toLocaleDateString('es-ES', { 
+                        day: 'numeric', month: 'long', year: 'numeric' 
+                      })}
+                    </Text>.
+                  </Text>
+                </>
+              )}
+            </View>
+          )}
           
           {/* Trial Info */}
           {activeTrial && activeTrial.daysRemaining > 0 && (
@@ -346,7 +393,7 @@ export default function ProfileScreen({
         </View>
 
         {/* Sección de cancelar suscripción - al final */}
-        {subscriptionType !== 'free' && (
+        {subscriptionType !== 'free' && !(cancelAtPeriodEnd || !autoRenew) && (
           <>
             <View style={styles.divider} />
             <View style={styles.dangerZone}>
@@ -355,7 +402,7 @@ export default function ProfileScreen({
                 <Text style={styles.dangerZoneTitle}>Zona de gestión</Text>
               </View>
               <Text style={styles.dangerZoneDescription}>
-                Si cancelas tu suscripción, mantendrás acceso a las funciones premium hasta el final del período de facturación actual.
+                Si cancelas tu suscripción, mantendrás acceso a las funciones premium hasta el final del período de facturación actual. Después pasarás al plan Gratuito, pero todos tus datos se conservarán.
               </Text>
               <TouchableOpacity
                 style={[styles.cancelSubscriptionButton, isCancelling && styles.buttonDisabled]}
@@ -368,7 +415,7 @@ export default function ProfileScreen({
                 ) : (
                   <>
                     <MaterialCommunityIcons name="cancel" size={18} color={Colors.textTertiary} />
-                    <Text style={styles.cancelSubscriptionText}>Cancelar suscripción</Text>
+                    <Text style={styles.cancelSubscriptionText}>Cancelar renovación automática</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -413,7 +460,7 @@ export default function ProfileScreen({
       <CustomAlert
         visible={showCancelConfirm}
         title="¿Cancelar Suscripción?"
-        message="Tu suscripción se cancelará al final del período actual. Perderás acceso a las funciones premium."
+        message={`Tu suscripción no se renovará y mantendrás acceso a las funciones del plan ${getSubscriptionName(subscriptionType)} hasta que finalice el período actual. Después cambiarás automáticamente al plan Gratuito. Tus datos (equipos, jugadores, partidos, estadísticas) se conservarán.`}
         buttons={[
           {
             text: 'No, mantener',
@@ -421,7 +468,7 @@ export default function ProfileScreen({
             style: 'default',
           } as CustomAlertButton,
           {
-            text: 'Sí, cancelar',
+            text: 'Sí, cancelar renovación',
             onPress: handleCancelSubscription,
             style: 'destructive',
           } as CustomAlertButton,
@@ -433,8 +480,8 @@ export default function ProfileScreen({
       {/* Alerta de éxito de cancelación */}
       <CustomAlert
         visible={showCancelSuccessAlert}
-        title="Suscripción Cancelada"
-        message="Tu suscripción no se renovará. Podrás seguir usando las funciones premium hasta el final del período de facturación actual."
+        title="Renovación Cancelada"
+        message="Tu suscripción no se renovará automáticamente. Podrás seguir usando las funciones premium hasta el final del período actual. Después, tu cuenta pasará al plan Gratuito pero conservarás todos tus datos."
         buttons={[
           {
             text: 'Entendido',
@@ -665,6 +712,46 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
     lineHeight: 18,
+    fontStyle: 'italic',
+  },
+  renewalInfoContainer: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  renewalInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  renewalInfoTitleWarning: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#f59e0b',
+  },
+  renewalInfoTitleActive: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  renewalInfoText: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  renewalDateHighlight: {
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  renewalSubText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: Spacing.xs,
     fontStyle: 'italic',
   },
   dangerZone: {

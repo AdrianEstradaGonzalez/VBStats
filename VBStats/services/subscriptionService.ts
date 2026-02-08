@@ -122,8 +122,11 @@ export interface UserSubscription {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   cancelAtPeriodEnd?: boolean;
+  autoRenew?: boolean;
+  cancelledAt?: string | null;
   trialUsed?: boolean;
   activeTrial?: TrialInfo | null;
+  hasAppleSubscription?: boolean;
 }
 
 export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
@@ -341,19 +344,24 @@ export const subscriptionService = {
   },
 
   // Cancel subscription
-  cancelSubscription: async (userId: number): Promise<{ success: boolean; error?: string }> => {
+  cancelSubscription: async (userId: number): Promise<{ success: boolean; expiresAt?: string; cancelledAt?: string; error?: string }> => {
     try {
       const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        return { success: false, error: error.message || 'Error al cancelar la suscripción' };
+        return { success: false, error: data.error || data.message || 'Error al cancelar la suscripción' };
       }
 
-      return { success: true };
+      return { 
+        success: true, 
+        expiresAt: data.expiresAt,
+        cancelledAt: data.cancelledAt,
+      };
     } catch (error) {
       console.error('Error cancelling subscription:', error);
       return { success: false, error: 'Error de conexión' };
