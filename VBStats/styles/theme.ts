@@ -3,6 +3,41 @@
  * Colores y estilos globales de la aplicación
  */
 
+import { Platform, StatusBar, Dimensions, NativeModules } from 'react-native';
+
+const { StatusBarManager } = NativeModules;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+/**
+ * Get the iOS status bar height.
+ * - Devices with Dynamic Island (iPhone 14 Pro+, 15, 16): ~59pt
+ * - Devices with notch (iPhone X-14): ~47-50pt
+ * - Devices without notch (iPad, older iPhones): ~20pt
+ * On Android, StatusBar.currentHeight works correctly.
+ */
+const getStatusBarHeight = (): number => {
+  if (Platform.OS === 'android') {
+    return StatusBar.currentHeight || 24;
+  }
+  // iOS: Estimate based on screen height
+  // iPhone X+ have screen heights >= 812pt
+  if (Platform.OS === 'ios') {
+    // iPads and older iPhones (no notch)
+    if (SCREEN_HEIGHT < 812) {
+      return 20;
+    }
+    // iPhone 14 Pro, 15, 16 (Dynamic Island) have height >= 852
+    if (SCREEN_HEIGHT >= 852) {
+      return 59;
+    }
+    // iPhone X, XS, 11 Pro, 12 mini, 13 mini, etc (notch)
+    return 50;
+  }
+  return 0;
+};
+
+export const SAFE_AREA_TOP = getStatusBarHeight();
+
 export const Colors = {
   // Colores principales
   primary: '#e21d66',

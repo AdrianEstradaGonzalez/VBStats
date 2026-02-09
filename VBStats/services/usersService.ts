@@ -77,14 +77,17 @@ export const usersService = {
     return response.json();
   },
 
-  // Delete user
-  delete: async (id: number): Promise<void> => {
+  // Delete user account (requires password confirmation)
+  delete: async (id: number, password: string): Promise<void> => {
     const response = await fetch(`${USERS_URL}/${id}`, {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
     });
     
     if (!response.ok) {
-      throw new Error('Failed to delete user');
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete user');
     }
   },
 

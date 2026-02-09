@@ -719,6 +719,7 @@ export default function App() {
               // Just refresh the subscription state to show cancellation info
               loadSubscription();
             }}
+            onLogout={handleLogout}
           />
         );
       case 'guide':

@@ -15,7 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon, UserIcon } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
 import { usersService } from '../services/api';
@@ -37,6 +37,7 @@ interface ProfileScreenProps {
   activeTrial?: TrialInfo | null;
   onUserUpdate?: (name: string, email: string) => void;
   onSubscriptionCancelled?: () => void;
+  onLogout?: () => void;
 }
 
 export default function ProfileScreen({
@@ -52,6 +53,7 @@ export default function ProfileScreen({
   activeTrial,
   onUserUpdate,
   onSubscriptionCancelled,
+  onLogout,
 }: ProfileScreenProps) {
   // Estados para el formulario de cambio de contraseña
   const [currentPassword, setCurrentPassword] = useState('');
@@ -78,6 +80,43 @@ export default function ProfileScreen({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
+
+  // Estados para eliminación de cuenta
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeletePasswordPrompt, setShowDeletePasswordPrompt] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletePasswordFocused, setDeletePasswordFocused] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (!userId || !deletePassword.trim()) {
+      setErrorMessage('Ingresa tu contraseña para confirmar la eliminación');
+      setShowErrorAlert(true);
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await usersService.delete(userId, deletePassword);
+      setShowDeletePasswordPrompt(false);
+      setDeletePassword('');
+      // Logout after successful deletion
+      if (onLogout) {
+        onLogout();
+      }
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      if (error.message?.includes('incorrecta') || error.message?.includes('incorrect') || error.message?.includes('Invalid')) {
+        setErrorMessage('La contraseña es incorrecta');
+      } else {
+        setErrorMessage(error.message || 'Error al eliminar la cuenta');
+      }
+      setShowErrorAlert(true);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleCancelSubscription = async () => {
     if (!userId) return;
@@ -392,7 +431,7 @@ export default function ProfileScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Sección de cancelar suscripción - al final */}
+        {/* Sección de cancelar suscripción */}
         {subscriptionType !== 'free' && !(cancelAtPeriodEnd || !autoRenew) && (
           <>
             <View style={styles.divider} />
@@ -422,6 +461,26 @@ export default function ProfileScreen({
             </View>
           </>
         )}
+
+        {/* Sección de eliminar cuenta */}
+        <View style={styles.divider} />
+        <View style={styles.deleteAccountZone}>
+          <View style={styles.dangerZoneHeader}>
+            <MaterialCommunityIcons name="delete-forever" size={20} color="#ef4444" />
+            <Text style={styles.deleteAccountTitle}>Eliminar Cuenta</Text>
+          </View>
+          <Text style={styles.dangerZoneDescription}>
+            Al eliminar tu cuenta se borrarán permanentemente todos tus datos: equipos, jugadores, partidos, estadísticas y configuraciones. Esta acción no se puede deshacer.
+          </Text>
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={() => setShowDeleteConfirm(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="delete-alert" size={18} color="#ef4444" />
+            <Text style={styles.deleteAccountButtonText}>Eliminar mi cuenta</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Alerta de éxito */}
@@ -492,6 +551,95 @@ export default function ProfileScreen({
         onClose={() => setShowCancelSuccessAlert(false)}
         icon={<MaterialCommunityIcons name="check-circle" size={48} color="#22c55e" />}
       />
+
+      {/* Alerta de confirmación de eliminación de cuenta - Paso 1 */}
+      <CustomAlert
+        visible={showDeleteConfirm}
+        title="¿Eliminar tu cuenta?"
+        message="Esta acción es permanente e irreversible. Se eliminarán todos tus datos: equipos, jugadores, partidos, estadísticas, configuraciones y suscripciones. ¿Estás seguro?"
+        buttons={[
+          {
+            text: 'Cancelar',
+            onPress: () => setShowDeleteConfirm(false),
+            style: 'cancel',
+          } as CustomAlertButton,
+          {
+            text: 'Sí, eliminar cuenta',
+            onPress: () => {
+              setShowDeleteConfirm(false);
+              setShowDeletePasswordPrompt(true);
+            },
+            style: 'destructive',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => setShowDeleteConfirm(false)}
+        icon={<MaterialCommunityIcons name="alert-octagon" size={48} color="#ef4444" />}
+      />
+
+      {/* Alerta de contraseña para eliminación - Paso 2 */}
+      <CustomAlert
+        visible={showDeletePasswordPrompt}
+        title="Confirma con tu contraseña"
+        message="Ingresa tu contraseña para confirmar la eliminación de tu cuenta."
+        buttons={[
+          {
+            text: 'Cancelar',
+            onPress: () => {
+              setShowDeletePasswordPrompt(false);
+              setDeletePassword('');
+            },
+            style: 'cancel',
+          } as CustomAlertButton,
+          {
+            text: isDeleting ? 'Eliminando...' : 'Eliminar definitivamente',
+            onPress: handleDeleteAccount,
+            style: 'destructive',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => {
+          setShowDeletePasswordPrompt(false);
+          setDeletePassword('');
+        }}
+        icon={<MaterialCommunityIcons name="lock-alert" size={48} color="#ef4444" />}
+        contentComponent={
+          <View>
+            <Text style={styles.dangerZoneDescription}>Ingresa tu contraseña para confirmar la eliminación de tu cuenta.</Text>
+            <View style={styles.deletePasswordContainer}>
+              <View style={[styles.inputWrapper, deletePasswordFocused && styles.inputWrapperFocused]}>
+                <MaterialCommunityIcons
+                  name="lock-outline"
+                  size={20}
+                  color={deletePasswordFocused ? '#ef4444' : Colors.textTertiary}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Tu contraseña"
+                  placeholderTextColor={Colors.textTertiary}
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  onFocus={() => setDeletePasswordFocused(true)}
+                  onBlur={() => setDeletePasswordFocused(false)}
+                  secureTextEntry={!showDeletePassword}
+                  autoCapitalize="none"
+                  editable={!isDeleting}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowDeletePassword(!showDeletePassword)}
+                  style={styles.eyeButton}
+                  disabled={isDeleting}
+                >
+                  <MaterialCommunityIcons
+                    name={showDeletePassword ? 'eye-off' : 'eye'}
+                    size={22}
+                    color={Colors.textTertiary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        }
+      />
     </View>
   );
 }
@@ -500,7 +648,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingTop: SAFE_AREA_TOP,
   },
   header: {
     flexDirection: 'row',
@@ -791,5 +939,36 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     fontSize: FontSizes.sm,
     fontWeight: '500',
+  },
+  deleteAccountZone: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    marginBottom: Spacing.xl,
+  },
+  deleteAccountTitle: {
+    fontSize: FontSizes.sm,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#ef444440',
+    backgroundColor: '#ef444410',
+    gap: Spacing.xs,
+  },
+  deleteAccountButtonText: {
+    color: '#ef4444',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  deletePasswordContainer: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
 });

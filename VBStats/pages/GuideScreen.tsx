@@ -16,7 +16,7 @@ import {
   Modal,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon } from '../components/VectorIcons';
 import type { SubscriptionType } from '../services/subscriptionService';
 
@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingTop: SAFE_AREA_TOP,
   },
   header: {
     flexDirection: 'row',

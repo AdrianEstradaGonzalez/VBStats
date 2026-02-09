@@ -400,14 +400,57 @@ router.post('/:id/change-password', async (req, res) => {
   }
 });
 
-// Delete user
+// Delete user account and all associated data
 router.delete('/:id', async (req, res) => {
+  const userId = req.params.id;
+  const { password } = req.body || {};
+
   try {
-    await pool.query('DELETE FROM users WHERE id = ?', [req.params.id]);
-    res.json({ message: 'User deleted' });
+    // Verify user exists and check password for security
+    const [users] = await pool.query('SELECT id, password FROM users WHERE id = ?', [userId]);
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Require password confirmation for account deletion
+    if (!password) {
+      return res.status(400).json({ error: 'Se requiere la contraseña para eliminar la cuenta' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, users[0].password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // 1. Delete stat_settings (no FK constraint, would be orphaned)
+      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [userId]);
+
+      // 2. Delete players belonging to user's teams (FK is SET NULL, not CASCADE)
+      await conn.query(
+        'DELETE FROM players WHERE team_id IN (SELECT id FROM teams WHERE user_id = ?)',
+        [userId]
+      );
+
+      // 3. Delete the user - cascades handle: matches, match_stats, stats, 
+      //    match_states, password_reset_tokens, device_trials, teams
+      await conn.query('DELETE FROM users WHERE id = ?', [userId]);
+
+      await conn.commit();
+      console.log(`User ${userId} and all associated data deleted successfully`);
+      res.json({ message: 'Cuenta eliminada correctamente' });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
   } catch (err) {
     console.error('Error deleting user:', err);
-    res.status(500).json({ error: 'Failed to delete user' });
+    res.status(500).json({ error: 'Error al eliminar la cuenta. Inténtalo de nuevo.' });
   }
 });
 

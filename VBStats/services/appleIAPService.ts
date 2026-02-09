@@ -120,10 +120,13 @@ class AppleIAPService {
     }
 
     try {
+      // Use fetchProducts with type 'subs' for auto-renewable subscription products
+      console.log('📦 Fetching subscription products with SKUs:', APPLE_SUBSCRIPTION_SKUS);
       const products = await fetchProducts({ skus: APPLE_SUBSCRIPTION_SKUS, type: 'subs' });
-      console.log('📦 Available Apple products:', products);
+      console.log('📦 Available Apple products:', JSON.stringify(products));
       
       if (!products || products.length === 0) {
+        console.warn('⚠️ No products returned from App Store. Check Product IDs and App Store Connect configuration.');
         return [];
       }
       
@@ -137,7 +140,7 @@ class AppleIAPService {
         currency: product.currency || '',
       }));
     } catch (error) {
-      console.error('Error fetching Apple products:', error);
+      console.error('❌ Error fetching Apple subscription products:', error);
       return [];
     }
   }
@@ -247,10 +250,13 @@ class AppleIAPService {
         console.log('🛒 Starting Apple purchase for:', productId);
         
         // Request the purchase - this will trigger the listeners
-        // For iOS subscriptions, we use the 'subs' type with apple-specific request
+        // For iOS subscriptions in react-native-iap v14.x, use 'apple' key (recommended)
         await requestPurchase({ 
           request: { 
-            apple: { sku: productId } 
+            apple: { 
+              sku: productId,
+              andDangerouslyFinishTransactionAutomatically: false,
+            } 
           }, 
           type: 'subs' 
         });

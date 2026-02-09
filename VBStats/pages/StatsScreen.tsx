@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, Team } from '../services/types';
 import CustomAlert from '../components/CustomAlert';
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingTop: SAFE_AREA_TOP,
     paddingBottom: 0,
   },
   header: {

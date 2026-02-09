@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { CustomAlert } from '../components';
 import { 
   SUBSCRIPTION_PLANS, 
@@ -806,7 +806,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingTop: Platform.OS === 'android' ? ANDROID_STATUS_BAR_HEIGHT : 0,
+    paddingTop: SAFE_AREA_TOP,
   },
   header: {
     flexDirection: 'row',
