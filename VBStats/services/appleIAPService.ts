@@ -26,8 +26,8 @@ import { SubscriptionType } from './subscriptionService';
 
 // Apple Product IDs (configured in App Store Connect)
 export const APPLE_PRODUCT_IDS = {
-  basic: 'com.vbstats.basico.mensual',
-  pro: 'com.vbstats.pro.mensual',
+  basic: 'com.vbstats.basico.mes',
+  pro: 'com.vbstats.pro.mes',
 };
 
 // All subscription product IDs
