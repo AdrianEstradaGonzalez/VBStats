@@ -37,7 +37,7 @@ const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
 // Legal URLs - Replace with your actual URLs
 const PRIVACY_POLICY_URL = 'https://bluedebug.com/vistas/vbstats-privacidad';
-const TERMS_OF_SERVICE_URL = 'https://bluedebug.com/vistas/vbstats-terminos';
+const TERMS_OF_SERVICE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 interface SelectPlanScreenProps {
   onPlanSelected: (planType: SubscriptionType) => void;
@@ -417,6 +417,7 @@ export default function SelectPlanScreen({
         onBack={() => setShowGuide(false)}
         initialTab="roles"
         onlyRoles={true}
+        subscriptionType={currentPlan ?? 'free'}
       />
     );
   }

@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
-import { MenuIcon, ReceptionIcon, AttackIcon, BlockIcon, ServeIcon, DefenseIcon, SetIcon } from '../components/VectorIcons';
+import { MenuIcon } from '../components/VectorIcons';
+import type { SubscriptionType } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -29,6 +30,7 @@ interface GuideScreenProps {
   onBack?: () => void;
   onOpenMenu?: () => void;
   onSelectPlan?: () => void;
+  subscriptionType?: SubscriptionType;
   /** Si se pasa, muestra inicialmente este tab */
   initialTab?: TabType;
   /** Si true, muestra solo el tab de Planes (roles) y oculta la Guía */
@@ -64,7 +66,14 @@ const STAT_COLORS = {
 
 type InfoModalType = 'basicConfig' | 'proConfig' | null;
 
-export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialTab, onlyRoles }: GuideScreenProps) {
+export default function GuideScreen({
+  onBack,
+  onOpenMenu,
+  onSelectPlan,
+  subscriptionType = 'free',
+  initialTab,
+  onlyRoles,
+}: GuideScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? (onlyRoles ? 'roles' : 'guide'));
   const [infoModal, setInfoModal] = useState<InfoModalType>(null);
 
@@ -270,11 +279,13 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
               <Text style={styles.featureText}>{item.feature}</Text>
               {item.infoType && (
                 <TouchableOpacity 
-                  style={styles.infoButton}
+                  style={styles.infoPill}
                   onPress={() => setInfoModal(item.infoType!)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
                 >
-                  <MaterialCommunityIcons name="information" size={16} color={Colors.primary} />
+                  <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
+                  <Text style={styles.infoPillText}>Ver detalles</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -337,14 +348,14 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
       </View>
 
       {/* Botón para seleccionar plan */}
-      {onSelectPlan && (
+      {onSelectPlan && subscriptionType !== 'pro' && (
         <TouchableOpacity 
           style={styles.selectPlanButton}
           onPress={onSelectPlan}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons name="arrow-up-bold-circle" size={22} color="#FFFFFF" />
-          <Text style={styles.selectPlanButtonText}>Ver Planes y Precios</Text>
+          <Text style={styles.selectPlanButtonText}>Mejora tu plan</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -357,7 +368,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
     interface StatInfo {
       category: string;
       color: string;
-      icon: React.FC<{ size?: number; color?: string }>;
+      iconName: string;
       types: string[];
       note?: string;
       exclusive?: boolean;
@@ -368,26 +379,26 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
       { 
         category: 'Recepción', 
         color: STAT_COLORS.reception, 
-        icon: ReceptionIcon,
+        iconName: 'hand-back-left',
         types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
         note: 'Solo para Receptor y Líbero'
       },
       { 
         category: 'Ataque', 
         color: STAT_COLORS.attack, 
-        icon: AttackIcon,
+        iconName: 'flash',
         types: ['Positivo', 'Error']
       },
       { 
         category: 'Bloqueo', 
         color: STAT_COLORS.block, 
-        icon: BlockIcon,
+        iconName: 'hand-back-right',
         types: ['Positivo']
       },
       { 
         category: 'Saque', 
         color: STAT_COLORS.serve, 
-        icon: ServeIcon,
+        iconName: 'volleyball',
         types: ['Punto directo', 'Error']
       },
     ];
@@ -397,39 +408,39 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
       { 
         category: 'Recepción', 
         color: STAT_COLORS.reception, 
-        icon: ReceptionIcon,
+        iconName: 'hand-back-left',
         types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
         note: 'Todas las posiciones'
       },
       { 
         category: 'Ataque', 
         color: STAT_COLORS.attack, 
-        icon: AttackIcon,
+        iconName: 'flash',
         types: ['Positivo', 'Neutro', 'Error']
       },
       { 
         category: 'Bloqueo', 
         color: STAT_COLORS.block, 
-        icon: BlockIcon,
+        iconName: 'hand-back-right',
         types: ['Positivo', 'Neutro', 'Error']
       },
       { 
         category: 'Saque', 
         color: STAT_COLORS.serve, 
-        icon: ServeIcon,
+        iconName: 'volleyball',
         types: ['Punto directo', 'Positivo', 'Neutro', 'Error']
       },
       { 
         category: 'Defensa', 
         color: STAT_COLORS.defense, 
-        icon: DefenseIcon,
+        iconName: 'shield-half-full',
         types: ['Positivo', 'Neutro', 'Error'],
         exclusive: true
       },
       { 
         category: 'Colocación', 
         color: STAT_COLORS.set, 
-        icon: SetIcon,
+        iconName: 'swap-vertical',
         types: ['Positivo', 'Neutro', 'Error'],
         exclusive: true
       },
@@ -463,7 +474,6 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
 
         <ScrollView style={styles.infoModalScrollView} showsVerticalScrollIndicator={false}>
           {stats.map((stat, index) => {
-            const IconComponent = stat.icon;
             return (
               <View 
                 key={index} 
@@ -474,7 +484,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
               >
                 <View style={styles.statInfoHeader}>
                   <View style={[styles.statIconContainer, { backgroundColor: stat.color + '20' }]}>
-                    <IconComponent size={22} color={stat.color} />
+                    <MaterialCommunityIcons name={stat.iconName} size={22} color={stat.color} />
                   </View>
                   <View style={styles.statInfoTitleContainer}>
                     <Text style={[styles.statInfoCategory, { color: stat.color }]}>{stat.category}</Text>
@@ -513,7 +523,7 @@ export default function GuideScreen({ onBack, onOpenMenu, onSelectPlan, initialT
             <View style={styles.infoModalProHint}>
               <MaterialCommunityIcons name="crown" size={18} color="#f59e0b" />
               <Text style={styles.infoModalProHintText}>
-                ¿Necesitas Defensa, Colocación o más opciones de registro? ¡Actualiza a PRO!
+                ¿Necesitas Defensa, Colocación o más opciones de registro de acciones? ¡Actualiza a PRO!
               </Text>
             </View>
           )}
@@ -933,10 +943,24 @@ const styles = StyleSheet.create({
   featureWithInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: Spacing.xs,
   },
-  infoButton: {
-    padding: 2,
+  infoPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary + '10',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    gap: 4,
+  },
+  infoPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.primary,
   },
   infoModalOverlay: {
     flex: 1,

@@ -727,6 +727,7 @@ export default function App() {
             onBack={() => setCurrentScreen('home')}
             onOpenMenu={handleOpenMenu}
             onSelectPlan={handleUpgradeToPro}
+            subscriptionType={subscriptionType}
           />
         );
       default:
