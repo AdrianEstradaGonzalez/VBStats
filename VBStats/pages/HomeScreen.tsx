@@ -57,8 +57,8 @@ export default function HomeScreen({
     },
     {
       id: 'searchByCode',
-      title: 'Buscar por Código',
-      description: 'Consulta estadísticas de un partido',
+      title: 'Mis partidos',
+      description: 'Consulta los partidos guardados y busca por código',
       icon: <MaterialCommunityIcons name="qrcode-scan" size={48} color={Colors.primary} />,
     },
   ];

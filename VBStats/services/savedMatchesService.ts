@@ -9,6 +9,11 @@ import type { Match } from './types';
 
 const STORAGE_KEY = '@VBStats:savedMatches';
 
+const getStorageKey = (userId?: number | string | null): string => {
+  if (userId === null || userId === undefined) return STORAGE_KEY;
+  return `${STORAGE_KEY}:${userId}`;
+};
+
 export interface SavedMatch {
   id: number;
   team_name?: string;
@@ -23,9 +28,9 @@ export interface SavedMatch {
 /**
  * Get all saved matches from local storage, sorted by most recently saved.
  */
-export async function getSavedMatches(): Promise<SavedMatch[]> {
+export async function getSavedMatches(userId?: number | string | null): Promise<SavedMatch[]> {
   try {
-    const data = await AsyncStorage.getItem(STORAGE_KEY);
+    const data = await AsyncStorage.getItem(getStorageKey(userId));
     if (!data) return [];
     const matches: SavedMatch[] = JSON.parse(data);
     // Sort by saved_at descending (most recent first)
@@ -39,9 +44,9 @@ export async function getSavedMatches(): Promise<SavedMatch[]> {
 /**
  * Save a match result from a code search. Avoids duplicates by match ID.
  */
-export async function saveMatch(match: Match, shareCode: string): Promise<void> {
+export async function saveMatch(match: Match, shareCode: string, userId?: number | string | null): Promise<void> {
   try {
-    const existing = await getSavedMatches();
+    const existing = await getSavedMatches(userId);
     
     // Remove any existing entry for this match (to update and move to top)
     const filtered = existing.filter(m => m.id !== match.id);
@@ -59,7 +64,7 @@ export async function saveMatch(match: Match, shareCode: string): Promise<void> 
     
     // Add to beginning (most recent first), limit to 50 entries
     const updated = [entry, ...filtered].slice(0, 50);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    await AsyncStorage.setItem(getStorageKey(userId), JSON.stringify(updated));
   } catch (error) {
     console.error('Error saving match:', error);
   }
@@ -68,11 +73,11 @@ export async function saveMatch(match: Match, shareCode: string): Promise<void> 
 /**
  * Remove a saved match by ID.
  */
-export async function removeSavedMatch(matchId: number): Promise<void> {
+export async function removeSavedMatch(matchId: number, userId?: number | string | null): Promise<void> {
   try {
-    const existing = await getSavedMatches();
+    const existing = await getSavedMatches(userId);
     const filtered = existing.filter(m => m.id !== matchId);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    await AsyncStorage.setItem(getStorageKey(userId), JSON.stringify(filtered));
   } catch (error) {
     console.error('Error removing saved match:', error);
   }

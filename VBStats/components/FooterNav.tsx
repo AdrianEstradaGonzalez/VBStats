@@ -43,9 +43,8 @@ export default function FooterNav({ currentScreen, subscriptionType, onNavigate 
   const getTabs = (): FooterTab[] => {
     if (subscriptionType === 'free') {
       return [
-        { id: 'home', label: 'Inicio', icon: 'home' },
+        { id: 'home', label: 'Mis partidos', icon: 'home' },
         { id: 'scoreboard', label: 'Marcador', icon: 'scoreboard-outline' },
-        { id: 'searchByCode', label: 'Buscar', icon: 'qrcode-scan' },
       ];
     }
 
@@ -61,7 +60,9 @@ export default function FooterNav({ currentScreen, subscriptionType, onNavigate 
   const isActive = (tabId: string): boolean => {
     switch (tabId) {
       case 'home':
-        return currentScreen === 'home';
+        return subscriptionType === 'free'
+          ? ['home', 'searchByCode'].includes(currentScreen)
+          : currentScreen === 'home';
       case 'startMatch':
         return ['startMatch', 'startMatchFlow'].includes(currentScreen);
       case 'stats':

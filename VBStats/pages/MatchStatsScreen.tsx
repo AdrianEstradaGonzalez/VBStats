@@ -37,6 +37,7 @@ interface MatchStatsScreenProps {
   onBack: () => void;
   onOpenMenu?: () => void;
   subscriptionType?: SubscriptionType;
+  hideExportOptions?: boolean;
 }
 
 // Función para obtener color según el tipo de stat
@@ -126,7 +127,7 @@ const sortCategories = (categories: string[]): string[] => {
   });
 };
 
-export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscriptionType = 'pro' }: MatchStatsScreenProps) {
+export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscriptionType = 'pro', hideExportOptions = false }: MatchStatsScreenProps) {
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
@@ -1264,7 +1265,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         )}
 
         {/* Código de Partido para compartir */}
-        {!isFreeSubscription && (shareCode || match.share_code) && (
+        {!hideExportOptions && !isFreeSubscription && (shareCode || match.share_code) && (
           <View style={styles.shareCodeSection}>
             <View style={styles.shareCodeHeader}>
               <MaterialCommunityIcons name="qrcode" size={20} color={Colors.primary} />
@@ -1278,7 +1279,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
               onPress={handleCopyCode}
               activeOpacity={0.7}
             >
-              <Text style={styles.shareCodeText}>
+              <Text style={styles.shareCodeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {(shareCode || match.share_code || '').split('').join(' ')}
               </Text>
               <View style={styles.shareCodeCopyBadge}>
@@ -1297,7 +1298,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
             </TouchableOpacity>
           </View>
         )}
-        {!isFreeSubscription && generatingCode && !shareCode && !match.share_code && (
+        {!hideExportOptions && !isFreeSubscription && generatingCode && !shareCode && !match.share_code && (
           <View style={styles.shareCodeSection}>
             <ActivityIndicator size="small" color={Colors.primary} />
             <Text style={styles.shareCodeSubtitle}>Generando código...</Text>
@@ -1305,6 +1306,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         )}
 
         {/* Botones de exportación */}
+        {!hideExportOptions && (
         <View style={styles.exportButtonsContainer}>
           <TouchableOpacity 
             style={styles.shareButtonInline}
@@ -1317,6 +1319,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
             </Text>
           </TouchableOpacity>
         </View>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -2096,22 +2099,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.backgroundLight,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     borderWidth: 1.5,
     borderColor: Colors.primary + '40',
     borderStyle: 'dashed',
     width: '100%',
   },
   shareCodeText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: Colors.primary,
-    letterSpacing: 2,
+    letterSpacing: 1,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    flexShrink: 1,
   },
   shareCodeCopyBadge: {
     flexDirection: 'row',

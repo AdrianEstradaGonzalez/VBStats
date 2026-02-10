@@ -66,10 +66,10 @@ export default function SideMenu({
   const getMenuItems = (): MenuItem[] => {
     const items: MenuItem[] = [];
 
-    // Free account: only search by code and scoreboard
+    // Free account: home (mis partidos), scoreboard, and guide
     if (subscriptionType === 'free') {
       items.push(
-        { id: 'searchByCode', title: 'Buscar Partido', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
+        { id: 'home', title: 'Mis partidos', icon: <HomeIcon size={24} color={Colors.text} /> },
         { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
         { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
       );
@@ -82,7 +82,7 @@ export default function SideMenu({
       { id: 'teams', title: 'Mis Equipos', icon: <TeamIcon size={24} color={Colors.text} /> },
       { id: 'startMatch', title: 'Comenzar Partido', icon: <PlayIcon size={24} color={Colors.text} /> },
       { id: 'stats', title: 'Estadísticas', icon: <StatsIcon size={24} color={Colors.text} /> },
-      { id: 'searchByCode', title: 'Buscar Partido', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
+      { id: 'searchByCode', title: 'Mis partidos', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
       { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
       { id: 'settings', title: 'Configuración', icon: <SettingsIcon size={24} color={Colors.text} /> },
       { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },

@@ -372,9 +372,9 @@ export default function App() {
     setShowSelectPlan(false);
     setPendingRegistration(null);
     setIsLoggedIn(true);
-    // Free users go to searchByCode screen
+    // Free users go to home (mis partidos)
     if (plan === 'free') {
-      setCurrentScreen('searchByCode');
+      setCurrentScreen('home');
     }
   };
 
@@ -516,6 +516,7 @@ export default function App() {
         return (
           <SearchByCodeScreen
             onOpenMenu={handleOpenMenu}
+            userId={userId}
             onMatchFound={(match) => {
               setViewingMatch(match);
               setCurrentScreen('matchStatsFromCode');
@@ -526,6 +527,7 @@ export default function App() {
         if (!viewingMatch) {
           return (
             <SearchByCodeScreen
+              userId={userId}
               onMatchFound={(match) => {
                 setViewingMatch(match);
                 setCurrentScreen('matchStatsFromCode');
@@ -537,9 +539,10 @@ export default function App() {
           <MatchStatsScreen
             match={viewingMatch}
             subscriptionType="free"
+            hideExportOptions={true}
             onBack={() => {
               setViewingMatch(null);
-              setCurrentScreen('searchByCode');
+              setCurrentScreen(subscriptionType === 'free' ? 'home' : 'searchByCode');
             }}
           />
         );
@@ -737,9 +740,10 @@ export default function App() {
           return (
             <SearchByCodeScreen
               onOpenMenu={handleOpenMenu}
+              userId={userId}
               onMatchFound={(match) => {
                 setViewingMatch(match);
-                openStatsScreen();
+                setCurrentScreen('matchStatsFromCode');
               }}
             />
           );

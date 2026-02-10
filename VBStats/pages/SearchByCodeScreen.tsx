@@ -35,11 +35,13 @@ const ANDROID_NAV_BAR_HEIGHT = 48;
 interface SearchByCodeScreenProps {
   onOpenMenu?: () => void;
   onMatchFound?: (match: Match) => void;
+  userId?: number | null;
 }
 
 export default function SearchByCodeScreen({ 
   onOpenMenu,
-  onMatchFound
+  onMatchFound,
+  userId
 }: SearchByCodeScreenProps) {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,16 +50,18 @@ export default function SearchByCodeScreen({
   const [foundMatch, setFoundMatch] = useState<Match | null>(null);
   const [savedMatches, setSavedMatches] = useState<SavedMatch[]>([]);
   const [loadingSavedMatches, setLoadingSavedMatches] = useState(true);
+  const [deleteCandidate, setDeleteCandidate] = useState<SavedMatch | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Load saved matches on mount
   useEffect(() => {
     loadSavedMatches();
-  }, []);
+  }, [userId]);
 
   const loadSavedMatches = async () => {
     setLoadingSavedMatches(true);
     try {
-      const matches = await savedMatchesService.getSavedMatches();
+      const matches = await savedMatchesService.getSavedMatches(userId);
       setSavedMatches(matches);
     } catch (error) {
       console.error('Error loading saved matches:', error);
@@ -96,11 +100,15 @@ export default function SearchByCodeScreen({
       if (result.matchId) {
         // Fetch full match details
         const match = await matchesService.getById(result.matchId);
-        setFoundMatch(match);
         
         // Save match to local storage for quick access later
-        await savedMatchesService.saveMatch(match, code);
+        await savedMatchesService.saveMatch(match, code, userId);
         await loadSavedMatches();
+        
+        // Navigate directly to stats
+        if (onMatchFound) {
+          onMatchFound(match);
+        }
       }
     } catch (error) {
       console.error('Error searching match:', error);
@@ -128,14 +136,29 @@ export default function SearchByCodeScreen({
       setErrorMessage('No se pudo cargar el partido. Es posible que ya no esté disponible.');
       setShowErrorAlert(true);
       // Remove invalid match from saved list
-      await savedMatchesService.removeSavedMatch(saved.id);
+      await savedMatchesService.removeSavedMatch(saved.id, userId);
       await loadSavedMatches();
     }
   };
 
+  // Show confirmation before removing
   const handleRemoveSavedMatch = async (matchId: number) => {
-    await savedMatchesService.removeSavedMatch(matchId);
-    await loadSavedMatches();
+    const candidate = savedMatches.find(m => m.id === matchId) || null;
+    setDeleteCandidate(candidate);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmRemoveSavedMatch = async () => {
+    if (!deleteCandidate) return;
+    try {
+      await savedMatchesService.removeSavedMatch(deleteCandidate.id, userId);
+      await loadSavedMatches();
+    } catch (error) {
+      console.error('Error removing saved match:', error);
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeleteCandidate(null);
+    }
   };
 
   const formatDate = (dateString: string | null) => {
@@ -184,11 +207,76 @@ export default function SearchByCodeScreen({
           <View style={styles.iconContainer}>
             <VolleyballIcon size={60} color={Colors.primary} />
           </View>
-          <Text style={styles.title}>Buscar Partido</Text>
+          <Text style={styles.title}>Mis partidos</Text>
           <Text style={styles.subtitle}>
-            Introduce el código de 8 caracteres para ver las estadísticas del partido
+            Consulta tus partidos guardados y busca uno nuevo con el código de 8 caracteres
           </Text>
         </View>
+
+        {/* Saved Matches Section */}
+        {savedMatches.length > 0 && (
+          <View style={styles.savedMatchesSection}>
+            <View style={styles.savedMatchesHeader}>
+              <MaterialCommunityIcons name="history" size={20} color={Colors.text} />
+              <Text style={styles.savedMatchesTitle}>Mis Partidos</Text>
+              <Text style={styles.savedMatchesCount}>{savedMatches.length}</Text>
+            </View>
+            
+            {savedMatches.map((saved) => (
+              <TouchableOpacity
+                key={saved.id}
+                style={styles.savedMatchCard}
+                onPress={() => handleViewSavedMatch(saved)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.savedMatchLeft}>
+                  <View style={styles.savedMatchIconContainer}>
+                    <MaterialCommunityIcons name="volleyball" size={22} color={Colors.primary} />
+                  </View>
+                  <View style={styles.savedMatchInfo}>
+                    <Text style={styles.savedMatchTeams} numberOfLines={1}>
+                      {saved.team_name || 'Equipo'}
+                      {saved.opponent ? ` vs ${saved.opponent}` : ''}
+                    </Text>
+                    <View style={styles.savedMatchMeta}>
+                      {saved.date && (
+                        <Text style={styles.savedMatchDate}>{formatDate(saved.date)}</Text>
+                      )}
+                      {(saved.score_home !== null && saved.score_away !== null) && (
+                        <Text style={styles.savedMatchScore}>
+                          {saved.score_home} - {saved.score_away}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.savedMatchCodeRow}>
+                      <MaterialCommunityIcons name="qrcode" size={12} color={Colors.textTertiary} />
+                      <Text style={styles.savedMatchCodeText}>{saved.share_code}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.savedMatchRight}>
+                  <TouchableOpacity
+                    style={styles.savedMatchRemoveBtn}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      handleRemoveSavedMatch(saved.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons name="close" size={16} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {loadingSavedMatches && savedMatches.length === 0 && (
+          <View style={styles.savedMatchesLoading}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        )}
 
         {/* Code Input Section */}
         <View style={styles.inputSection}>
@@ -298,70 +386,6 @@ export default function SearchByCodeScreen({
           </Text>
         </View>
 
-        {/* Saved Matches Section */}
-        {savedMatches.length > 0 && (
-          <View style={styles.savedMatchesSection}>
-            <View style={styles.savedMatchesHeader}>
-              <MaterialCommunityIcons name="history" size={20} color={Colors.text} />
-              <Text style={styles.savedMatchesTitle}>Mis Partidos</Text>
-              <Text style={styles.savedMatchesCount}>{savedMatches.length}</Text>
-            </View>
-            
-            {savedMatches.map((saved) => (
-              <TouchableOpacity
-                key={saved.id}
-                style={styles.savedMatchCard}
-                onPress={() => handleViewSavedMatch(saved)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.savedMatchLeft}>
-                  <View style={styles.savedMatchIconContainer}>
-                    <MaterialCommunityIcons name="volleyball" size={22} color={Colors.primary} />
-                  </View>
-                  <View style={styles.savedMatchInfo}>
-                    <Text style={styles.savedMatchTeams} numberOfLines={1}>
-                      {saved.team_name || 'Equipo'}
-                      {saved.opponent ? ` vs ${saved.opponent}` : ''}
-                    </Text>
-                    <View style={styles.savedMatchMeta}>
-                      {saved.date && (
-                        <Text style={styles.savedMatchDate}>{formatDate(saved.date)}</Text>
-                      )}
-                      {(saved.score_home !== null && saved.score_away !== null) && (
-                        <Text style={styles.savedMatchScore}>
-                          {saved.score_home} - {saved.score_away}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.savedMatchCodeRow}>
-                      <MaterialCommunityIcons name="qrcode" size={12} color={Colors.textTertiary} />
-                      <Text style={styles.savedMatchCodeText}>{saved.share_code}</Text>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.savedMatchRight}>
-                  <TouchableOpacity
-                    style={styles.savedMatchRemoveBtn}
-                    onPress={(e) => {
-                      e.stopPropagation?.();
-                      handleRemoveSavedMatch(saved.id);
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <MaterialCommunityIcons name="close" size={16} color={Colors.textTertiary} />
-                  </TouchableOpacity>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {loadingSavedMatches && savedMatches.length === 0 && (
-          <View style={styles.savedMatchesLoading}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
-        )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -380,6 +404,34 @@ export default function SearchByCodeScreen({
           },
         ]}
         onClose={() => setShowErrorAlert(false)}
+      />
+
+      {/* Delete confirmation */}
+      <CustomAlert
+        visible={showDeleteConfirm}
+        title="Eliminar partido"
+        message={deleteCandidate ? `¿Eliminar ${deleteCandidate.team_name || 'este partido'} (${deleteCandidate.share_code}) de Mis partidos? Esta acción elimina el partido sólo de tu cuenta.` : '¿Eliminar este partido?'}
+        type="warning"
+        icon={<MaterialCommunityIcons name="delete" size={32} color={Colors.error} />}
+        buttons={[
+          {
+            text: 'Cancelar',
+            onPress: () => {
+              setShowDeleteConfirm(false);
+              setDeleteCandidate(null);
+            },
+            style: 'cancel',
+          },
+          {
+            text: 'Eliminar',
+            onPress: confirmRemoveSavedMatch,
+            style: 'destructive',
+          },
+        ]}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setDeleteCandidate(null);
+        }}
       />
     </View>
   );
