@@ -57,7 +57,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Estadísticas de seguimiento y progreso del equipo (Pro)',
     ],
     stripePriceId: 'price_1SsWrGJAUMhTgnDDYlr1nUcQ',
-    appleProductId: 'com.vbstats.basico.mensual',
+    appleProductId: 'com.vbstats.basico.mes',
   },
   {
     id: 'pro',
@@ -73,7 +73,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
       'Sin limitaciones',
     ],
     stripePriceId: 'price_1SsWsEJAUMhTgnDDKSO78qnD',
-    appleProductId: 'com.vbstats.pro.mensual',
+    appleProductId: 'com.vbstats.pro.mes',
     recommended: true,
   },
 ];
