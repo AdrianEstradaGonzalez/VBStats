@@ -131,6 +131,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
   const [generatingCode, setGeneratingCode] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [showExportAlert, setShowExportAlert] = useState(false);
   const [showExportSuccessAlert, setShowExportSuccessAlert] = useState(false);
   const [exportedFilePath, setExportedFilePath] = useState('');
@@ -143,10 +144,53 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
 
   const isBasicSubscription = subscriptionType === 'basic';
   const isProSubscription = subscriptionType === 'pro';
+  const isFreeSubscription = subscriptionType === 'free';
 
   useEffect(() => {
     loadMatchStats();
   }, [match.id]);
+
+  // Auto-load share code when stats are loaded (for paid users)
+  useEffect(() => {
+    if (!isFreeSubscription && statsData && statsData.stats.length > 0) {
+      loadShareCode();
+    }
+  }, [statsData, isFreeSubscription]);
+
+  const loadShareCode = async () => {
+    // If match already has a share code, use it
+    if (match.share_code) {
+      setShareCode(match.share_code);
+      return;
+    }
+    if (shareCode) return;
+    
+    setGeneratingCode(true);
+    try {
+      const response = await matchesService.generateShareCode(match.id);
+      setShareCode(response.share_code);
+    } catch (error) {
+      console.error('Error loading share code:', error);
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    const code = shareCode || match.share_code;
+    if (!code) return;
+    
+    try {
+      await Share.share({
+        message: code,
+        title: 'Código del partido',
+      });
+    } catch (error) {
+      // Fallback: show visual feedback
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    }
+  };
 
 
   const buildStatsFromMatchState = (state: MatchState | null): MatchStat[] => {
@@ -1219,6 +1263,47 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         </>
         )}
 
+        {/* Código de Partido para compartir */}
+        {!isFreeSubscription && (shareCode || match.share_code) && (
+          <View style={styles.shareCodeSection}>
+            <View style={styles.shareCodeHeader}>
+              <MaterialCommunityIcons name="qrcode" size={20} color={Colors.primary} />
+              <Text style={styles.shareCodeTitle}>Código del partido</Text>
+            </View>
+            <Text style={styles.shareCodeSubtitle}>
+              Comparte este código con tus jugadores para que vean las estadísticas
+            </Text>
+            <TouchableOpacity 
+              style={styles.shareCodeContainer}
+              onPress={handleCopyCode}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.shareCodeText}>
+                {(shareCode || match.share_code || '').split('').join(' ')}
+              </Text>
+              <View style={styles.shareCodeCopyBadge}>
+                <MaterialCommunityIcons 
+                  name={codeCopied ? 'check' : 'content-copy'} 
+                  size={16} 
+                  color={codeCopied ? '#22c55e' : Colors.primary} 
+                />
+                <Text style={[
+                  styles.shareCodeCopyText,
+                  codeCopied && { color: '#22c55e' }
+                ]}>
+                  {codeCopied ? 'Copiado' : 'Compartir'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+        {!isFreeSubscription && generatingCode && !shareCode && !match.share_code && (
+          <View style={styles.shareCodeSection}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={styles.shareCodeSubtitle}>Generando código...</Text>
+          </View>
+        )}
+
         {/* Botones de exportación */}
         <View style={styles.exportButtonsContainer}>
           <TouchableOpacity 
@@ -1977,6 +2062,70 @@ const styles = StyleSheet.create({
   },
   exportButtonsContainer: {
     paddingHorizontal: 0,
+  },
+  shareCodeSection: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    ...Shadows.sm,
+  },
+  shareCodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  shareCodeTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  shareCodeSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+    lineHeight: 18,
+  },
+  shareCodeContainer: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: Colors.primary + '40',
+    borderStyle: 'dashed',
+    width: '100%',
+  },
+  shareCodeText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  shareCodeCopyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary + '15',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  shareCodeCopyText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.primary,
   },
   shareButtonInline: {
     marginHorizontal: Spacing.lg,

@@ -3,8 +3,8 @@
  * Handles iOS subscriptions through Apple's StoreKit/In-App Purchase system
  * 
  * Product IDs configured in App Store Connect:
- * - com.vbstats.basico.mensual (Plan BASICO - 4.99€/mes)
- * - com.vbstats.pro.mensual (Plan PRO - 9.99€/mes)
+ * - com.vbstats.basico.mes (Plan BASICO - 4.99€/mes)
+ * - com.vbstats.pro.mes (Plan PRO - 9.99€/mes)
  */
 
 import { Platform } from 'react-native';
@@ -120,17 +120,15 @@ class AppleIAPService {
     }
 
     try {
-      // Use fetchProducts with type 'subs' for auto-renewable subscription products
       console.log('📦 Fetching subscription products with SKUs:', APPLE_SUBSCRIPTION_SKUS);
       const products = await fetchProducts({ skus: APPLE_SUBSCRIPTION_SKUS, type: 'subs' });
-      console.log('📦 Available Apple products:', JSON.stringify(products));
-      
+      console.log('📦 Apple subscriptions:', JSON.stringify(products));
+
       if (!products || products.length === 0) {
-        console.warn('⚠️ No products returned from App Store. Check Product IDs and App Store Connect configuration.');
+        console.warn('⚠️ No subscriptions returned by StoreKit');
         return [];
       }
-      
-      // Map products to our interface - use type any to handle different product types
+
       return products.map((product: any) => ({
         productId: product.productId || product.id || '',
         title: product.title || product.name || '',
@@ -140,7 +138,7 @@ class AppleIAPService {
         currency: product.currency || '',
       }));
     } catch (error) {
-      console.error('❌ Error fetching Apple subscription products:', error);
+      console.error('❌ Error fetching subscriptions:', error);
       return [];
     }
   }

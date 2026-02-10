@@ -1,9 +1,10 @@
 /**
  * Pantalla de búsqueda de partido por código
  * Vista moderna para cuentas gratuitas
+ * Incluye historial de partidos buscados previamente
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +17,7 @@ import {
   Image,
   KeyboardAvoidingView,
   ScrollView,
+  FlatList,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
@@ -24,6 +26,7 @@ import { MenuIcon, VolleyballIcon } from '../components/VectorIcons';
 import { subscriptionService } from '../services/subscriptionService';
 import { matchesService } from '../services/api';
 import type { Match } from '../services/types';
+import { savedMatchesService, SavedMatch } from '../services/savedMatchesService';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -43,6 +46,25 @@ export default function SearchByCodeScreen({
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [foundMatch, setFoundMatch] = useState<Match | null>(null);
+  const [savedMatches, setSavedMatches] = useState<SavedMatch[]>([]);
+  const [loadingSavedMatches, setLoadingSavedMatches] = useState(true);
+
+  // Load saved matches on mount
+  useEffect(() => {
+    loadSavedMatches();
+  }, []);
+
+  const loadSavedMatches = async () => {
+    setLoadingSavedMatches(true);
+    try {
+      const matches = await savedMatchesService.getSavedMatches();
+      setSavedMatches(matches);
+    } catch (error) {
+      console.error('Error loading saved matches:', error);
+    } finally {
+      setLoadingSavedMatches(false);
+    }
+  };
 
   const formatCode = (text: string): string => {
     // Convert to uppercase and remove invalid characters
@@ -75,6 +97,10 @@ export default function SearchByCodeScreen({
         // Fetch full match details
         const match = await matchesService.getById(result.matchId);
         setFoundMatch(match);
+        
+        // Save match to local storage for quick access later
+        await savedMatchesService.saveMatch(match, code);
+        await loadSavedMatches();
       }
     } catch (error) {
       console.error('Error searching match:', error);
@@ -89,6 +115,27 @@ export default function SearchByCodeScreen({
     if (foundMatch && onMatchFound) {
       onMatchFound(foundMatch);
     }
+  };
+
+  const handleViewSavedMatch = async (saved: SavedMatch) => {
+    try {
+      const match = await matchesService.getById(saved.id);
+      if (onMatchFound) {
+        onMatchFound(match);
+      }
+    } catch (error) {
+      console.error('Error loading saved match:', error);
+      setErrorMessage('No se pudo cargar el partido. Es posible que ya no esté disponible.');
+      setShowErrorAlert(true);
+      // Remove invalid match from saved list
+      await savedMatchesService.removeSavedMatch(saved.id);
+      await loadSavedMatches();
+    }
+  };
+
+  const handleRemoveSavedMatch = async (matchId: number) => {
+    await savedMatchesService.removeSavedMatch(matchId);
+    await loadSavedMatches();
   };
 
   const formatDate = (dateString: string | null) => {
@@ -250,6 +297,71 @@ export default function SearchByCodeScreen({
             Pídelo al entrenador o responsable del equipo.
           </Text>
         </View>
+
+        {/* Saved Matches Section */}
+        {savedMatches.length > 0 && (
+          <View style={styles.savedMatchesSection}>
+            <View style={styles.savedMatchesHeader}>
+              <MaterialCommunityIcons name="history" size={20} color={Colors.text} />
+              <Text style={styles.savedMatchesTitle}>Mis Partidos</Text>
+              <Text style={styles.savedMatchesCount}>{savedMatches.length}</Text>
+            </View>
+            
+            {savedMatches.map((saved) => (
+              <TouchableOpacity
+                key={saved.id}
+                style={styles.savedMatchCard}
+                onPress={() => handleViewSavedMatch(saved)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.savedMatchLeft}>
+                  <View style={styles.savedMatchIconContainer}>
+                    <MaterialCommunityIcons name="volleyball" size={22} color={Colors.primary} />
+                  </View>
+                  <View style={styles.savedMatchInfo}>
+                    <Text style={styles.savedMatchTeams} numberOfLines={1}>
+                      {saved.team_name || 'Equipo'}
+                      {saved.opponent ? ` vs ${saved.opponent}` : ''}
+                    </Text>
+                    <View style={styles.savedMatchMeta}>
+                      {saved.date && (
+                        <Text style={styles.savedMatchDate}>{formatDate(saved.date)}</Text>
+                      )}
+                      {(saved.score_home !== null && saved.score_away !== null) && (
+                        <Text style={styles.savedMatchScore}>
+                          {saved.score_home} - {saved.score_away}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.savedMatchCodeRow}>
+                      <MaterialCommunityIcons name="qrcode" size={12} color={Colors.textTertiary} />
+                      <Text style={styles.savedMatchCodeText}>{saved.share_code}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.savedMatchRight}>
+                  <TouchableOpacity
+                    style={styles.savedMatchRemoveBtn}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      handleRemoveSavedMatch(saved.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons name="close" size={16} color={Colors.textTertiary} />
+                  </TouchableOpacity>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {loadingSavedMatches && savedMatches.length === 0 && (
+          <View style={styles.savedMatchesLoading}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -466,12 +578,115 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    marginTop: 'auto',
+    marginBottom: Spacing.lg,
   },
   infoText: {
     flex: 1,
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  savedMatchesSection: {
+    marginBottom: Spacing.xl,
+  },
+  savedMatchesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  savedMatchesTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+    flex: 1,
+  },
+  savedMatchesCount: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.primary,
+    backgroundColor: Colors.primary + '15',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    overflow: 'hidden',
+  },
+  savedMatchCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...Shadows.sm,
+  },
+  savedMatchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: Spacing.md,
+  },
+  savedMatchIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + '12',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  savedMatchInfo: {
+    flex: 1,
+  },
+  savedMatchTeams: {
+    fontSize: FontSizes.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  savedMatchMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: 2,
+  },
+  savedMatchDate: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  savedMatchScore: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: Colors.text,
+    backgroundColor: Colors.backgroundLight,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  savedMatchCodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  savedMatchCodeText: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: 1,
+  },
+  savedMatchRight: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginLeft: Spacing.sm,
+  },
+  savedMatchRemoveBtn: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.backgroundLight,
+  },
+  savedMatchesLoading: {
+    padding: Spacing.lg,
+    alignItems: 'center',
   },
 });
