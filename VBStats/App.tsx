@@ -363,8 +363,12 @@ export default function App() {
   const handlePlanSelected = async (plan: SubscriptionType) => {
     if (userId) {
       try {
-        await subscriptionService.updateSubscription(userId, plan);
-        setSubscriptionType(plan);
+        if (plan === 'free') {
+          await subscriptionService.updateSubscription(userId, plan);
+          setSubscriptionType(plan);
+        } else {
+          await loadSubscription();
+        }
       } catch (error) {
         console.error('Error updating subscription:', error);
       }
@@ -372,10 +376,7 @@ export default function App() {
     setShowSelectPlan(false);
     setPendingRegistration(null);
     setIsLoggedIn(true);
-    // Free users go to home (mis partidos)
-    if (plan === 'free') {
-      setCurrentScreen('home');
-    }
+    setCurrentScreen('home');
   };
 
   const handleUpgradeToPro = () => {

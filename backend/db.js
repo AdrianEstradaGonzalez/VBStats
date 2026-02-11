@@ -16,8 +16,7 @@ const poolConfig = {
   // Prevent idle connection timeout issues
   maxIdle: 10,
   idleTimeout: 60000, // 60 seconds
-  // Handle connection errors
-  acquireTimeout: 60000, // 60 seconds
+  connectTimeout: 60000, // 60 seconds
 };
 
 let pool;
@@ -327,5 +326,9 @@ async function retryQuery(queryFn, maxRetries = 3) {
   }
   throw lastError;
 }
+
+// Wrap pool.query to retry on transient connection loss
+const rawQuery = pool.query.bind(pool);
+pool.query = (...args) => retryQuery(() => rawQuery(...args));
 
 module.exports = { pool, init, retryQuery };

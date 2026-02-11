@@ -59,7 +59,6 @@ export default function SelectPlanScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [paymentPending, setPaymentPending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showConfirmPlan, setShowConfirmPlan] = useState(false);
@@ -133,6 +132,54 @@ export default function SelectPlanScreen({
     checkEligibility();
   }, [userId, deviceId]);
 
+  // Handle Stripe checkout deep links (success/cancel)
+  useEffect(() => {
+    const handlePaymentUrl = async (url: string) => {
+      if (!url || !userId || isApple) return;
+
+      const isSuccess = url.includes('payment-success');
+      const isCancelled = url.includes('payment-cancelled');
+
+      if (!isSuccess && !isCancelled) return;
+
+      if (isCancelled) {
+        setErrorMessage('El pago fue cancelado o no se completó. Inténtalo de nuevo.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      const sessionMatch = /session_id=([^&]+)/.exec(url);
+      const sessionIdFromUrl = sessionMatch ? decodeURIComponent(sessionMatch[1]) : null;
+
+      if (!sessionIdFromUrl) {
+        setErrorMessage('No pudimos validar el pago. Inténtalo de nuevo.');
+        setShowErrorAlert(true);
+        return;
+      }
+
+      await handleVerifyPayment(sessionIdFromUrl);
+    };
+
+    const handleUrlEvent = ({ url }: { url: string }) => {
+      handlePaymentUrl(url);
+    };
+
+    const subscription = Linking.addEventListener('url', handleUrlEvent);
+
+    const checkInitialUrl = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        await handlePaymentUrl(initialUrl);
+      }
+    };
+
+    checkInitialUrl();
+
+    return () => {
+      subscription.remove();
+    };
+  }, [userId, isApple]);
+
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
       setSelectedPlan('free');
@@ -187,8 +234,6 @@ export default function SelectPlanScreen({
         // Open Stripe checkout in browser
         try {
           await Linking.openURL(result.sessionUrl);
-          // Show the "I already paid" button
-          setPaymentPending(true);
         } catch (linkError) {
           console.error('Error opening URL:', linkError);
           setErrorMessage('No se pudo abrir el navegador para el pago. Copia este enlace: ' + result.sessionUrl);
@@ -285,14 +330,15 @@ export default function SelectPlanScreen({
     setShowConfirmPlan(true);
   };
 
-  const handleVerifyPayment = async () => {
+  const handleVerifyPayment = async (sessionIdOverride?: string) => {
     if (!userId) return;
 
     setIsVerifying(true);
     try {
       // First, try to verify using the checkout session ID (most reliable)
-      if (checkoutSessionId) {
-        const verifyResult = await subscriptionService.verifyCheckoutSession(checkoutSessionId, userId);
+      const sessionIdToVerify = sessionIdOverride || checkoutSessionId;
+      if (sessionIdToVerify) {
+        const verifyResult = await subscriptionService.verifyCheckoutSession(sessionIdToVerify, userId);
         
         if (verifyResult.success && verifyResult.type && verifyResult.type !== 'free') {
           // Payment verified successfully via session
@@ -602,78 +648,50 @@ export default function SelectPlanScreen({
         )}
 
         {/* Continue Button */}
-        {!paymentPending || isApple ? (
-          <>
-            <TouchableOpacity
-              style={[styles.continueButton, (isLoading || isAlreadyPro) && styles.continueButtonDisabled]}
-              onPress={handleContinue}
-              disabled={isLoading || isAlreadyPro}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" />
-              ) : isAlreadyPro ? (
-                <>
-                  <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.continueButtonText}>Ya tienes PRO</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.continueButtonText}>
-                    {selectedPlan === 'free' 
-                      ? 'Continuar gratis' 
-                      : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !isApple
-                        ? `Empezar ${TRIAL_DAYS} días gratis`
-                        : isApple
-                          ? 'Suscribirse'
-                          : 'Continuar al pago'}
-                  </Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
-                </>
-              )}
-            </TouchableOpacity>
-            
-            {/* Restore Purchases Button (iOS only) */}
-            {isApple && (
-              <TouchableOpacity
-                style={styles.restorePurchasesButton}
-                onPress={handleRestorePurchases}
-                disabled={isRestoringPurchases}
-              >
-                {isRestoringPurchases ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                ) : (
-                  <Text style={styles.restorePurchasesText}>Restaurar compras anteriores</Text>
-                )}
-              </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={[styles.continueButton, (isLoading || isAlreadyPro || isVerifying) && styles.continueButtonDisabled]}
+            onPress={handleContinue}
+            disabled={isLoading || isAlreadyPro || isVerifying}
+          >
+            {isLoading || isVerifying ? (
+              <ActivityIndicator color="#fff" />
+            ) : isAlreadyPro ? (
+              <>
+                <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
+                <Text style={styles.continueButtonText}>Ya tienes PRO</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.continueButtonText}>
+                  {selectedPlan === 'free' 
+                    ? 'Continuar gratis' 
+                    : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !isApple
+                      ? `Empezar ${TRIAL_DAYS} días gratis`
+                      : isApple
+                        ? 'Suscribirse'
+                        : 'Continuar al pago'}
+                </Text>
+                <MaterialCommunityIcons name="arrow-right" size={20} color="#fff" />
+              </>
             )}
-          </>
-        ) : (
-          <View style={styles.paymentPendingContainer}>
-            <Text style={styles.paymentPendingText}>
-              ¿Ya has completado el pago?
-            </Text>
+          </TouchableOpacity>
+          
+          {/* Restore Purchases Button (iOS only) */}
+          {isApple && (
             <TouchableOpacity
-              style={[styles.continueButton, styles.verifyButton, isVerifying && styles.continueButtonDisabled]}
-              onPress={handleVerifyPayment}
-              disabled={isVerifying}
+              style={styles.restorePurchasesButton}
+              onPress={handleRestorePurchases}
+              disabled={isRestoringPurchases}
             >
-              {isVerifying ? (
-                <ActivityIndicator color="#fff" />
+              {isRestoringPurchases ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
-                <>
-                  <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.continueButtonText}>Ya he pagado</Text>
-                </>
+                <Text style={styles.restorePurchasesText}>Restaurar compras anteriores</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.retryPaymentButton}
-              onPress={() => setPaymentPending(false)}
-            >
-              <Text style={styles.retryPaymentText}>Volver a intentar el pago</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </>
 
         {/* Terms */}
         <View style={styles.termsContainer}>
