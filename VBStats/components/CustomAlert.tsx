@@ -81,6 +81,27 @@ export default function CustomAlert({
 
   const isColumn = buttonLayout === 'column';
 
+  // Auto-detect column layout for long button texts to prevent truncation
+  const shouldAutoColumn = !isColumn && buttons.length > 1 && buttons.some(btn => btn.text.length > 14);
+  const useColumnLayout = isColumn || shouldAutoColumn;
+
+  // Use a unified function that references useColumnLayout
+  const getResolvedButtonStyle = (style: CustomAlertButton['style']) => {
+    const baseStyle = (() => {
+      switch (style) {
+        case 'destructive':
+          return styles.destructiveOutlined;
+        case 'primary':
+          return styles.primaryButton;
+        case 'cancel':
+          return styles.cancelButton;
+        default:
+          return styles.defaultButton;
+      }
+    })();
+    return useColumnLayout ? [baseStyle, styles.columnButton] : baseStyle;
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -121,13 +142,13 @@ export default function CustomAlert({
               <Text style={styles.confirmWarning}>{warning}</Text>
             )}
             
-            <View style={[styles.confirmButtons, isColumn && styles.confirmButtonsColumn]}>
+            <View style={[styles.confirmButtons, useColumnLayout && styles.confirmButtonsColumn]}>
               {buttons.map((button, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[
-                    getButtonStyle(button.style, isColumn),
-                    !isColumn && buttons.length === 1 && { flex: 1 },
+                    getResolvedButtonStyle(button.style),
+                    !useColumnLayout && buttons.length === 1 && { flex: 1 },
                   ]}
                   onPress={button.onPress}
                   activeOpacity={0.8}

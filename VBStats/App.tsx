@@ -55,6 +55,7 @@ export default function App() {
   const [resetPasswordEmail, setResetPasswordEmail] = useState('');
   const [showSelectPlan, setShowSelectPlan] = useState(false);
   const [pendingRegistration, setPendingRegistration] = useState<{ email: string; password: string; name?: string } | null>(null);
+  const [pendingRegisteredUserId, setPendingRegisteredUserId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -343,31 +344,53 @@ export default function App() {
   };
 
   const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
+    setPendingRegistration({ email, password, name });
+    setPendingRegisteredUserId(null);
+    setShowSignUp(false);
+    setShowSelectPlan(true);
+    return true;
+  };
+
+  const ensurePendingRegistrationUser = async (): Promise<number | null> => {
+    if (userId) return userId;
+    if (pendingRegisteredUserId) return pendingRegisteredUserId;
+    if (!pendingRegistration) return null;
+
     try {
-      const user = await usersService.register({ email, password, name });
-      // Después de registrar exitosamente, guardamos datos y mostramos selección de plan
+      const user = await usersService.register(pendingRegistration);
       setUserId(user.id);
-      setUserName(user.name || email.split("@")[0]);
+      setPendingRegisteredUserId(user.id);
+      setUserName(user.name || pendingRegistration.email.split("@")[0]);
       setUserEmail(user.email);
       setSessionToken(user.session_token || null);
-      setPendingRegistration({ email, password, name });
-      setShowSignUp(false);
-      setShowSelectPlan(true);
-      return true;
+      return user.id;
     } catch (error) {
       console.error('Sign up error:', error);
-      return false;
+      return null;
     }
   };
 
   const handlePlanSelected = async (plan: SubscriptionType) => {
-    if (userId) {
+    const effectiveUserId = userId || pendingRegisteredUserId || await ensurePendingRegistrationUser();
+    if (!effectiveUserId) {
+      setShowSelectPlan(false);
+      setShowSignUp(true);
+      return;
+    }
+
+    if (effectiveUserId) {
       try {
         if (plan === 'free') {
-          await subscriptionService.updateSubscription(userId, plan);
+          await subscriptionService.updateSubscription(effectiveUserId, plan);
           setSubscriptionType(plan);
         } else {
-          await loadSubscription();
+          const subscription = await subscriptionService.getSubscription(effectiveUserId);
+          setSubscriptionType(subscription.type);
+          setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+          setSubscriptionExpiresAt(subscription.expiresAt || null);
+          setAutoRenew(subscription.autoRenew !== false);
+          setActiveTrial(subscription.activeTrial || null);
+          setSubscriptionLoaded(true);
         }
       } catch (error) {
         console.error('Error updating subscription:', error);
@@ -375,6 +398,7 @@ export default function App() {
     }
     setShowSelectPlan(false);
     setPendingRegistration(null);
+    setPendingRegisteredUserId(null);
     setIsLoggedIn(true);
     setCurrentScreen('home');
   };
@@ -430,6 +454,8 @@ export default function App() {
     setAutoRenew(true);
     setSubscriptionLoaded(false);
     setActiveTrial(null);
+    setPendingRegistration(null);
+    setPendingRegisteredUserId(null);
     setCurrentScreen('home');
     setMenuVisible(false);
   };
@@ -508,9 +534,10 @@ export default function App() {
         return (
           <SelectPlanScreen
             onPlanSelected={handlePlanSelected}
+            onEnsureUser={ensurePendingRegistrationUser}
             onBack={() => setCurrentScreen('home')}
             currentPlan={subscriptionType}
-            userId={userId}
+            userId={userId || pendingRegisteredUserId}
           />
         );
       case 'searchByCode':
@@ -777,12 +804,13 @@ export default function App() {
         showSelectPlan ? (
           <SelectPlanScreen
             onPlanSelected={handlePlanSelected}
+            onEnsureUser={ensurePendingRegistrationUser}
             onBack={() => {
               setShowSelectPlan(false);
               setShowSignUp(true);
             }}
             currentPlan={undefined}
-            userId={userId}
+            userId={userId || pendingRegisteredUserId}
           />
         ) : showSignUp ? (
           <SignUpScreen

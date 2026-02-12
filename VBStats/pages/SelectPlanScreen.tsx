@@ -41,6 +41,7 @@ const TERMS_OF_SERVICE_URL = 'https://www.apple.com/legal/internet-services/itun
 
 interface SelectPlanScreenProps {
   onPlanSelected: (planType: SubscriptionType) => void;
+  onEnsureUser?: () => Promise<number | null>;
   onBack: () => void;
   currentPlan?: SubscriptionType;
   userId?: number | null;
@@ -48,6 +49,7 @@ interface SelectPlanScreenProps {
 
 export default function SelectPlanScreen({ 
   onPlanSelected, 
+  onEnsureUser,
   onBack,
   currentPlan,
   userId 
@@ -63,7 +65,7 @@ export default function SelectPlanScreen({
   const [showGuide, setShowGuide] = useState(false);
   const [showConfirmPlan, setShowConfirmPlan] = useState(false);
   const [trialEligibility, setTrialEligibility] = useState<TrialEligibility | null>(null);
-  const [useFreeTrial, setUseFreeTrial] = useState(true);
+  const [isTrialMode, setIsTrialMode] = useState(false);
   const [deviceId, setDeviceId] = useState<string>('');
   const [showTrialInfo, setShowTrialInfo] = useState(false);
   const [appleProducts, setAppleProducts] = useState<AppleProduct[]>([]);
@@ -123,10 +125,6 @@ export default function SelectPlanScreen({
       if (userId && deviceId) {
         const eligibility = await subscriptionService.checkTrialEligibility(userId, deviceId);
         setTrialEligibility(eligibility);
-        // If not eligible, disable trial option
-        if (!eligibility.eligible) {
-          setUseFreeTrial(false);
-        }
       }
     };
     checkEligibility();
@@ -183,11 +181,18 @@ export default function SelectPlanScreen({
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
       setSelectedPlan('free');
+      setIsTrialMode(false);
       setShowConfirmPlan(true);
       return;
     }
 
     setSelectedPlan(plan.id);
+    setIsTrialMode(false);
+  };
+
+  const handleSelectTrial = () => {
+    setSelectedPlan('pro');
+    setIsTrialMode(true);
   };
 
   const performContinue = async () => {
@@ -196,8 +201,13 @@ export default function SelectPlanScreen({
       return;
     }
 
-    if (!userId) {
-      setErrorMessage('Por favor, completa el registro primero');
+    let effectiveUserId = userId;
+    if (!effectiveUserId && onEnsureUser) {
+      effectiveUserId = await onEnsureUser();
+    }
+
+    if (!effectiveUserId) {
+      setErrorMessage('No se pudo crear tu cuenta. Revisa los datos e inténtalo de nuevo.');
       setShowErrorAlert(true);
       return;
     }
@@ -206,7 +216,7 @@ export default function SelectPlanScreen({
     try {
       // Check if we're on iOS - use Apple IAP
       if (isApple) {
-        await performApplePurchase();
+        await performApplePurchase(effectiveUserId);
         return;
       }
 
@@ -214,10 +224,10 @@ export default function SelectPlanScreen({
       // SIEMPRE usar Stripe checkout, incluso para trials
       // Esto asegura que el método de pago esté configurado y se cobre automáticamente al finalizar el trial
       const result = await subscriptionService.createCheckoutSessionWithTrial(
-        userId, 
+        effectiveUserId, 
         selectedPlan, 
         deviceId,
-        selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible
+        selectedPlan === 'pro' && isTrialMode && (userId ? !!trialEligibility?.eligible : true)
       );
       
       if (result.error) {
@@ -250,8 +260,9 @@ export default function SelectPlanScreen({
   };
 
   // Handle Apple IAP purchase (iOS only)
-  const performApplePurchase = async () => {
-    if (!userId) return;
+  const performApplePurchase = async (targetUserId?: number | null) => {
+    const effectiveUserId = targetUserId ?? userId;
+    if (!effectiveUserId) return;
 
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
     if (!plan || !plan.appleProductId) {
@@ -281,7 +292,7 @@ export default function SelectPlanScreen({
         return;
       }
 
-      const result = await appleIAPService.purchaseSubscription(plan.appleProductId, userId);
+      const result = await appleIAPService.purchaseSubscription(plan.appleProductId, effectiveUserId);
       
       if (result.success) {
         // Purchase successful, navigate to app
@@ -387,7 +398,7 @@ export default function SelectPlanScreen({
   };
 
   const renderPlanCard = (plan: SubscriptionPlan) => {
-    const isSelected = selectedPlan === plan.id;
+    const isSelected = selectedPlan === plan.id && !(plan.id === 'pro' && isTrialMode);
     const isPro = plan.id === 'pro';
 
     return (
@@ -424,7 +435,7 @@ export default function SelectPlanScreen({
               </>
             ) : (
               <Text style={[styles.priceAmount, isSelected && styles.priceAmountSelected]}>
-                Gratis
+                0€
               </Text>
             )}
           </View>
@@ -509,39 +520,6 @@ export default function SelectPlanScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Free Trial Banner - Show prominently at the top if eligible */}
-        {trialEligibility?.eligible && !isApple && (
-          <TouchableOpacity
-            style={[
-              styles.freeTrialBanner,
-              selectedPlan === 'pro' && useFreeTrial && styles.freeTrialBannerSelected,
-            ]}
-            onPress={() => {
-              setSelectedPlan('pro');
-              setUseFreeTrial(true);
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.freeTrialBannerIcon}>
-              <MaterialCommunityIcons name="gift" size={28} color="#fff" />
-            </View>
-            <View style={styles.freeTrialBannerContent}>
-              <View style={styles.freeTrialBannerHeader}>
-                <Text style={styles.freeTrialBannerTitle}>
-                  ¡Prueba PRO gratis {TRIAL_DAYS} días!
-                </Text>
-                {selectedPlan === 'pro' && useFreeTrial && (
-                  <MaterialCommunityIcons name="check-circle" size={20} color="#22c55e" />
-                )}
-              </View>
-              <Text style={styles.freeTrialBannerSubtitle}>
-                Accede a todas las funciones sin compromiso. No se cobra hasta que termine la prueba.
-              </Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-
         {/* Plans - filtered based on current plan */}
         <View style={styles.plansContainer}>
           {SUBSCRIPTION_PLANS.filter(plan => {
@@ -560,34 +538,50 @@ export default function SelectPlanScreen({
           }).map(renderPlanCard)}
         </View>
 
-        {/* Free Trial Option */}
-        {selectedPlan === 'pro' && trialEligibility?.eligible && (
-          <View style={styles.trialSection}>
-            <TouchableOpacity
-              style={styles.trialToggle}
-              onPress={() => setUseFreeTrial(!useFreeTrial)}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons 
-                name={useFreeTrial ? 'checkbox-marked' : 'checkbox-blank-outline'} 
-                size={24} 
-                color={useFreeTrial ? Colors.primary : Colors.textSecondary} 
-              />
-              <View style={styles.trialToggleContent}>
-                <View style={styles.trialBadge}>
-                  <MaterialCommunityIcons name="gift" size={14} color="#fff" />
-                  <Text style={styles.trialBadgeText}>PRUEBA GRATIS</Text>
-                </View>
-                <Text style={styles.trialToggleText}>
-                  Probar {TRIAL_DAYS} días gratis
-                </Text>
-                <Text style={styles.trialToggleSubtext}>
-                  {isApple
-                    ? 'Se requiere un método de pago en tu Apple ID. No se cobra hasta que termine la prueba.'
-                    : 'Introduce tu método de pago. No se cobra hasta que termine la prueba.'}
+        {/* Trial Card - Clear separate option when eligible */}
+        {(userId ? !!trialEligibility?.eligible : true) && (
+          <TouchableOpacity
+            style={[
+              styles.trialCard,
+              isTrialMode && styles.trialCardSelected,
+            ]}
+            onPress={handleSelectTrial}
+            activeOpacity={0.8}
+          >
+            <View style={styles.trialCardBadge}>
+              <MaterialCommunityIcons name="gift" size={14} color="#fff" />
+              <Text style={styles.trialCardBadgeText}>PRUEBA GRATUITA</Text>
+            </View>
+            <View style={styles.trialCardHeader}>
+              <Text style={[styles.trialCardTitle, isTrialMode && styles.trialCardTitleSelected]}>
+                Prueba PRO - {TRIAL_DAYS} días gratis
+              </Text>
+              <Text style={styles.trialCardSubtitle}>
+                Después: {SUBSCRIPTION_PLANS.find(p => p.id === 'pro')?.priceString || '9,99€/mes'}
+              </Text>
+            </View>
+            <View style={styles.trialCardFeatures}>
+              <View style={styles.featureRow}>
+                <MaterialCommunityIcons name="check" size={16} color="#22c55e" />
+                <Text style={styles.featureText}>Todas las funciones PRO durante {TRIAL_DAYS} días</Text>
+              </View>
+              <View style={styles.featureRow}>
+                <MaterialCommunityIcons name="check" size={16} color="#22c55e" />
+                <Text style={styles.featureText}>Sin cargo durante la prueba</Text>
+              </View>
+              <View style={styles.featureRow}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#e67e22" />
+                <Text style={[styles.featureText, { color: '#e67e22', fontWeight: '600' }]}>
+                  Al acabar la prueba se cobra {SUBSCRIPTION_PLANS.find(p => p.id === 'pro')?.priceString || '9,99€/mes'} automáticamente
                 </Text>
               </View>
-            </TouchableOpacity>
+              <View style={styles.featureRow}>
+                <MaterialCommunityIcons name="information-outline" size={16} color={Colors.textSecondary} />
+                <Text style={[styles.featureText, { color: Colors.textSecondary }]}>
+                  Si cancelas, tu cuenta pasará al Plan Gratis
+                </Text>
+              </View>
+            </View>
             <TouchableOpacity
               style={styles.trialInfoButton}
               onPress={() => setShowTrialInfo(true)}
@@ -595,17 +589,20 @@ export default function SelectPlanScreen({
               <MaterialCommunityIcons name="information-outline" size={16} color={Colors.primary} />
               <Text style={styles.trialInfoButtonText}>Más información sobre la prueba</Text>
             </TouchableOpacity>
-          </View>
+            {isTrialMode && (
+              <View style={styles.selectedIndicator}>
+                <MaterialCommunityIcons name="check-circle" size={24} color="#22c55e" />
+              </View>
+            )}
+          </TouchableOpacity>
         )}
 
-        {/* Trial Not Available Notice */}
-        {selectedPlan === 'pro' && trialEligibility && !trialEligibility.eligible && (
-          <View style={styles.trialNotAvailable}>
-            <MaterialCommunityIcons name="information-outline" size={20} color={Colors.textSecondary} />
-            <Text style={styles.trialNotAvailableText}>
-              {trialEligibility.deviceUsedTrial 
-                ? 'Este dispositivo ya ha utilizado una prueba gratuita.'
-                : 'Esta cuenta ya ha utilizado una prueba gratuita.'}
+        {/* Cancellation Info for paid plans */}
+        {(selectedPlan !== 'free' || isTrialMode) && (
+          <View style={styles.cancellationInfo}>
+            <MaterialCommunityIcons name="information-outline" size={18} color="#5D4037" />
+            <Text style={styles.cancellationInfoText}>
+              Si cancelas cualquier suscripción, al finalizar el período vigente tu cuenta pasará automáticamente al Plan Gratis con funciones básicas.
             </Text>
           </View>
         )}
@@ -665,9 +662,9 @@ export default function SelectPlanScreen({
               <>
                 <Text style={styles.continueButtonText}>
                   {selectedPlan === 'free' 
-                    ? 'Continuar gratis' 
-                    : selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible && !isApple
-                      ? `Empezar ${TRIAL_DAYS} días gratis`
+                    ? 'Continuar con Plan Gratis' 
+                    : isTrialMode
+                      ? `Iniciar ${TRIAL_DAYS} días gratis`
                       : isApple
                         ? 'Suscribirse'
                         : 'Continuar al pago'}
@@ -714,35 +711,42 @@ export default function SelectPlanScreen({
           </Text>
           <Text style={styles.termsText}>
             {isApple && selectedPlan !== 'free' ? (
-              `El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
+              `El pago se cargará a tu cuenta de Apple ID al confirmar la compra. La suscripción se renueva automáticamente cada mes. Puedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones. Al cancelar, tu cuenta pasará al Plan Gratis.`
             ) : (
-              selectedPlan === 'pro' && useFreeTrial && trialEligibility?.eligible 
-                ? `La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes a menos que canceles.`
+              isTrialMode
+                ? `La prueba gratuita dura ${TRIAL_DAYS} días. Después, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || ''} automáticamente cada mes. Si cancelas (antes o después de la prueba), tu cuenta pasará al Plan Gratis.`
                 : selectedPlan !== 'free' 
-                  ? 'La suscripción se renovará automáticamente cada mes.'
+                  ? 'La suscripción se renovará automáticamente cada mes. Al cancelar, tu cuenta pasará al Plan Gratis.'
                   : ''
             )}
           </Text>
         </View>
       </ScrollView>
 
-      {/* Error Alert */}
+      {/* Confirmation Alert */}
       <CustomAlert
         visible={showConfirmPlan}
-        title={useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro' 
-          ? `Comenzar prueba gratuita de ${TRIAL_DAYS} días` 
-          : 'Confirmar selección'}
+        buttonLayout="column"
+        title={isTrialMode 
+          ? `Prueba gratuita PRO - ${TRIAL_DAYS} días` 
+          : selectedPlan === 'free'
+            ? 'Plan Gratis'
+            : `Plan ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.name || ''}`}
         message={(() => {
           const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
           if (!plan) return '¿Confirmas seleccionar este plan?';
           
-          if (useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro') {
+          if (isTrialMode) {
             return isApple
-              ? `Se te pedirá confirmar la compra con tu Apple ID para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde Ajustes > Apple ID > Suscripciones.`
-              : `Se te pedirá tu método de pago para iniciar la prueba gratuita de ${TRIAL_DAYS} días del plan ${plan.name}.\n\nIMPORTANTE: Al finalizar la prueba, se cobrará automáticamente ${plan.priceString} cada mes.\n\nPuedes cancelar en cualquier momento desde tu perfil antes de que termine la prueba para evitar cargos.`;
+              ? `Vas a iniciar una prueba gratuita de ${TRIAL_DAYS} días del Plan PRO.\n\n• Durante ${TRIAL_DAYS} días: acceso completo a funciones PRO sin cargo.\n• Después de la prueba: se cobra ${plan.priceString} automáticamente cada mes.\n• Si cancelas antes de que termine la prueba, no se te cobrará nada.\n• Al cancelar, tu cuenta pasará al Plan Gratis.\n\nPuedes cancelar desde Ajustes > Apple ID > Suscripciones.`
+              : `Vas a iniciar una prueba gratuita de ${TRIAL_DAYS} días del Plan PRO.\n\n• Durante ${TRIAL_DAYS} días: acceso completo a funciones PRO sin cargo.\n• Después de la prueba: se cobra ${plan.priceString} automáticamente cada mes.\n• Si cancelas antes de que termine la prueba, no se te cobrará nada.\n• Al cancelar, tu cuenta pasará al Plan Gratis.\n\nSe te pedirá un método de pago para confirmar.`;
           }
           
-          return `Vas a seleccionar el plan ${plan.name} ${plan.price > 0 ? `(${plan.price.toFixed(2).replace('.', ',')}€/mes)` : '(Gratis)'}.`;
+          if (plan.id === 'free') {
+            return 'Tu cuenta será una cuenta con el Plan Gratis y funciones básicas.\n\nPodrás cambiar de plan en cualquier momento desde tu perfil.';
+          }
+          
+          return `Vas a suscribirte al Plan ${plan.name} por ${plan.priceString}.\n\n• La suscripción se renueva automáticamente cada mes.\n• Si cancelas, al terminar el período pagado tu cuenta pasará al Plan Gratis.\n\n${isApple ? 'Puedes cancelar desde Ajustes > Apple ID > Suscripciones.' : 'Puedes cancelar desde tu perfil.'}`;
         })()}
         buttons={[
           {
@@ -751,9 +755,11 @@ export default function SelectPlanScreen({
             style: 'cancel',
           },
           {
-            text: useFreeTrial && trialEligibility?.eligible && selectedPlan === 'pro' 
-              ? 'Comenzar prueba' 
-              : 'Confirmar',
+            text: isTrialMode 
+              ? `Iniciar ${TRIAL_DAYS} días gratis`
+              : selectedPlan === 'free'
+                ? 'Continuar con Plan Gratis'
+                : 'Confirmar suscripción',
             onPress: async () => {
               setShowConfirmPlan(false);
               await performContinue();
@@ -768,7 +774,7 @@ export default function SelectPlanScreen({
       <CustomAlert
         visible={showTrialInfo}
         title={`Prueba gratuita de ${TRIAL_DAYS} días`}
-        message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción se activa automáticamente\n4. Si no te convence, cancela antes de que termine la prueba\n\nIMPORTANTE: ${isApple ? 'Se requiere Apple ID con un método de pago válido' : 'Se requiere método de pago'} para iniciar la prueba. Si no cancelas, se cobrará ${SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan)?.priceString || 'el precio del plan'} automáticamente al finalizar los ${TRIAL_DAYS} días.\n\nPuedes cancelar en cualquier momento desde Perfil > Gestionar suscripción.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
+        message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción PRO se activa automáticamente a ${SUBSCRIPTION_PLANS.find(p => p.id === 'pro')?.priceString || '9,99€/mes'}\n4. Si no te convence, cancela antes de que termine la prueba y no se te cobrará nada\n\nAl cancelar (antes o después de la prueba), tu cuenta pasará al Plan Gratis con funciones básicas.\n\nPuedes cancelar desde ${isApple ? 'Ajustes > Apple ID > Suscripciones' : 'Perfil > Gestionar suscripción'}.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
             text: 'Entendido',
@@ -1200,5 +1206,75 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     lineHeight: 18,
+  },
+  // Trial card styles (new design - separate card, no toggle)
+  trialCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: '#22c55e',
+    position: 'relative',
+    marginBottom: Spacing.lg,
+    ...Shadows.md,
+  },
+  trialCardSelected: {
+    backgroundColor: '#22c55e' + '10',
+    borderWidth: 3,
+  },
+  trialCardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#22c55e',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.sm,
+    gap: 4,
+  },
+  trialCardBadgeText: {
+    color: '#fff',
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  trialCardHeader: {
+    marginBottom: Spacing.md,
+  },
+  trialCardTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  trialCardTitleSelected: {
+    color: '#16a34a',
+  },
+  trialCardSubtitle: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  trialCardFeatures: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  cancellationInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF8E1',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  cancellationInfoText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: '#5D4037',
+    lineHeight: 20,
   },
 });
