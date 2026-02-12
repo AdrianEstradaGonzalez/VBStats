@@ -384,6 +384,9 @@ export default function App() {
           await subscriptionService.updateSubscription(effectiveUserId, plan);
           setSubscriptionType(plan);
         } else {
+          // Set the plan type immediately (it was already verified by Stripe)
+          setSubscriptionType(plan);
+          // Then fetch full subscription details from server (which also syncs with Stripe)
           const subscription = await subscriptionService.getSubscription(effectiveUserId);
           setSubscriptionType(subscription.type);
           setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
@@ -394,6 +397,8 @@ export default function App() {
         }
       } catch (error) {
         console.error('Error updating subscription:', error);
+        // Keep the plan type that was passed in even if fetch fails
+        setSubscriptionType(plan);
       }
     }
     setShowSelectPlan(false);

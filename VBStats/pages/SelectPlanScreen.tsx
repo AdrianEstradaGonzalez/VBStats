@@ -3,7 +3,7 @@
  * Diseño moderno y profesional con integración de pagos
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   StatusBar,
   Image,
   Linking,
+  AppState,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -72,6 +73,7 @@ export default function SelectPlanScreen({
   const [isRestoringPurchases, setIsRestoringPurchases] = useState(false);
   const [showProAlert, setShowProAlert] = useState(false);
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
+  const checkoutOpenedRef = useRef(false);
 
   // Si el usuario ya es PRO, mostrar alerta y no permitir continuar al pago
   const isAlreadyPro = currentPlan === 'pro';
@@ -178,6 +180,39 @@ export default function SelectPlanScreen({
     };
   }, [userId, isApple]);
 
+  // Auto-verify payment when user returns to the app from Stripe browser
+  useEffect(() => {
+    const appStateListener = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active' && checkoutOpenedRef.current && userId) {
+        // User returned to the app after opening Stripe checkout
+        console.log('📱 App became active after checkout, verifying payment...');
+        checkoutOpenedRef.current = false;
+        
+        // Give a brief delay for any deep link to fire first
+        await new Promise<void>(resolve => setTimeout(() => resolve(), 1500));
+        
+        // If we have a session ID, verify it directly
+        if (checkoutSessionId) {
+          await handleVerifyPayment(checkoutSessionId);
+        } else {
+          // Fallback: check subscription status from server (which now syncs with Stripe)
+          try {
+            const subscription = await subscriptionService.getSubscription(userId);
+            if (subscription && subscription.type !== 'free') {
+              onPlanSelected(subscription.type);
+            }
+          } catch (error) {
+            console.error('Error checking subscription after return:', error);
+          }
+        }
+      }
+    });
+
+    return () => {
+      appStateListener.remove();
+    };
+  }, [userId, checkoutSessionId]);
+
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     if (plan.id === 'free') {
       setSelectedPlan('free');
@@ -241,10 +276,13 @@ export default function SelectPlanScreen({
         if (result.sessionId) {
           setCheckoutSessionId(result.sessionId);
         }
+        // Mark that we opened checkout (for AppState listener)
+        checkoutOpenedRef.current = true;
         // Open Stripe checkout in browser
         try {
           await Linking.openURL(result.sessionUrl);
         } catch (linkError) {
+          checkoutOpenedRef.current = false;
           console.error('Error opening URL:', linkError);
           setErrorMessage('No se pudo abrir el navegador para el pago. Copia este enlace: ' + result.sessionUrl);
           setShowErrorAlert(true);

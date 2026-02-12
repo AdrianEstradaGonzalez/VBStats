@@ -172,6 +172,80 @@ router.get('/:userId', async (req, res) => {
 
     const user = rows[0];
     
+    // ============================================
+    // STRIPE SYNC: If user is 'free' but has a stripe_customer_id,
+    // check Stripe for active/trialing subscriptions (handles missed webhooks)
+    // ============================================
+    if (stripe && user.stripe_customer_id && (!user.subscription_type || user.subscription_type === 'free')) {
+      try {
+        const stripeSubs = await stripe.subscriptions.list({
+          customer: user.stripe_customer_id,
+          status: 'all',
+          limit: 10,
+        });
+        
+        // Find the most recent active or trialing subscription
+        const activeSub = stripeSubs.data.find(sub => sub.status === 'active' || sub.status === 'trialing');
+        
+        if (activeSub) {
+          const priceId = activeSub.items.data[0].price.id;
+          let syncedType = 'free';
+          
+          if (priceId === PRICE_IDS.basic) {
+            syncedType = 'basic';
+          } else if (priceId === PRICE_IDS.pro) {
+            syncedType = 'pro';
+          } else {
+            // Fallback: check subscription metadata or try matching by price amount
+            const priceAmount = activeSub.items.data[0].price.unit_amount;
+            if (priceAmount >= 900) {
+              syncedType = 'pro';
+            } else if (priceAmount >= 400) {
+              syncedType = 'basic';
+            }
+          }
+          
+          if (syncedType !== 'free') {
+            const endTimestamp = activeSub.trial_end || activeSub.current_period_end;
+            const isTrial = !!activeSub.trial_end && activeSub.trial_end > Math.floor(Date.now() / 1000);
+            
+            console.log(`🔄 STRIPE SYNC: User ${req.params.userId} is '${user.subscription_type}' in DB but has active Stripe subscription: ${syncedType} (trial: ${isTrial})`);
+            
+            // Cancel any other subscriptions (keep only the most recent active one)
+            for (const sub of stripeSubs.data) {
+              if (sub.id !== activeSub.id && (sub.status === 'active' || sub.status === 'trialing')) {
+                console.log(`🗑️ STRIPE SYNC: Cancelling duplicate subscription ${sub.id}`);
+                await stripe.subscriptions.cancel(sub.id);
+              }
+            }
+            
+            // Update DB to match Stripe
+            await pool.query(
+              `UPDATE users SET 
+                subscription_type = ?,
+                subscription_expires_at = FROM_UNIXTIME(?),
+                stripe_subscription_id = ?,
+                auto_renew = ?,
+                cancelled_at = NULL
+              WHERE id = ?`,
+              [syncedType, endTimestamp, activeSub.id, !activeSub.cancel_at_period_end, req.params.userId]
+            );
+            
+            user.subscription_type = syncedType;
+            user.subscription_expires_at = new Date(endTimestamp * 1000);
+            user.stripe_subscription_id = activeSub.id;
+            user.auto_renew = !activeSub.cancel_at_period_end;
+            user.cancelled_at = null;
+            
+            console.log(`✅ STRIPE SYNC: User ${req.params.userId} updated to ${syncedType}`);
+          }
+        }
+      } catch (syncErr) {
+        console.error('⚠️ Error during Stripe sync:', syncErr.message);
+        // Continue with DB data if sync fails
+      }
+    }
+    
     // Check if subscription has expired
     if (user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date()) {
       // Only downgrade if auto_renew is off (user cancelled)
@@ -207,6 +281,22 @@ router.get('/:userId', async (req, res) => {
           endsAt: user.trial_ends_at,
           daysRemaining: Math.ceil((trialEndsAt - new Date()) / (1000 * 60 * 60 * 24))
         };
+      }
+    }
+    
+    // Also check: if subscription is active (pro/basic) and has a trial_end in Stripe, report as trial
+    if (stripe && user.stripe_subscription_id && (user.subscription_type === 'pro' || user.subscription_type === 'basic')) {
+      try {
+        const stripeSub = await stripe.subscriptions.retrieve(user.stripe_subscription_id);
+        if (stripeSub.trial_end && stripeSub.trial_end > Math.floor(Date.now() / 1000)) {
+          activeTrial = {
+            planType: user.subscription_type,
+            endsAt: new Date(stripeSub.trial_end * 1000).toISOString(),
+            daysRemaining: Math.ceil((stripeSub.trial_end * 1000 - Date.now()) / (1000 * 60 * 60 * 24))
+          };
+        }
+      } catch (err) {
+        // Ignore - we already have what we need
       }
     }
     
@@ -418,6 +508,23 @@ router.post('/create-checkout', async (req, res) => {
 
     console.log('💳 Creating checkout session with priceId:', priceId);
 
+    // Cancel any existing active/trialing subscriptions to prevent duplicates
+    try {
+      const existingSubs = await stripe.subscriptions.list({
+        customer: customerId,
+        status: 'all',
+      });
+      for (const sub of existingSubs.data) {
+        if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+          console.log(`🗑️ Cancelling existing subscription ${sub.id} (status: ${sub.status}) before new checkout`);
+          await stripe.subscriptions.cancel(sub.id);
+        }
+      }
+    } catch (cancelErr) {
+      console.error('⚠️ Error cancelling existing subscriptions:', cancelErr.message);
+      // Continue with checkout even if cancellation fails
+    }
+
     // Build checkout session options
     const normalizedPlanType = planType === 'basic' || planType === 'pro' ? planType : null;
     const sessionOptions = {
@@ -541,9 +648,35 @@ router.post('/verify-checkout-session', async (req, res) => {
       subscriptionType = 'pro';
     } else if (session.metadata.planType === 'basic' || session.metadata.planType === 'pro') {
       subscriptionType = session.metadata.planType;
+    } else {
+      // Fallback: determine type from price amount
+      const priceAmount = subscriptionData.items.data[0].price.unit_amount;
+      if (priceAmount >= 900) {
+        subscriptionType = 'pro';
+      } else if (priceAmount >= 400) {
+        subscriptionType = 'basic';
+      }
     }
 
     console.log(`✅ Session verified for user ${userId}: ${subscriptionType}, trial: ${withTrial}`);
+
+    // Cancel any OTHER active/trialing subscriptions for this customer to prevent duplicates
+    if (session.customer) {
+      try {
+        const allSubs = await stripe.subscriptions.list({
+          customer: session.customer,
+          status: 'all',
+        });
+        for (const sub of allSubs.data) {
+          if (sub.id !== subscriptionData.id && (sub.status === 'active' || sub.status === 'trialing')) {
+            console.log(`🗑️ Verify: Cancelling duplicate subscription ${sub.id}`);
+            await stripe.subscriptions.cancel(sub.id);
+          }
+        }
+      } catch (cleanupErr) {
+        console.error('⚠️ Error cleaning up duplicate subscriptions:', cleanupErr.message);
+      }
+    }
 
     // If this was a trial checkout, record trial usage
     if (withTrial && deviceId && subscriptionData.trial_end) {
@@ -621,6 +754,22 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const withTrial = session.metadata.withTrial === 'true';
         const deviceId = session.metadata.deviceId;
 
+        // Cancel any OTHER active/trialing subscriptions for this customer to prevent duplicates
+        try {
+          const allSubs = await stripe.subscriptions.list({
+            customer: session.customer,
+            status: 'all',
+          });
+          for (const sub of allSubs.data) {
+            if (sub.id !== subscriptionId && (sub.status === 'active' || sub.status === 'trialing')) {
+              console.log(`\uD83D\uDDD1\uFE0F Webhook: Cancelling duplicate subscription ${sub.id}`);
+              await stripe.subscriptions.cancel(sub.id);
+            }
+          }
+        } catch (cleanupErr) {
+          console.error('\u26A0\uFE0F Error cleaning up duplicate subscriptions:', cleanupErr.message);
+        }
+
         // Get subscription details
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0].price.id;
@@ -633,6 +782,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           subscriptionType = 'pro';
         } else if (session.metadata.planType === 'basic' || session.metadata.planType === 'pro') {
           subscriptionType = session.metadata.planType;
+        } else {
+          // Fallback: determine type from price amount
+          const priceAmount = subscription.items.data[0].price.unit_amount;
+          if (priceAmount >= 900) {
+            subscriptionType = 'pro';
+          } else if (priceAmount >= 400) {
+            subscriptionType = 'basic';
+          }
         }
         
         // If this was a trial checkout, record trial usage
@@ -640,6 +797,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           console.log(`🎁 Recording trial usage for user ${userId}, device ${deviceId}`);
           await recordTrialUsage(userId, deviceId, subscriptionType);
         }
+
+        // Get the subscription end date (trial_end if on trial, otherwise current_period_end)
+        const endTimestamp = subscription.trial_end || subscription.current_period_end;
 
         // Update user subscription
         await pool.query(
@@ -650,7 +810,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             auto_renew = TRUE,
             cancelled_at = NULL
           WHERE id = ?`,
-          [subscriptionType, subscription.current_period_end, subscriptionId, userId]
+          [subscriptionType, endTimestamp, subscriptionId, userId]
         );
         
         console.log(`✅ Subscription activated for user ${userId}: ${subscriptionType}${withTrial ? ' (with trial)' : ''}`);
@@ -678,6 +838,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             subscriptionType = 'pro';
           } else if (users[0].subscription_type === 'basic' || users[0].subscription_type === 'pro') {
             subscriptionType = users[0].subscription_type;
+          } else {
+            // Fallback: determine type from price amount
+            const priceAmount = subscription.items.data[0].price.unit_amount;
+            if (priceAmount >= 900) {
+              subscriptionType = 'pro';
+            } else if (priceAmount >= 400) {
+              subscriptionType = 'basic';
+            }
           }
 
           // Update subscription info including auto_renew status from Stripe
