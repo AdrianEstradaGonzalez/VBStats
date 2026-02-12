@@ -447,6 +447,7 @@ export const subscriptionService = {
         body: JSON.stringify({
           userId,
           priceId: plan.stripePriceId,
+          planType: planId,
           platform: Platform.OS,
           withTrial,
           deviceId,

@@ -377,7 +377,7 @@ router.post('/create-checkout', async (req, res) => {
   }
 
   try {
-    const { userId, priceId, platform, withTrial, deviceId } = req.body;
+    const { userId, priceId, planType, platform, withTrial, deviceId } = req.body;
 
     if (!userId || !priceId) {
       return res.status(400).json({ error: 'userId y priceId son requeridos' });
@@ -419,6 +419,7 @@ router.post('/create-checkout', async (req, res) => {
     console.log('💳 Creating checkout session with priceId:', priceId);
 
     // Build checkout session options
+    const normalizedPlanType = planType === 'basic' || planType === 'pro' ? planType : null;
     const sessionOptions = {
       customer: customerId,
       payment_method_types: platform === 'ios' ? ['card', 'apple_pay'] : ['card'],
@@ -435,6 +436,7 @@ router.post('/create-checkout', async (req, res) => {
         userId: userId.toString(),
         withTrial: withTrial ? 'true' : 'false',
         deviceId: deviceId || '',
+        planType: normalizedPlanType || '',
       },
     };
     
@@ -537,6 +539,8 @@ router.post('/verify-checkout-session', async (req, res) => {
       subscriptionType = 'basic';
     } else if (priceId === PRICE_IDS.pro) {
       subscriptionType = 'pro';
+    } else if (session.metadata.planType === 'basic' || session.metadata.planType === 'pro') {
+      subscriptionType = session.metadata.planType;
     }
 
     console.log(`✅ Session verified for user ${userId}: ${subscriptionType}, trial: ${withTrial}`);
@@ -627,6 +631,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           subscriptionType = 'basic';
         } else if (priceId === PRICE_IDS.pro) {
           subscriptionType = 'pro';
+        } else if (session.metadata.planType === 'basic' || session.metadata.planType === 'pro') {
+          subscriptionType = session.metadata.planType;
         }
         
         // If this was a trial checkout, record trial usage
@@ -657,7 +663,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
         // Find user by Stripe customer ID
         const [users] = await pool.query(
-          'SELECT id FROM users WHERE stripe_customer_id = ?',
+          'SELECT id, subscription_type FROM users WHERE stripe_customer_id = ?',
           [customerId]
         );
 
@@ -670,6 +676,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             subscriptionType = 'basic';
           } else if (priceId === PRICE_IDS.pro) {
             subscriptionType = 'pro';
+          } else if (users[0].subscription_type === 'basic' || users[0].subscription_type === 'pro') {
+            subscriptionType = users[0].subscription_type;
           }
 
           // Update subscription info including auto_renew status from Stripe

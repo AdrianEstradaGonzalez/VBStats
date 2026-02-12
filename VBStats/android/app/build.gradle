@@ -88,8 +88,8 @@ android {
         applicationId "com.vbstats"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
-        versionName "2.8"
+        versionCode 18
+        versionName "2.9"
     }
     signingConfigs {
     release {
