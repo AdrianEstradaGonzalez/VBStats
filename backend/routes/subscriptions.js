@@ -1013,8 +1013,8 @@ router.post('/:userId/cancel', async (req, res) => {
 
 // Apple IAP Product ID to subscription type mapping
 const APPLE_PRODUCT_IDS = {
-  'com.vbstats.basico.mensual': 'basic',
-  'com.vbstats.pro.mensual': 'pro',
+  'com.vbstats.basico.mes': 'basic',
+  'com.vbstats.pro.mes': 'pro',
 };
 
 // Apple App Store Connect Shared Secret (configure in environment)

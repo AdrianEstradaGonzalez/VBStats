@@ -34,14 +34,14 @@ describe('Subscription Plans Definition', () => {
     const basic = SUBSCRIPTION_PLANS.find(p => p.id === 'basic')!;
     expect(basic.price).toBe(4.99);
     expect(basic.stripePriceId).toBeDefined();
-    expect(basic.appleProductId).toBe('com.vbstats.basico.mensual');
+    expect(basic.appleProductId).toBe('com.vbstats.basico.mes');
   });
 
   test('pro plan has correct price, payment IDs, and is recommended', () => {
     const pro = SUBSCRIPTION_PLANS.find(p => p.id === 'pro')!;
     expect(pro.price).toBe(9.99);
     expect(pro.stripePriceId).toBeDefined();
-    expect(pro.appleProductId).toBe('com.vbstats.pro.mensual');
+    expect(pro.appleProductId).toBe('com.vbstats.pro.mes');
     expect(pro.recommended).toBe(true);
   });
 
