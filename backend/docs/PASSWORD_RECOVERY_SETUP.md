@@ -2,31 +2,29 @@
 
 ## Configuración del Correo (Backend)
 
-Para que la funcionalidad de recuperación de contraseña funcione correctamente, necesitas configurar **Resend** (servicio de email via API HTTP que funciona en Render y otros hosting).
+Para que la funcionalidad de recuperación de contraseña funcione correctamente, necesitas configurar **SendGrid** (servicio de email via API HTTP que funciona en Render y otros hosting).
 
-### Pasos para configurar Resend:
+### Pasos para configurar SendGrid:
 
-1. **Crear cuenta en Resend:**
-   - Ve a https://resend.com y crea una cuenta gratuita
-   - El plan gratuito incluye 100 emails/día (suficiente para la mayoría de apps)
+1. **Crear cuenta en SendGrid:**
+   - Ve a https://sendgrid.com y crea una cuenta gratuita
+   - El plan gratuito incluye envios limitados diarios (suficiente para la mayoría de apps)
 
 2. **Obtener API Key:**
-   - En el dashboard de Resend, ve a **API Keys**
-   - Crea una nueva API Key y cópiala
+   - En el dashboard de SendGrid, ve a **Settings > API Keys**
+   - Crea una nueva API Key con permiso **Mail Send** y cópiala
 
-3. **Verificar dominio (opcional pero recomendado):**
-   - Para enviar desde `vbstats.contact@gmail.com`, necesitas verificar el dominio
-   - Si no tienes dominio verificado, los emails se enviarán desde `onboarding@resend.dev`
-   - Para verificar un dominio propio, sigue las instrucciones en Resend > Domains
+3. **Verificar remitente o dominio (recomendado):**
+   - Debes verificar un remitente unico o un dominio
+   - Sigue las instrucciones en SendGrid > Sender Authentication
 
 4. **Agregar las variables de entorno en Render:**
    
    ```env
-   # Configuración de Resend para envío de emails
-   RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxx
+   # Configuración de SendGrid para envío de emails
+   SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxx
    
-   # Email remitente (requiere dominio verificado en Resend)
-   # Sin dominio verificado, usa: VBStats <onboarding@resend.dev>
+   # Email remitente (debe estar verificado en SendGrid)
    EMAIL_FROM=VBStats <vbstats.contact@gmail.com>
    
    # Entorno (development/production)
@@ -35,9 +33,9 @@ Para que la funcionalidad de recuperación de contraseña funcione correctamente
 
 5. **Desplegar cambios en Render**
 
-### ¿Por qué Resend en lugar de Gmail SMTP?
+### ¿Por qué SendGrid en lugar de Gmail SMTP?
 
-Render (y muchos otros hostings) bloquean las conexiones SMTP salientes en los puertos 465 y 587 para prevenir spam. Resend usa una API HTTP que no tiene este problema.
+Render (y muchos otros hostings) bloquean las conexiones SMTP salientes en los puertos 465 y 587 para prevenir spam. SendGrid usa una API HTTP que no tiene este problema.
 
 ## Seguridad Implementada
 

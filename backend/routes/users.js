@@ -2,17 +2,19 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { Resend } = require('resend');
+const sgMail = require('@sendgrid/mail');
 const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
-// Configuración de Resend para envío de emails (API HTTP)
-const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
-const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
-const DEFAULT_EMAIL_FROM = 'VBStats <onboarding@resend.dev>';
+// Configuración de SendGrid para envío de emails (API HTTP)
+const SENDGRID_API_KEY = (process.env.SENDGRID_API_KEY || '').trim();
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+}
+const DEFAULT_EMAIL_FROM = 'VBStats <no-reply@vbstats.app>';
 const EMAIL_FROM = normalizeFromAddress(process.env.EMAIL_FROM, DEFAULT_EMAIL_FROM);
 
 function normalizeFromAddress(rawFrom, fallback) {
@@ -41,26 +43,27 @@ function normalizeFromAddress(rawFrom, fallback) {
   return fallback;
 }
 
-// Función para enviar email usando Resend
+// Función para enviar email usando SendGrid
 async function sendEmail({ to, subject, html, text }) {
-  if (!resend) {
-    throw new Error('RESEND_API_KEY is not configured');
+  if (!SENDGRID_API_KEY) {
+    throw new Error('SENDGRID_API_KEY is not configured');
   }
 
-  const { data, error } = await resend.emails.send({
-    from: EMAIL_FROM,
-    to: [to],
-    subject,
-    html,
-    text,
-  });
+  try {
+    const [response] = await sgMail.send({
+      from: EMAIL_FROM,
+      to,
+      subject,
+      html,
+      text,
+    });
 
-  if (error) {
-    console.error('Resend error:', error);
-    throw new Error(error.message);
+    return response;
+  } catch (err) {
+    console.error('SendGrid error:', err);
+    const message = err?.response?.body?.errors?.[0]?.message || err.message || 'SendGrid send failed';
+    throw new Error(message);
   }
-
-  return data;
 }
 
 // Función para generar token seguro
@@ -586,7 +589,7 @@ IMPORTANTE:
 © ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
       `;
 
-    // Enviar email con Resend
+    // Enviar email con SendGrid
     await sendEmail({
       to: user.email,
       subject: 'Recuperar contraseña - VBStats',
