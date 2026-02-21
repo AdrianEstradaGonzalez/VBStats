@@ -173,6 +173,29 @@ router.get('/:userId', async (req, res) => {
     const user = rows[0];
     
     // ============================================
+    // APPLE SYNC: If user is 'free' but has an apple_original_transaction_id,
+    // the Apple verification may have failed previously. Try to re-check.
+    // ============================================
+    if (user.apple_original_transaction_id && (!user.subscription_type || user.subscription_type === 'free')) {
+      // User has an Apple transaction but shows as free - check if subscription is still valid
+      if (user.subscription_expires_at && new Date(user.subscription_expires_at) > new Date()) {
+        // Subscription should still be active based on expiration date
+        const appleProductId = user.apple_product_id;
+        const syncedType = APPLE_PRODUCT_IDS[appleProductId] || 'pro';
+        
+        console.log(`🔄 APPLE SYNC: User ${req.params.userId} is 'free' but has active Apple subscription until ${user.subscription_expires_at}, restoring to ${syncedType}`);
+        
+        await pool.query(
+          `UPDATE users SET subscription_type = ? WHERE id = ?`,
+          [syncedType, req.params.userId]
+        );
+        
+        user.subscription_type = syncedType;
+        console.log(`✅ APPLE SYNC: User ${req.params.userId} restored to ${syncedType}`);
+      }
+    }
+
+    // ============================================
     // STRIPE SYNC: If user is 'free' but has a stripe_customer_id,
     // check Stripe for active/trialing subscriptions (handles missed webhooks)
     // ============================================
@@ -1163,27 +1186,57 @@ router.post('/apple/verify', async (req, res) => {
     }
 
     // Update user subscription in database
-    await pool.query(
-      `UPDATE users SET 
-        subscription_type = ?,
-        subscription_expires_at = ?,
-        apple_original_transaction_id = ?,
-        apple_transaction_id = ?,
-        apple_product_id = ?,
-        auto_renew = TRUE,
-        cancelled_at = NULL
-      WHERE id = ?`,
-      [
-        subscriptionInfo.subscriptionType,
-        subscriptionInfo.expiresAt,
-        subscriptionInfo.originalTransactionId,
-        subscriptionInfo.transactionId,
-        subscriptionInfo.productId,
-        userId
-      ]
-    );
+    // If Apple reports this is a trial period, also update trial fields
+    if (subscriptionInfo.isInTrial) {
+      console.log('🎁 Apple reports trial period active, updating trial fields');
+      await pool.query(
+        `UPDATE users SET 
+          subscription_type = ?,
+          subscription_expires_at = ?,
+          apple_original_transaction_id = ?,
+          apple_transaction_id = ?,
+          apple_product_id = ?,
+          auto_renew = TRUE,
+          cancelled_at = NULL,
+          trial_used = TRUE,
+          trial_started_at = NOW(),
+          trial_ends_at = ?,
+          trial_plan_type = ?
+        WHERE id = ?`,
+        [
+          subscriptionInfo.subscriptionType,
+          subscriptionInfo.expiresAt,
+          subscriptionInfo.originalTransactionId,
+          subscriptionInfo.transactionId,
+          subscriptionInfo.productId,
+          subscriptionInfo.expiresAt,
+          subscriptionInfo.subscriptionType,
+          userId
+        ]
+      );
+    } else {
+      await pool.query(
+        `UPDATE users SET 
+          subscription_type = ?,
+          subscription_expires_at = ?,
+          apple_original_transaction_id = ?,
+          apple_transaction_id = ?,
+          apple_product_id = ?,
+          auto_renew = TRUE,
+          cancelled_at = NULL
+        WHERE id = ?`,
+        [
+          subscriptionInfo.subscriptionType,
+          subscriptionInfo.expiresAt,
+          subscriptionInfo.originalTransactionId,
+          subscriptionInfo.transactionId,
+          subscriptionInfo.productId,
+          userId
+        ]
+      );
+    }
 
-    console.log(`✅ User ${userId} subscription updated via Apple IAP: ${subscriptionInfo.subscriptionType}`);
+    console.log(`✅ User ${userId} subscription updated via Apple IAP: ${subscriptionInfo.subscriptionType} (trial: ${subscriptionInfo.isInTrial})`);
 
     res.json({
       success: true,

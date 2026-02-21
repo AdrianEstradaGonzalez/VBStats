@@ -19,6 +19,7 @@ import {
   purchaseErrorListener,
   showManageSubscriptionsIOS,
   getReceiptIOS,
+  getPendingTransactionsIOS,
 } from 'react-native-iap';
 import type { Purchase, PurchaseError, EventSubscription } from 'react-native-iap';
 import { API_BASE_URL } from './api';
@@ -512,6 +513,80 @@ class AppleIAPService {
       // Fallback: open settings app
       const { Linking } = require('react-native');
       await Linking.openURL('https://apps.apple.com/account/subscriptions');
+    }
+  }
+
+  /**
+   * Recover pending (unfinished) transactions from previous failed verifications.
+   * This should be called on app startup when a user is logged in.
+   * If a purchase was made but verification failed (e.g., APPLE_SHARED_SECRET missing),
+   * the transaction remains unfinished. This method re-verifies and finishes them.
+   * @param userId - The user ID in our system
+   * @returns Whether any pending purchases were successfully recovered
+   */
+  async recoverPendingTransactions(userId: number): Promise<{
+    recovered: boolean;
+    productId?: string;
+    error?: string;
+  }> {
+    if (Platform.OS !== 'ios') {
+      return { recovered: false };
+    }
+
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+
+    try {
+      console.log('🔍 Checking for pending Apple transactions...');
+      const pendingPurchases = await getPendingTransactionsIOS();
+
+      if (!pendingPurchases || pendingPurchases.length === 0) {
+        console.log('✅ No pending Apple transactions found');
+        return { recovered: false };
+      }
+
+      console.log(`⚠️ Found ${pendingPurchases.length} pending Apple transaction(s), attempting recovery...`);
+
+      // Try to verify and finish each pending purchase
+      for (const purchase of pendingPurchases) {
+        if (!APPLE_SUBSCRIPTION_SKUS.includes(purchase.productId)) {
+          continue; // Skip non-subscription purchases
+        }
+
+        try {
+          const receipt = await getReceiptIOS();
+
+          const verificationResult = await this.verifyPurchaseWithServer(
+            {
+              productId: purchase.productId,
+              transactionId: purchase.transactionId || undefined,
+              transactionReceipt: receipt,
+              originalTransactionIdentifierIOS: (purchase as any).originalTransactionIdentifierIOS,
+            },
+            userId
+          );
+
+          if (verificationResult.success) {
+            // Finish the transaction now that verification succeeded
+            await finishTransaction({ purchase, isConsumable: false });
+            console.log('✅ Recovered pending Apple transaction:', purchase.productId);
+            return {
+              recovered: true,
+              productId: purchase.productId,
+            };
+          } else {
+            console.warn('⚠️ Pending transaction verification failed:', verificationResult.error);
+          }
+        } catch (error: any) {
+          console.error('❌ Error recovering pending transaction:', error.message);
+        }
+      }
+
+      return { recovered: false, error: 'No se pudieron recuperar las compras pendientes' };
+    } catch (error: any) {
+      console.error('❌ Error checking pending transactions:', error);
+      return { recovered: false, error: error.message };
     }
   }
 }

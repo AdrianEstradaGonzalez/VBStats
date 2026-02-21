@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 
 // Versión actual de la aplicación (debe coincidir con versionName en build.gradle)
-export const APP_VERSION = '3.1';
+export const APP_VERSION = '3.2';
 
 export interface VersionInfo {
   minVersion: string;

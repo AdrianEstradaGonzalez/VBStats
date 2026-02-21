@@ -29,8 +29,9 @@ import { SideMenu } from "./components";
 import FooterNav from "./components/FooterNav";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
-import { SubscriptionType, subscriptionService, TrialInfo } from "./services/subscriptionService";
+import { SubscriptionType, subscriptionService, TrialInfo, useAppleIAP } from "./services/subscriptionService";
 import { checkAppVersion, VersionCheckResult } from "./services/versionService";
+import { appleIAPService } from "./services/appleIAPService";
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode';
 
@@ -232,6 +233,20 @@ export default function App() {
   const loadSubscription = async () => {
     if (!userId) return;
     try {
+      // On iOS, check for pending (unfinished) Apple IAP transactions first.
+      // This handles cases where a purchase was made but verification failed
+      // (e.g., APPLE_SHARED_SECRET was not configured on the server).
+      if (Platform.OS === 'ios') {
+        try {
+          const recovery = await appleIAPService.recoverPendingTransactions(userId);
+          if (recovery.recovered) {
+            console.log('\u2705 Recovered pending Apple transaction:', recovery.productId);
+          }
+        } catch (recoveryError) {
+          console.error('Error recovering pending Apple transactions:', recoveryError);
+        }
+      }
+
       const subscription = await subscriptionService.getSubscription(userId);
       setSubscriptionType(subscription.type);
       setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
