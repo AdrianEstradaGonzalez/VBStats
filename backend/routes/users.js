@@ -2,67 +2,64 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const sgMail = require('@sendgrid/mail');
+const nodemailer = require('nodemailer');
 const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 
-// Configuración de SendGrid para envío de emails (API HTTP)
-const SENDGRID_API_KEY = (process.env.SENDGRID_API_KEY || '').trim();
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-}
-const DEFAULT_EMAIL_FROM = 'VBStats <no-reply@vbstats.app>';
-const EMAIL_FROM = normalizeFromAddress(process.env.EMAIL_FROM, DEFAULT_EMAIL_FROM);
+// ============================================
+// EMAIL via Gmail SMTP (Nodemailer)
+// No requiere dominio propio ni verificación de dominio.
+// Solo necesitas una cuenta de Gmail con "Contraseña de aplicación".
+//
+// Variables de entorno necesarias:
+//   GMAIL_USER=tucuenta@gmail.com
+//   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   (16 chars, con o sin espacios)
+//   EMAIL_FROM=VBStats <tucuenta@gmail.com>   (opcional, usa GMAIL_USER si no se define)
+// ============================================
+const GMAIL_USER = (process.env.GMAIL_USER || '').trim();
+const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').trim();
+const EMAIL_FROM = process.env.EMAIL_FROM
+  ? process.env.EMAIL_FROM.trim()
+  : (GMAIL_USER ? `VBStats <${GMAIL_USER}>` : '');
 
-function normalizeFromAddress(rawFrom, fallback) {
-  if (!rawFrom) {
-    return fallback;
-  }
-
-  const trimmed = rawFrom.trim();
-  if (!trimmed) {
-    return fallback;
-  }
-
-  // Accept already valid formats: email@example.com or Name <email@example.com>
-  const hasAngleAddress = /<[^<>@\s]+@[^<>@\s]+>/.test(trimmed);
-  const isSimpleEmail = /^[^<>@\s]+@[^<>@\s]+$/.test(trimmed);
-  if (hasAngleAddress || isSimpleEmail) {
-    return trimmed;
-  }
-
-  // Convert "Name email@example.com" to "Name <email@example.com>"
-  const match = trimmed.match(/^(.*)\s+([^<>@\s]+@[^<>@\s]+)$/);
-  if (match) {
-    return `${match[1].trim()} <${match[2]}>`;
-  }
-
-  return fallback;
+let transporter = null;
+if (GMAIL_USER && GMAIL_APP_PASSWORD) {
+  transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: GMAIL_USER,
+      pass: GMAIL_APP_PASSWORD,
+    },
+  });
+  console.log('✅ Email transporter configured (Gmail SMTP)');
+} else {
+  console.warn('⚠️  GMAIL_USER / GMAIL_APP_PASSWORD not configured – password recovery emails will not be sent');
 }
 
-// Función para enviar email usando SendGrid
+// Función para enviar email usando Nodemailer + Gmail
 async function sendEmail({ to, subject, html, text }) {
-  if (!SENDGRID_API_KEY) {
-    throw new Error('SENDGRID_API_KEY is not configured');
+  if (!transporter) {
+    throw new Error(
+      'Email no configurado. Define GMAIL_USER y GMAIL_APP_PASSWORD en las variables de entorno.'
+    );
   }
 
   try {
-    const [response] = await sgMail.send({
+    const info = await transporter.sendMail({
       from: EMAIL_FROM,
       to,
       subject,
       html,
       text,
     });
-
-    return response;
+    console.log('📧 Email sent:', info.messageId);
+    return info;
   } catch (err) {
-    console.error('SendGrid error:', err);
-    const message = err?.response?.body?.errors?.[0]?.message || err.message || 'SendGrid send failed';
-    throw new Error(message);
+    console.error('❌ Nodemailer error:', err);
+    throw new Error(err.message || 'Error al enviar el email');
   }
 }
 
@@ -589,7 +586,7 @@ IMPORTANTE:
 © ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
       `;
 
-    // Enviar email con SendGrid
+    // Enviar email con Nodemailer (Gmail SMTP)
     await sendEmail({
       to: user.email,
       subject: 'Recuperar contraseña - VBStats',

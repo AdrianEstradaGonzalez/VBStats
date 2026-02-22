@@ -1,130 +1,143 @@
-# Configuración de Recuperación de Contraseña
+# Password Recovery – Gmail SMTP (Nodemailer)
 
-## Configuración del Correo (Backend)
+Sistema de recuperación de contraseña que envía un código de 8 caracteres al email del usuario, **sin necesidad de dominio propio ni verificación de dominio**.
 
-Para que la funcionalidad de recuperación de contraseña funcione correctamente, necesitas configurar **SendGrid** (servicio de email via API HTTP que funciona en Render y otros hosting).
+---
 
-### Pasos para configurar SendGrid:
+## ¿Por qué Gmail SMTP en lugar de SendGrid/Resend?
 
-1. **Crear cuenta en SendGrid:**
-   - Ve a https://sendgrid.com y crea una cuenta gratuita
-   - El plan gratuito incluye envios limitados diarios (suficiente para la mayoría de apps)
+| | SendGrid / Resend | Gmail SMTP (Nodemailer) |
+|---|---|---|
+| Dominio propio | ✅ Requiere | ❌ No requiere |
+| Verificación DNS | ✅ Requiere (SPF, DKIM) | ❌ No requiere |
+| Costo | Gratis hasta cierto límite | 100% gratis |
+| Límite diario | Varía según plan | ~500 emails/día |
+| Requisitos | API Key + dominio verificado | Cuenta Gmail + App Password |
 
-2. **Obtener API Key:**
-   - En el dashboard de SendGrid, ve a **Settings > API Keys**
-   - Crea una nueva API Key con permiso **Mail Send** y cópiala
+> **Nota sobre Railway/Render:** Algunos hostings bloquean puertos SMTP (465/587). Railway **sí** permite conexiones SMTP salientes, así que Gmail SMTP funciona perfectamente.
 
-3. **Verificar remitente o dominio (recomendado):**
-   - Debes verificar un remitente unico o un dominio
-   - Sigue las instrucciones en SendGrid > Sender Authentication
+---
 
-4. **Agregar las variables de entorno en Render:**
-   
-   ```env
-   # Configuración de SendGrid para envío de emails
-   SENDGRID_API_KEY=SG.xxxxxxxxxxxxxxxxxxxxxxxxx
-   
-   # Email remitente (debe estar verificado en SendGrid)
-   EMAIL_FROM=VBStats <vbstats.contact@gmail.com>
-   
-   # Entorno (development/production)
-   NODE_ENV=production
-   ```
+## Configuración paso a paso
 
-5. **Desplegar cambios en Render**
+### 1. Habilitar verificación en 2 pasos
+1. Entra a tu cuenta de Google: https://myaccount.google.com/security
+2. En **"Cómo inicias sesión en Google"**, activa **Verificación en 2 pasos**
 
-### ¿Por qué SendGrid en lugar de Gmail SMTP?
+### 2. Crear una contraseña de aplicación (App Password)
+1. Ve a: https://myaccount.google.com/apppasswords
+2. En **"Nombre de la app"**, escribe: `VBStats Backend`
+3. Haz clic en **Crear**
+4. Copia la contraseña de 16 caracteres que te genera (ejemplo: `abcd efgh ijkl mnop`)
 
-Render (y muchos otros hostings) bloquean las conexiones SMTP salientes en los puertos 465 y 587 para prevenir spam. SendGrid usa una API HTTP que no tiene este problema.
+### 3. Configurar variables de entorno
+
+En tu archivo `.env` del backend:
+
+```env
+GMAIL_USER=vbstats.contact@gmail.com
+GMAIL_APP_PASSWORD=abcd efgh ijkl mnop
+EMAIL_FROM=VBStats <vbstats.contact@gmail.com>
+```
+
+| Variable | Descripción |
+|---|---|
+| `GMAIL_USER` | Tu cuenta de Gmail |
+| `GMAIL_APP_PASSWORD` | La contraseña de aplicación de 16 caracteres |
+| `EMAIL_FROM` | (Opcional) Remitente que aparece en el email. Si no se define, usa `VBStats <GMAIL_USER>` |
+
+### 4. En Railway (producción)
+Añade las mismas variables en **Railway > tu servicio > Variables**:
+- `GMAIL_USER` → `vbstats.contact@gmail.com`
+- `GMAIL_APP_PASSWORD` → tu App Password
+- `EMAIL_FROM` → `VBStats <vbstats.contact@gmail.com>`
+
+---
 
 ## Seguridad Implementada
 
-La implementación de recuperación de contraseña incluye las siguientes medidas de seguridad:
-
 ### 1. **Protección contra enumeración de usuarios**
-   - El sistema siempre responde con el mismo mensaje, independientemente de si el correo existe o no
-   - Esto evita que atacantes descubran qué correos están registrados
+   - El endpoint siempre responde 200 OK, sin revelar si el correo existe o no
 
-### 2. **Tokens seguros**
-   - Se generan tokens de 64 caracteres usando `crypto.randomBytes(32)`
-   - Los tokens son criptográficamente seguros y únicos
+### 2. **Tokens criptográficamente seguros**
+   - 64 caracteres hex generados con `crypto.randomBytes(32)`
 
 ### 3. **Expiración de tokens**
    - Los tokens expiran después de 1 hora
-   - Esto limita la ventana de tiempo para posibles ataques
 
 ### 4. **Uso único**
-   - Cada token solo puede usarse una vez
-   - Una vez utilizado, se marca como "usado" en la base de datos
+   - Cada token solo puede usarse una vez (se marca `used = TRUE`)
 
 ### 5. **Invalidación de tokens anteriores**
-   - Al solicitar un nuevo código, todos los códigos anteriores del usuario se invalidan
-   - Esto evita acumulación de tokens válidos
+   - Al solicitar un nuevo código, todos los anteriores del usuario se invalidan
 
 ### 6. **Hash de contraseñas**
-   - Las nuevas contraseñas se hashean con bcrypt (12 rounds)
-   - Nunca se almacenan contraseñas en texto plano
+   - Bcrypt con 12 salt rounds
 
 ### 7. **Cierre de sesión automático**
    - Al cambiar la contraseña, todas las sesiones activas se cierran
-   - El usuario debe volver a iniciar sesión
+
+---
 
 ## Flujo de Recuperación
 
-1. Usuario solicita recuperación ingresando su correo
-2. Sistema genera token seguro y lo envía por correo
-3. Usuario ingresa el código de 8 caracteres (prefijo del token)
-4. Sistema verifica el código y devuelve el token completo
+1. Usuario ingresa su correo en la app
+2. Backend genera token de 64 chars y envía los primeros **8 caracteres** como código por email
+3. Usuario ingresa el código de 8 caracteres
+4. Backend verifica el código (case-insensitive) y devuelve el token completo
 5. Usuario establece nueva contraseña
-6. Sistema actualiza contraseña, invalida token y cierra sesiones
+6. Backend hashea contraseña, invalida tokens y cierra sesiones
+
+---
+
+## Endpoints API
+
+### `POST /api/users/forgot-password`
+**Body:** `{ "email": "usuario@ejemplo.com" }`
+- Siempre responde 200 (no revela si el email existe)
+
+### `POST /api/users/verify-reset-token`
+**Body:** `{ "email": "usuario@ejemplo.com", "code": "A1B2C3D4" }`
+- Devuelve `{ success: true, token: "<64-char>" }` si el código es válido
+
+### `POST /api/users/reset-password`
+**Body:** `{ "token": "<64-char-token>", "password": "nuevaContraseña123" }`
+- Actualiza la contraseña y cierra sesiones
+
+---
 
 ## Tabla de Base de Datos
-
-La tabla `password_reset_tokens` se crea automáticamente:
 
 ```sql
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  token VARCHAR(64) NOT NULL UNIQUE,
-  expires_at TIMESTAMP NOT NULL,
+  token VARCHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
   used BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_token (token),
-  INDEX idx_expires (expires_at)
+  INDEX idx_user_expires (user_id, expires_at)
 );
 ```
 
-## Endpoints API
+---
 
-### POST `/api/users/forgot-password`
-Solicita un código de recuperación.
+## Límites de Gmail SMTP
 
-**Body:**
-```json
-{
-  "email": "usuario@ejemplo.com"
-}
-```
+- **500 emails/día** con cuenta personal de Gmail
+- **2000 emails/día** con Google Workspace
+- Más que suficiente para apps pequeñas/medianas
 
-### POST `/api/users/verify-reset-token`
-Verifica si un código es válido.
+---
 
-**Body:**
-```json
-{
-  "token": "ABC12345"
-}
-```
+## Troubleshooting
 
-### POST `/api/users/reset-password`
-Establece la nueva contraseña.
-
-**Body:**
-```json
-{
-  "token": "token_completo_de_64_caracteres",
-  "newPassword": "nueva_contraseña_segura"
-}
-```
+| Problema | Solución |
+|---|---|
+| `Email no configurado` | Verifica que `GMAIL_USER` y `GMAIL_APP_PASSWORD` están en `.env` |
+| `Invalid login` | App Password mal copiada, o 2FA no está activado |
+| `Less secure app access` | NO uses esa opción. Usa **App Password** |
+| Emails van a spam | El destinatario debe añadir el remitente a contactos |
+| Error `534-5.7.9` | Restricción de cuenta. Verifica 2FA y recrea el App Password |
