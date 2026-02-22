@@ -37,7 +37,9 @@ interface ProfileScreenProps {
   activeTrial?: TrialInfo | null;
   onUserUpdate?: (name: string, email: string) => void;
   onSubscriptionCancelled?: () => void;
+  onSubscriptionReactivated?: () => void;
   onLogout?: () => void;
+  hasAppleSubscription?: boolean;
 }
 
 export default function ProfileScreen({
@@ -53,7 +55,9 @@ export default function ProfileScreen({
   activeTrial,
   onUserUpdate,
   onSubscriptionCancelled,
+  onSubscriptionReactivated,
   onLogout,
+  hasAppleSubscription = false,
 }: ProfileScreenProps) {
   // Estados para el formulario de cambio de contraseña
   const [currentPassword, setCurrentPassword] = useState('');
@@ -80,6 +84,11 @@ export default function ProfileScreen({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelSuccessAlert, setShowCancelSuccessAlert] = useState(false);
+
+  // Estados para reactivación de suscripción
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
+  const [showReactivateSuccessAlert, setShowReactivateSuccessAlert] = useState(false);
 
   // Estados para eliminación de cuenta
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -142,6 +151,38 @@ export default function ProfileScreen({
       setShowErrorAlert(true);
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    if (!userId) return;
+
+    setIsReactivating(true);
+    setShowReactivateConfirm(false);
+
+    try {
+      const response = await fetch(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/reactivate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setShowReactivateSuccessAlert(true);
+        if (onSubscriptionReactivated) {
+          onSubscriptionReactivated();
+        }
+      } else {
+        setErrorMessage(data.error || 'Error al reactivar la suscripción');
+        setShowErrorAlert(true);
+      }
+    } catch (error) {
+      console.error('Error reactivating subscription:', error);
+      setErrorMessage('Error al reactivar la suscripción');
+      setShowErrorAlert(true);
+    } finally {
+      setIsReactivating(false);
     }
   };
 
@@ -324,6 +365,29 @@ export default function ProfileScreen({
                   <Text style={styles.renewalSubText}>
                     Tus datos se conservarán y podrás volver a suscribirte en cualquier momento.
                   </Text>
+                  {/* Reactivate button - only for Stripe subscriptions */}
+                  {!hasAppleSubscription && (
+                    <TouchableOpacity
+                      style={[styles.reactivateButton, isReactivating && styles.buttonDisabled]}
+                      onPress={() => setShowReactivateConfirm(true)}
+                      disabled={isReactivating}
+                      activeOpacity={0.7}
+                    >
+                      {isReactivating ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <MaterialCommunityIcons name="refresh" size={18} color="#fff" />
+                          <Text style={styles.reactivateButtonText}>Reactivar suscripción</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  {hasAppleSubscription && (
+                    <Text style={styles.renewalSubText}>
+                      Para reactivar, ve a Ajustes {'>'} Apple ID {'>'} Suscripciones en tu dispositivo.
+                    </Text>
+                  )}
                 </>
               ) : (
                 <>
@@ -549,6 +613,43 @@ export default function ProfileScreen({
           } as CustomAlertButton,
         ]}
         onClose={() => setShowCancelSuccessAlert(false)}
+        icon={<MaterialCommunityIcons name="check-circle" size={48} color="#22c55e" />}
+      />
+
+      {/* Alerta de confirmación de reactivación */}
+      <CustomAlert
+        visible={showReactivateConfirm}
+        title="¿Reactivar suscripción?"
+        message={`Se reactivará la renovación automática de tu plan ${getSubscriptionName(subscriptionType)}. Se te cobrará automáticamente cuando finalice el período actual.`}
+        buttons={[
+          {
+            text: 'Cancelar',
+            onPress: () => setShowReactivateConfirm(false),
+            style: 'cancel',
+          } as CustomAlertButton,
+          {
+            text: 'Reactivar',
+            onPress: handleReactivateSubscription,
+            style: 'primary',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => setShowReactivateConfirm(false)}
+        icon={<MaterialCommunityIcons name="refresh" size={48} color={Colors.primary} />}
+      />
+
+      {/* Alerta de éxito de reactivación */}
+      <CustomAlert
+        visible={showReactivateSuccessAlert}
+        title="¡Suscripción Reactivada!"
+        message={`Tu plan ${getSubscriptionName(subscriptionType)} se renovará automáticamente. Seguirás disfrutando de todas las funciones premium.`}
+        buttons={[
+          {
+            text: 'Perfecto',
+            onPress: () => setShowReactivateSuccessAlert(false),
+            style: 'default',
+          } as CustomAlertButton,
+        ]}
+        onClose={() => setShowReactivateSuccessAlert(false)}
         icon={<MaterialCommunityIcons name="check-circle" size={48} color="#22c55e" />}
       />
 
@@ -939,6 +1040,22 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     fontSize: FontSizes.sm,
     fontWeight: '500',
+  },
+  reactivateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  reactivateButtonText: {
+    color: '#fff',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
   },
   deleteAccountZone: {
     paddingVertical: Spacing.md,

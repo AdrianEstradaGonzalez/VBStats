@@ -428,7 +428,7 @@ export const subscriptionService = {
     planId: SubscriptionType, 
     deviceId: string,
     withTrial: boolean = false
-  ): Promise<{ sessionUrl?: string; sessionId?: string; error?: string }> => {
+  ): Promise<{ sessionUrl?: string; sessionId?: string; reactivated?: boolean; type?: SubscriptionType; error?: string }> => {
     try {
       let plan: SubscriptionPlan | undefined;
       for (let i = 0; i < SUBSCRIPTION_PLANS.length; i++) {
@@ -460,7 +460,7 @@ export const subscriptionService = {
       }
 
       const data = await response.json();
-      return { sessionUrl: data.url, sessionId: data.sessionId };
+      return { sessionUrl: data.url, sessionId: data.sessionId, reactivated: data.reactivated, type: data.type };
     } catch (error) {
       console.error('Error creating checkout session with trial:', error);
       return { error: 'Error de conexión' };

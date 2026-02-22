@@ -161,7 +161,7 @@ router.get('/:userId', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT subscription_type, subscription_expires_at, stripe_customer_id, stripe_subscription_id,
               trial_used, trial_started_at, trial_ends_at, trial_plan_type,
-              auto_renew, cancelled_at, apple_original_transaction_id
+              auto_renew, cancelled_at, apple_original_transaction_id, apple_product_id
        FROM users WHERE id = ?`,
       [req.params.userId]
     );
@@ -531,12 +531,44 @@ router.post('/create-checkout', async (req, res) => {
 
     console.log('💳 Creating checkout session with priceId:', priceId);
 
-    // Cancel any existing active/trialing subscriptions to prevent duplicates
+    // Check if user has an existing cancelled-but-active subscription for the SAME plan
+    // If so, just reactivate it instead of creating a new checkout
     try {
       const existingSubs = await stripe.subscriptions.list({
         customer: customerId,
         status: 'all',
       });
+      
+      for (const sub of existingSubs.data) {
+        if ((sub.status === 'active' || sub.status === 'trialing') && sub.cancel_at_period_end) {
+          const existingPriceId = sub.items.data[0].price.id;
+          if (existingPriceId === priceId) {
+            // Same plan, just reactivate by removing cancel_at_period_end
+            console.log(`🔄 Reactivating existing subscription ${sub.id} instead of creating new checkout`);
+            await stripe.subscriptions.update(sub.id, { cancel_at_period_end: false });
+            
+            // Update DB
+            await pool.query(
+              `UPDATE users SET auto_renew = TRUE, cancelled_at = NULL, stripe_subscription_id = ? WHERE id = ?`,
+              [sub.id, userId]
+            );
+            
+            // Determine subscription type
+            let reactivatedType = 'free';
+            if (existingPriceId === PRICE_IDS.basic) reactivatedType = 'basic';
+            else if (existingPriceId === PRICE_IDS.pro) reactivatedType = 'pro';
+            else if (planType) reactivatedType = planType;
+            
+            return res.json({ 
+              reactivated: true,
+              type: reactivatedType,
+              message: 'Suscripción reactivada correctamente. No necesitas volver a pagar.'
+            });
+          }
+        }
+      }
+      
+      // Cancel any other active/trialing subscriptions to prevent duplicates
       for (const sub of existingSubs.data) {
         if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
           console.log(`🗑️ Cancelling existing subscription ${sub.id} (status: ${sub.status}) before new checkout`);
@@ -1030,6 +1062,105 @@ router.post('/:userId/cancel', async (req, res) => {
   }
 });
 
+// Reactivate a cancelled-but-still-active subscription
+router.post('/:userId/reactivate', async (req, res) => {
+  console.log('🔄 Reactivate subscription request for userId:', req.params.userId);
+
+  try {
+    const [users] = await pool.query(
+      'SELECT stripe_subscription_id, stripe_customer_id, subscription_type, subscription_expires_at, apple_original_transaction_id, auto_renew FROM users WHERE id = ?',
+      [req.params.userId]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+
+    // Must have an active paid subscription that was cancelled
+    if (!user.subscription_type || user.subscription_type === 'free') {
+      return res.status(400).json({ error: 'No hay suscripción activa para reactivar' });
+    }
+
+    // Must not already be auto-renewing
+    if (user.auto_renew) {
+      return res.json({ 
+        message: 'La suscripción ya está activa y se renovará automáticamente',
+        type: user.subscription_type,
+        expiresAt: user.subscription_expires_at,
+      });
+    }
+
+    // Check if subscription has already expired
+    if (user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date()) {
+      return res.status(400).json({ 
+        error: 'La suscripción ya ha expirado. Debes contratar un nuevo plan.',
+        code: 'SUBSCRIPTION_EXPIRED'
+      });
+    }
+
+    // Apple subscriptions must be reactivated via App Store
+    if (user.apple_original_transaction_id && !user.stripe_subscription_id) {
+      return res.status(400).json({
+        error: 'Para reactivar tu suscripción de Apple, ve a Ajustes > Apple ID > Suscripciones en tu dispositivo iOS.',
+        code: 'APPLE_REACTIVATE_VIA_APPSTORE',
+      });
+    }
+
+    // Stripe: re-enable auto-renewal
+    if (!stripe) {
+      return res.status(503).json({ error: 'Servicio de pago no disponible' });
+    }
+
+    let subscriptionId = user.stripe_subscription_id;
+
+    // If no subscription ID stored, try to find from customer
+    if (!subscriptionId && user.stripe_customer_id) {
+      try {
+        const subs = await stripe.subscriptions.list({
+          customer: user.stripe_customer_id,
+          status: 'active',
+          limit: 1,
+        });
+        if (subs.data.length > 0) {
+          subscriptionId = subs.data[0].id;
+          await pool.query('UPDATE users SET stripe_subscription_id = ? WHERE id = ?', [subscriptionId, req.params.userId]);
+        }
+      } catch (err) {
+        console.error('Error finding Stripe subscription:', err.message);
+      }
+    }
+
+    if (!subscriptionId) {
+      return res.status(400).json({ error: 'No se encontró la suscripción en Stripe. Debes contratar un nuevo plan.' });
+    }
+
+    // Re-enable auto-renewal in Stripe
+    await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: false,
+    });
+
+    // Update DB
+    await pool.query(
+      `UPDATE users SET auto_renew = TRUE, cancelled_at = NULL WHERE id = ?`,
+      [req.params.userId]
+    );
+
+    console.log(`✅ Subscription reactivated for user ${req.params.userId}`);
+
+    res.json({
+      message: 'Suscripción reactivada correctamente',
+      type: user.subscription_type,
+      expiresAt: user.subscription_expires_at,
+      autoRenew: true,
+    });
+  } catch (error) {
+    console.error('❌ Error reactivating subscription:', error.message);
+    res.status(500).json({ error: 'Error al reactivar la suscripción', details: error.message });
+  }
+});
+
 // ============================================
 // APPLE IN-APP PURCHASE ENDPOINTS
 // ============================================
@@ -1185,6 +1316,10 @@ router.post('/apple/verify', async (req, res) => {
       });
     }
 
+    // Use willRenew from Apple receipt instead of always setting TRUE
+    const autoRenew = subscriptionInfo.willRenew;
+    const cancelledAt = autoRenew ? null : new Date();
+
     // Update user subscription in database
     // If Apple reports this is a trial period, also update trial fields
     if (subscriptionInfo.isInTrial) {
@@ -1196,8 +1331,8 @@ router.post('/apple/verify', async (req, res) => {
           apple_original_transaction_id = ?,
           apple_transaction_id = ?,
           apple_product_id = ?,
-          auto_renew = TRUE,
-          cancelled_at = NULL,
+          auto_renew = ?,
+          cancelled_at = ?,
           trial_used = TRUE,
           trial_started_at = NOW(),
           trial_ends_at = ?,
@@ -1209,6 +1344,8 @@ router.post('/apple/verify', async (req, res) => {
           subscriptionInfo.originalTransactionId,
           subscriptionInfo.transactionId,
           subscriptionInfo.productId,
+          autoRenew,
+          cancelledAt,
           subscriptionInfo.expiresAt,
           subscriptionInfo.subscriptionType,
           userId
@@ -1222,8 +1359,8 @@ router.post('/apple/verify', async (req, res) => {
           apple_original_transaction_id = ?,
           apple_transaction_id = ?,
           apple_product_id = ?,
-          auto_renew = TRUE,
-          cancelled_at = NULL
+          auto_renew = ?,
+          cancelled_at = ?
         WHERE id = ?`,
         [
           subscriptionInfo.subscriptionType,
@@ -1231,6 +1368,8 @@ router.post('/apple/verify', async (req, res) => {
           subscriptionInfo.originalTransactionId,
           subscriptionInfo.transactionId,
           subscriptionInfo.productId,
+          autoRenew,
+          cancelledAt,
           userId
         ]
       );

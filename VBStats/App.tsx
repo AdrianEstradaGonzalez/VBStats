@@ -558,6 +558,7 @@ export default function App() {
             onBack={() => setCurrentScreen('home')}
             currentPlan={subscriptionType}
             userId={userId || pendingRegisteredUserId}
+            cancelAtPeriodEnd={subscriptionCancelledPending || !autoRenew}
           />
         );
       case 'searchByCode':
@@ -765,9 +766,14 @@ export default function App() {
             cancelAtPeriodEnd={subscriptionCancelledPending}
             autoRenew={autoRenew}
             activeTrial={activeTrial}
+            hasAppleSubscription={Platform.OS === 'ios'}
             onSubscriptionCancelled={() => {
               // Don't change to free immediately - user keeps access until expiration
               // Just refresh the subscription state to show cancellation info
+              loadSubscription();
+            }}
+            onSubscriptionReactivated={() => {
+              // Refresh subscription state to reflect reactivation
               loadSubscription();
             }}
             onLogout={handleLogout}

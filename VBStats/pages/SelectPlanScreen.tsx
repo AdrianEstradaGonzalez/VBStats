@@ -46,6 +46,7 @@ interface SelectPlanScreenProps {
   onBack: () => void;
   currentPlan?: SubscriptionType;
   userId?: number | null;
+  cancelAtPeriodEnd?: boolean;
 }
 
 export default function SelectPlanScreen({ 
@@ -53,7 +54,8 @@ export default function SelectPlanScreen({
   onEnsureUser,
   onBack,
   currentPlan,
-  userId 
+  userId,
+  cancelAtPeriodEnd = false,
 }: SelectPlanScreenProps) {
   const isApple = useAppleIAP();
   // Default selected plan should be the next upgrade
@@ -75,8 +77,9 @@ export default function SelectPlanScreen({
   const [checkoutSessionId, setCheckoutSessionId] = useState<string | null>(null);
   const checkoutOpenedRef = useRef(false);
 
-  // Si el usuario ya es PRO, mostrar alerta y no permitir continuar al pago
-  const isAlreadyPro = currentPlan === 'pro';
+  // Si el usuario ya es PRO (activo y renovando), mostrar alerta y no permitir continuar al pago
+  // Pero si canceló (cancelAtPeriodEnd), permitir re-suscribirse
+  const isAlreadyPro = currentPlan === 'pro' && !cancelAtPeriodEnd;
 
   useEffect(() => {
     if (isAlreadyPro) {
@@ -268,6 +271,12 @@ export default function SelectPlanScreen({
       if (result.error) {
         setErrorMessage(result.error);
         setShowErrorAlert(true);
+        return;
+      }
+
+      // If the server reactivated an existing subscription, no need for checkout
+      if (result.reactivated && result.type) {
+        onPlanSelected(result.type as SubscriptionType);
         return;
       }
 
