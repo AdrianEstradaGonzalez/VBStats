@@ -517,7 +517,7 @@ router.post('/create-checkout', async (req, res) => {
 
     console.log('👤 User:', user.email, 'Customer ID:', customerId);
 
-    // Create Stripe customer if doesn't exist
+    // Create Stripe customer if doesn't exist or if stored ID is invalid
     if (!customerId) {
       console.log('➕ Creating Stripe customer...');
       const customer = await stripe.customers.create({
@@ -527,6 +527,24 @@ router.post('/create-checkout', async (req, res) => {
       customerId = customer.id;
       await pool.query('UPDATE users SET stripe_customer_id = ? WHERE id = ?', [customerId, userId]);
       console.log('✅ Customer created:', customerId);
+    } else {
+      // Verify the stored customer ID actually exists in Stripe
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (verifyErr) {
+        if (verifyErr.code === 'resource_missing') {
+          console.log(`⚠️ Stored customer ${customerId} not found in Stripe. Creating new customer...`);
+          const customer = await stripe.customers.create({
+            email: user.email,
+            metadata: { userId: userId.toString() },
+          });
+          customerId = customer.id;
+          await pool.query('UPDATE users SET stripe_customer_id = ? WHERE id = ?', [customerId, userId]);
+          console.log('✅ New customer created:', customerId);
+        } else {
+          throw verifyErr;
+        }
+      }
     }
 
     console.log('💳 Creating checkout session with priceId:', priceId);
