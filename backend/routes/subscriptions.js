@@ -271,15 +271,16 @@ router.get('/:userId', async (req, res) => {
     
     // Check if subscription has expired
     if (user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date()) {
-      // Only downgrade if auto_renew is off (user cancelled)
-      if (!user.auto_renew) {
+      const isDemoUser = !user.stripe_subscription_id && !user.apple_original_transaction_id;
+      if (!user.auto_renew || isDemoUser) {
+        // Downgrade to free: cancelled users OR demo users (no payment method)
         await pool.query(
-          'UPDATE users SET subscription_type = ? WHERE id = ?',
+          'UPDATE users SET subscription_type = ?, auto_renew = FALSE WHERE id = ?',
           ['free', req.params.userId]
         );
         user.subscription_type = 'free';
       }
-      // If auto_renew is on, the payment gateway should renew it via webhook
+      // If auto_renew is on AND has a payment gateway, the webhook handles renewal
       // We give a grace period handled by the scheduler
     }
 

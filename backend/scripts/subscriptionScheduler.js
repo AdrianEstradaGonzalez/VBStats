@@ -129,6 +129,36 @@ async function checkExpiredSubscriptions() {
         console.error(`❌ Error checking overdue user ${user.id}:`, err.message);
       }
     }
+    // Check for demo period users: PRO with no payment method whose subscription expired
+    // These are users who got free PRO during the demo period
+    const [demoExpiredUsers] = await pool.query(`
+      SELECT id, email, subscription_type, subscription_expires_at
+      FROM users 
+      WHERE subscription_type IN ('basic', 'pro')
+        AND subscription_expires_at IS NOT NULL
+        AND subscription_expires_at < NOW()
+        AND stripe_subscription_id IS NULL
+        AND apple_original_transaction_id IS NULL
+    `);
+
+    if (demoExpiredUsers.length > 0) {
+      console.log(`🎫 Found ${demoExpiredUsers.length} demo user(s) with expired PRO to downgrade`);
+    }
+
+    for (const user of demoExpiredUsers) {
+      try {
+        await pool.query(
+          `UPDATE users SET 
+            subscription_type = 'free',
+            auto_renew = FALSE
+          WHERE id = ?`,
+          [user.id]
+        );
+        console.log(`✅ Demo user ${user.id} (${user.email}) downgraded from ${user.subscription_type} to free (demo period ended)`);
+      } catch (err) {
+        console.error(`❌ Error downgrading demo user ${user.id}:`, err.message);
+      }
+    }
   } catch (error) {
     console.error('❌ Error in checkExpiredSubscriptions:', error);
   }
