@@ -442,9 +442,12 @@ export default function App() {
 
     if (effectiveUserId) {
       try {
-        if (plan === 'free') {
+        if (plan === 'free' && !isDemoPeriod) {
           await subscriptionService.updateSubscription(effectiveUserId, plan);
           setSubscriptionType(plan);
+        } else if (plan === 'free' && isDemoPeriod) {
+          // During demo period, keep PRO even if user selected free
+          setSubscriptionType('pro');
         } else {
           // Set the plan type immediately (it was already verified by Stripe)
           setSubscriptionType(plan);
