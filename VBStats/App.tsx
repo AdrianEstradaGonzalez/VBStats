@@ -358,7 +358,54 @@ export default function App() {
     // El usuario ahora puede iniciar sesión con su nueva contraseña
   };
 
+  // Demo period: all accounts get PRO free until Oct 1, 2026
+  const DEMO_END_DATE = new Date('2026-10-01T00:00:00');
+  const isDemoPeriod = new Date() < DEMO_END_DATE;
+
   const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
+    if (isDemoPeriod) {
+      // During demo period, create user directly with PRO (backend assigns PRO until Sept 30, 2026)
+      try {
+        const user = await usersService.register({ email, password, name });
+        const displayName = user.name || email.split('@')[0];
+        setUserId(user.id);
+        setUserName(displayName);
+        setUserEmail(user.email);
+        setSessionToken(user.session_token || null);
+
+        await saveSession({
+          userId: user.id,
+          userName: displayName,
+          userEmail: user.email,
+          sessionToken: user.session_token || null,
+        });
+
+        // Load subscription info
+        try {
+          const subscription = await subscriptionService.getSubscription(user.id);
+          setSubscriptionType(subscription.type);
+          setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+          setSubscriptionExpiresAt(subscription.expiresAt || null);
+          setAutoRenew(subscription.autoRenew !== false);
+          setActiveTrial(subscription.activeTrial || null);
+          setSubscriptionLoaded(true);
+        } catch (subError) {
+          console.error('Error loading subscription after demo signup:', subError);
+          setSubscriptionType('pro');
+          setSubscriptionLoaded(true);
+        }
+
+        setShowSignUp(false);
+        setIsLoggedIn(true);
+        setCurrentScreen('home');
+        return true;
+      } catch (error) {
+        console.error('Demo sign up error:', error);
+        return false;
+      }
+    }
+
+    // After demo period: show plan selection
     setPendingRegistration({ email, password, name });
     setPendingRegisteredUserId(null);
     setShowSignUp(false);
@@ -842,7 +889,7 @@ export default function App() {
           <SignUpScreen
             onSignUp={handleSignUp}
             onBackToLogin={handleBackToLogin}
-            onViewPlans={() => {
+            onViewPlans={isDemoPeriod ? undefined : () => {
               setShowSignUp(false);
               setShowSelectPlan(true);
             }}

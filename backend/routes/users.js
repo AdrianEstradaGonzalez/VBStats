@@ -238,9 +238,11 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     
     const sessionToken = crypto.randomUUID();
+    // PRO gratuito para todos los usuarios hasta Septiembre 2026
+    const proExpiration = '2026-09-30 23:59:59';
     const [result] = await pool.query(
-      'INSERT INTO users (email, password, name, session_token) VALUES (?, ?, ?, ?)',
-      [email, hashedPassword, name || null, sessionToken]
+      'INSERT INTO users (email, password, name, session_token, subscription_type, subscription_expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [email, hashedPassword, name || null, sessionToken, 'pro', proExpiration]
     );
     
     const [rows] = await pool.query(

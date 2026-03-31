@@ -102,6 +102,19 @@ export default function HomeScreen({
       >
         <Text style={styles.welcomeText}>{"¡Hola, "}{userName}{"!"}</Text>
 
+        {/* Demo period notice */}
+        {new Date() < new Date('2026-10-01T00:00:00') && (
+          <View style={styles.demoBanner}>
+            <MaterialCommunityIcons name="information" size={22} color="#FFA726" />
+            <View style={styles.demoBannerTextContainer}>
+              <Text style={styles.demoBannerTitle}>Período de prueba gratuito</Text>
+              <Text style={styles.demoBannerText}>
+                Disfruta de todas las funciones PRO gratis hasta el 1 de octubre de 2026. A partir de esa fecha, podrás adquirir los planes Básico o PRO para seguir recogiendo estadísticas de tus equipos.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Opciones principales */}
         <View style={styles.optionsContainer}>
           {mainOptions.map((option) => (
@@ -206,5 +219,30 @@ const styles = StyleSheet.create({
   optionDescription: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
+  },
+  demoBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#FFA72615',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#FFA72640',
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  demoBannerTextContainer: {
+    flex: 1,
+  },
+  demoBannerTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: '#FFA726',
+    marginBottom: 4,
+  },
+  demoBannerText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
 });
