@@ -27,6 +27,7 @@ import {
   DeleteIcon,
 } from '../components/VectorIcons';
 import { Team, Player, Match, matchesService } from '../services/api';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -49,6 +50,7 @@ export default function StartMatchScreen({
   onContinueMatch,
   userId,
 }: StartMatchScreenProps) {
+  const { t } = useTranslation();
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [ongoingMatches, setOngoingMatches] = useState<Match[]>([]);
   const [loadingOngoing, setLoadingOngoing] = useState(true);
@@ -145,7 +147,7 @@ export default function StartMatchScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <PlayIcon size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Comenzar Partido</Text>
+          <Text style={styles.headerTitle}>{t('startMatch.title')}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -159,14 +161,14 @@ export default function StartMatchScreen({
         ) : ongoingMatches.length > 0 && (
           <View style={styles.ongoingMatchesSection}>
             <Text style={styles.ongoingMatchesSectionTitle}>
-              {ongoingMatches.length === 1 ? 'Partido en curso' : `${ongoingMatches.length} Partidos en curso`}
+              {ongoingMatches.length === 1 ? t('startMatch.ongoingMatch') : t('startMatch.ongoingMatches', { count: ongoingMatches.length })}
             </Text>
             {ongoingMatches.map((match) => (
               <View key={match.id} style={styles.ongoingMatchContainer}>
                 <View style={styles.ongoingMatchHeader}>
                   <View style={styles.ongoingMatchLive}>
                     <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>EN CURSO</Text>
+                    <Text style={styles.liveText}>{t('startMatch.ongoing')}</Text>
                   </View>
                 </View>
                 
@@ -187,7 +189,7 @@ export default function StartMatchScreen({
                       color="rgba(255,255,255,0.7)" 
                     />
                     <Text style={styles.ongoingMatchMetaText}>
-                      {match.location === 'home' ? 'Local' : 'Visitante'}
+                      {match.location === 'home' ? t('common.local') : t('common.visitor')}
                     </Text>
                     <Text style={styles.ongoingMatchMetaDot}>•</Text>
                     <Text style={styles.ongoingMatchMetaText}>
@@ -211,7 +213,7 @@ export default function StartMatchScreen({
                     activeOpacity={0.8}
                   >
                     <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
-                    <Text style={styles.continueMatchButtonText}>Continuar</Text>
+                    <Text style={styles.continueMatchButtonText}>{t('startMatch.continueMatch')}</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity
@@ -220,7 +222,7 @@ export default function StartMatchScreen({
                     activeOpacity={0.8}
                   >
                     <MaterialCommunityIcons name="flag-checkered" size={18} color={Colors.error} />
-                    <Text style={styles.finishMatchButtonText}>Finalizar</Text>
+                    <Text style={styles.finishMatchButtonText}>{t('startMatch.finishMatch')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -231,16 +233,16 @@ export default function StartMatchScreen({
         {teams.length === 0 ? (
           <View style={styles.emptyState}>
             <TeamIcon size={80} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Sin equipos</Text>
+            <Text style={styles.emptyTitle}>{t('startMatch.noTeams')}</Text>
             <Text style={styles.emptyText}>
-              Primero debes crear un equipo en "Mis Equipos" para poder comenzar un partido
+              {t('startMatch.noTeamsDesc')}
             </Text>
           </View>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>Selecciona un equipo</Text>
+            <Text style={styles.sectionTitle}>{t('startMatch.selectTeam')}</Text>
             <Text style={styles.sectionSubtitle}>
-              Elige el equipo para el cual llevarás las estadísticas
+              {t('startMatch.selectTeamDesc')}
             </Text>
 
             {teams.map((team) => (
@@ -373,7 +375,7 @@ export default function StartMatchScreen({
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.endMatchButtonTextCancel}>Cancelar</Text>
+                  <Text style={styles.endMatchButtonTextCancel}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

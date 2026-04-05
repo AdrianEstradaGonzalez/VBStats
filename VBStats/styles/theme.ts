@@ -38,6 +38,13 @@ const getStatusBarHeight = (): number => {
 
 export const SAFE_AREA_TOP = getStatusBarHeight();
 
+/**
+ * Bottom safe area height for devices with home indicator.
+ */
+export const SAFE_AREA_BOTTOM: number = Platform.OS === 'ios'
+  ? (SCREEN_HEIGHT >= 812 ? 34 : 0)
+  : 48;
+
 export const Colors = {
   // Colores principales
   primary: '#e21d66',

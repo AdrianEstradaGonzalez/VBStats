@@ -32,6 +32,7 @@ import {
 } from '../services/subscriptionService';
 import { appleIAPService, AppleProduct } from '../services/appleIAPService';
 import GuideScreen from './GuideScreen';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -57,6 +58,7 @@ export default function SelectPlanScreen({
   userId,
   cancelAtPeriodEnd = false,
 }: SelectPlanScreenProps) {
+  const { t } = useTranslation();
   const isApple = useAppleIAP();
   // Default selected plan should be the next upgrade
   const defaultSelectedPlan = currentPlan === 'basic' ? 'pro' : 'basic';
@@ -146,7 +148,7 @@ export default function SelectPlanScreen({
       if (!isSuccess && !isCancelled) return;
 
       if (isCancelled) {
-        setErrorMessage('El pago fue cancelado o no se completó. Inténtalo de nuevo.');
+        setErrorMessage(t('selectPlan.paymentCancelled'));
         setShowErrorAlert(true);
         return;
       }
@@ -155,7 +157,7 @@ export default function SelectPlanScreen({
       const sessionIdFromUrl = sessionMatch ? decodeURIComponent(sessionMatch[1]) : null;
 
       if (!sessionIdFromUrl) {
-        setErrorMessage('No pudimos validar el pago. Inténtalo de nuevo.');
+        setErrorMessage(t('selectPlan.validationError'));
         setShowErrorAlert(true);
         return;
       }
@@ -299,7 +301,7 @@ export default function SelectPlanScreen({
       }
     } catch (error) {
       console.error('Error processing payment:', error);
-      setErrorMessage('Error al procesar el pago. Inténtalo de nuevo.');
+      setErrorMessage(t('selectPlan.paymentError'));
       setShowErrorAlert(true);
     } finally {
       setIsLoading(false);
@@ -327,14 +329,14 @@ export default function SelectPlanScreen({
       }
 
       if (availableProducts.length === 0) {
-        setErrorMessage('No se pudieron cargar los productos de App Store. Inténtalo de nuevo.');
+        setErrorMessage(t('selectPlan.loadProductsError'));
         setShowErrorAlert(true);
         return;
       }
 
       const hasProduct = availableProducts.some(product => product.productId === plan.appleProductId);
       if (!hasProduct) {
-        setErrorMessage('El producto no está disponible en App Store. Inténtalo de nuevo más tarde.');
+        setErrorMessage(t('selectPlan.productNotAvailable'));
         setShowErrorAlert(true);
         return;
       }
@@ -346,13 +348,13 @@ export default function SelectPlanScreen({
         onPlanSelected(selectedPlan);
       } else {
         if (result.error !== 'Compra cancelada por el usuario') {
-          setErrorMessage(result.error || 'Error al procesar la compra');
+          setErrorMessage(result.error || t('selectPlan.purchaseError'));
           setShowErrorAlert(true);
         }
       }
     } catch (error: any) {
       console.error('Apple purchase error:', error);
-      setErrorMessage('Error al procesar la compra con Apple. Inténtalo de nuevo.');
+      setErrorMessage(t('selectPlan.applePurchaseError'));
       setShowErrorAlert(true);
     } finally {
       setIsLoading(false);
@@ -371,7 +373,7 @@ export default function SelectPlanScreen({
         const restoredType = appleIAPService.productIdToSubscriptionType(result.restoredProductId);
         onPlanSelected(restoredType);
       } else {
-        setErrorMessage(result.error || 'No se encontraron compras para restaurar');
+        setErrorMessage(result.error || t('selectPlan.noPurchasesFound'));
         setShowErrorAlert(true);
       }
     } catch (error) {
@@ -462,7 +464,7 @@ export default function SelectPlanScreen({
         {plan.recommended && (
           <View style={styles.recommendedBadge}>
             <MaterialCommunityIcons name="star" size={12} color="#fff" />
-            <Text style={styles.recommendedText}>Recomendado</Text>
+            <Text style={styles.recommendedText}>{t('selectPlan.recommended')}</Text>
           </View>
         )}
 
@@ -553,9 +555,9 @@ export default function SelectPlanScreen({
       >
         {/* Title Section */}
         <View style={styles.titleSection}>
-          <Text style={styles.title}>Elige tu plan</Text>
+          <Text style={styles.title}>{t('selectPlan.title')}</Text>
           <Text style={styles.subtitle}>
-            Selecciona el plan que mejor se adapte a tus necesidades
+            {t('selectPlan.subtitle')}
           </Text>
           <TouchableOpacity
             style={styles.viewDetailsButton}
@@ -731,7 +733,7 @@ export default function SelectPlanScreen({
               {isRestoringPurchases ? (
                 <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
-                <Text style={styles.restorePurchasesText}>Restaurar compras anteriores</Text>
+                <Text style={styles.restorePurchasesText}>{t('selectPlan.restorePurchases')}</Text>
               )}
             </TouchableOpacity>
           )}
@@ -797,7 +799,7 @@ export default function SelectPlanScreen({
         })()}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowConfirmPlan(false),
             style: 'cancel',
           },
@@ -824,7 +826,7 @@ export default function SelectPlanScreen({
         message={`¿Cómo funciona la prueba gratuita?\n\n1. ${isApple ? 'Confirma con tu Apple ID' : 'Introduce tu método de pago (tarjeta)'}\n2. Disfruta de todas las funciones PRO durante ${TRIAL_DAYS} días sin cargo\n3. Si te gusta, no hagas nada - la suscripción PRO se activa automáticamente a ${SUBSCRIPTION_PLANS.find(p => p.id === 'pro')?.priceString || '9,99€/mes'}\n4. Si no te convence, cancela antes de que termine la prueba y no se te cobrará nada\n\nAl cancelar (antes o después de la prueba), tu cuenta pasará al Plan Gratis con funciones básicas.\n\nPuedes cancelar desde ${isApple ? 'Ajustes > Apple ID > Suscripciones' : 'Perfil > Gestionar suscripción'}.\n\nSolo puedes usar una prueba gratuita por dispositivo y cuenta.`}
         buttons={[
           {
-            text: 'Entendido',
+            text: t('common.understood'),
             onPress: () => setShowTrialInfo(false),
             style: 'primary',
           },
@@ -834,12 +836,12 @@ export default function SelectPlanScreen({
       
       <CustomAlert
         visible={showErrorAlert}
-        title="Error"
+        title={t('common.error')}
         message={errorMessage}
         type="error"
         buttons={[
           {
-            text: 'Entendido',
+            text: t('common.understood'),
             onPress: () => setShowErrorAlert(false),
             style: 'primary',
           },
@@ -856,7 +858,7 @@ export default function SelectPlanScreen({
         message="Actualmente disfrutas de todas las funciones del plan PRO. No necesitas realizar ningún pago adicional."
         buttons={[
           {
-            text: 'Volver',
+            text: t('common.back'),
             onPress: () => {
               setShowProAlert(false);
               onBack();

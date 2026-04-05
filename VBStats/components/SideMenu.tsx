@@ -2,7 +2,7 @@
  * Componente de menú lateral (Drawer)
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,8 @@ import {
   SettingsIcon,
 } from './VectorIcons';
 import type { SubscriptionType } from '../services/subscriptionService';
+import { useTranslation } from 'react-i18next';
+import LanguageSelector from './LanguageSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.8;
@@ -62,6 +64,8 @@ export default function SideMenu({
   subscriptionType = 'free',
   subscriptionCancelledPending = false,
 }: SideMenuProps) {
+  const { t } = useTranslation();
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   // Define menu items based on subscription type
   const getMenuItems = (): MenuItem[] => {
     const items: MenuItem[] = [];
@@ -69,23 +73,23 @@ export default function SideMenu({
     // Free account: home (mis partidos), scoreboard, and guide
     if (subscriptionType === 'free') {
       items.push(
-        { id: 'home', title: 'Mis partidos', icon: <HomeIcon size={24} color={Colors.text} /> },
-        { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
-        { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
+        { id: 'home', title: t('sideMenu.myMatches'), icon: <HomeIcon size={24} color={Colors.text} /> },
+        { id: 'scoreboard', title: t('footer.scoreboard'), icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
+        { id: 'guide', title: t('sideMenu.help'), icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
       );
       return items;
     }
 
     // Basic and Pro accounts
     items.push(
-      { id: 'home', title: 'Inicio', icon: <HomeIcon size={24} color={Colors.text} /> },
-      { id: 'teams', title: 'Mis Equipos', icon: <TeamIcon size={24} color={Colors.text} /> },
-      { id: 'startMatch', title: 'Comenzar Partido', icon: <PlayIcon size={24} color={Colors.text} /> },
-      { id: 'stats', title: 'Estadísticas', icon: <StatsIcon size={24} color={Colors.text} /> },
-      { id: 'searchByCode', title: 'Mis partidos', icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
-      { id: 'scoreboard', title: 'Marcador', icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
-      { id: 'settings', title: 'Configuración', icon: <SettingsIcon size={24} color={Colors.text} /> },
-      { id: 'guide', title: 'Ayuda', icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
+      { id: 'home', title: t('footer.home'), icon: <HomeIcon size={24} color={Colors.text} /> },
+      { id: 'teams', title: t('sideMenu.myTeams'), icon: <TeamIcon size={24} color={Colors.text} /> },
+      { id: 'startMatch', title: t('sideMenu.startMatch'), icon: <PlayIcon size={24} color={Colors.text} /> },
+      { id: 'stats', title: t('sideMenu.statistics'), icon: <StatsIcon size={24} color={Colors.text} /> },
+      { id: 'searchByCode', title: t('sideMenu.myMatches'), icon: <MaterialCommunityIcons name="qrcode-scan" size={24} color={Colors.text} /> },
+      { id: 'scoreboard', title: t('footer.scoreboard'), icon: <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.text} /> },
+      { id: 'settings', title: t('sideMenu.settings'), icon: <SettingsIcon size={24} color={Colors.text} /> },
+      { id: 'guide', title: t('sideMenu.help'), icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
     );
 
     return items;
@@ -97,11 +101,11 @@ export default function SideMenu({
   const getSubscriptionBadge = () => {
     switch (subscriptionType) {
       case 'pro':
-        return { text: 'PRO', color: '#f59e0b' };
+        return { text: t('common.pro'), color: '#f59e0b' };
       case 'basic':
-        return { text: 'BÁSICO', color: '#3b82f6' };
+        return { text: t('common.basic'), color: '#3b82f6' };
       default:
-        return { text: 'GRATIS', color: Colors.textSecondary };
+        return { text: t('common.free'), color: Colors.textSecondary };
     }
   };
 
@@ -158,7 +162,7 @@ export default function SideMenu({
               style={styles.editProfileButton}
               onPress={() => handleNavigate('profile')}
             >
-              <Text style={styles.editProfileText}>Ver perfil</Text>
+              <Text style={styles.editProfileText}>{t('sideMenu.viewProfile')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -185,6 +189,22 @@ export default function SideMenu({
           {/* Spacer */}
           <View style={styles.spacer} />
 
+          {/* Language Selector */}
+          <View style={styles.languageSection}>
+            <View style={styles.divider} />
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setShowLanguageSelector(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.menuIconContainer}>
+                <MaterialCommunityIcons name="translate" size={24} color={Colors.primary} />
+              </View>
+              <Text style={styles.menuItemText}>{t('common.language')}</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
+
           {/* Subscription Management Section - show if not pro OR if cancelled pending (to reactivate) */}
           {(subscriptionType !== 'pro' || subscriptionCancelledPending) && onUpgradePlan && (
             <View style={styles.subscriptionSection}>
@@ -200,7 +220,7 @@ export default function SideMenu({
                 <View style={styles.menuIconContainer}>
                   <MaterialCommunityIcons name={subscriptionCancelledPending ? "refresh" : "arrow-up-bold"} size={24} color="#f59e0b" />
                 </View>
-                <Text style={styles.upgradeText}>{subscriptionCancelledPending ? 'Reactivar/Cambiar Plan' : 'Mejorar Plan'}</Text>
+                <Text style={styles.upgradeText}>{subscriptionCancelledPending ? t('sideMenu.reactivate') : t('sideMenu.upgradePlan')}</Text>
                 <MaterialCommunityIcons name="chevron-right" size={20} color="#f59e0b" />
               </TouchableOpacity>
             </View>
@@ -212,7 +232,7 @@ export default function SideMenu({
               <View style={styles.divider} />
               <View style={styles.pendingCancelNotice}>
                 <MaterialCommunityIcons name="clock-outline" size={20} color="#f59e0b" />
-                <Text style={styles.pendingCancelText}>Suscripción cancelada (activa hasta fin de período)</Text>
+                <Text style={styles.pendingCancelText}>{t('sideMenu.cancelledNote')}</Text>
               </View>
             </View>
           )}
@@ -228,12 +248,17 @@ export default function SideMenu({
               <View style={styles.menuIconContainer}>
                 <LogoutIcon size={24} color={Colors.error} />
               </View>
-              <Text style={styles.logoutText}>Cerrar Sesión</Text>
+              <Text style={styles.logoutText}>{t('sideMenu.logout')}</Text>
             </TouchableOpacity>
           </View>
           </ScrollView>
         </Animated.View>
       </View>
+
+      <LanguageSelector
+        visible={showLanguageSelector}
+        onClose={() => setShowLanguageSelector(false)}
+      />
     </Modal>
   );
 }
@@ -403,6 +428,9 @@ const styles = StyleSheet.create({
   },
   logoutSection: {
     paddingBottom: Spacing.xl,
+  },
+  languageSection: {
+    paddingHorizontal: Spacing.md,
   },
   logoutButton: {
     flexDirection: 'row',

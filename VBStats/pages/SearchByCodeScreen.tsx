@@ -27,6 +27,7 @@ import { subscriptionService } from '../services/subscriptionService';
 import { matchesService } from '../services/api';
 import type { Match } from '../services/types';
 import { savedMatchesService, SavedMatch } from '../services/savedMatchesService';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -43,6 +44,7 @@ export default function SearchByCodeScreen({
   onMatchFound,
   userId
 }: SearchByCodeScreenProps) {
+  const { t } = useTranslation();
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
@@ -112,7 +114,7 @@ export default function SearchByCodeScreen({
       }
     } catch (error) {
       console.error('Error searching match:', error);
-      setErrorMessage('Error al buscar el partido. Inténtalo de nuevo.');
+      setErrorMessage(t('searchByCode.searchError'));
       setShowErrorAlert(true);
     } finally {
       setIsLoading(false);
@@ -133,7 +135,7 @@ export default function SearchByCodeScreen({
       }
     } catch (error) {
       console.error('Error loading saved match:', error);
-      setErrorMessage('No se pudo cargar el partido. Es posible que ya no esté disponible.');
+      setErrorMessage(t('searchByCode.loadError'));
       setShowErrorAlert(true);
       // Remove invalid match from saved list
       await savedMatchesService.removeSavedMatch(saved.id, userId);
@@ -207,9 +209,9 @@ export default function SearchByCodeScreen({
           <View style={styles.iconContainer}>
             <VolleyballIcon size={60} color={Colors.primary} />
           </View>
-          <Text style={styles.title}>Mis partidos</Text>
+          <Text style={styles.title}>{t('searchByCode.title')}</Text>
           <Text style={styles.subtitle}>
-            Consulta tus partidos guardados y busca uno nuevo con el código de 8 caracteres
+            {t('searchByCode.description')}
           </Text>
         </View>
 
@@ -218,7 +220,7 @@ export default function SearchByCodeScreen({
           <View style={styles.savedMatchesSection}>
             <View style={styles.savedMatchesHeader}>
               <MaterialCommunityIcons name="history" size={20} color={Colors.text} />
-              <Text style={styles.savedMatchesTitle}>Mis Partidos</Text>
+              <Text style={styles.savedMatchesTitle}>{t('searchByCode.myMatches')}</Text>
               <Text style={styles.savedMatchesCount}>{savedMatches.length}</Text>
             </View>
             
@@ -280,7 +282,7 @@ export default function SearchByCodeScreen({
 
         {/* Code Input Section */}
         <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Código del partido</Text>
+          <Text style={styles.inputLabel}>{t('searchByCode.matchCode')}</Text>
           <View style={styles.inputContainer}>
             <MaterialCommunityIcons 
               name="qrcode" 
@@ -291,7 +293,7 @@ export default function SearchByCodeScreen({
               style={styles.codeInput}
               value={code}
               onChangeText={handleCodeChange}
-              placeholder="XXXXXXXX"
+              placeholder={t('searchByCode.codePlaceholder')}
               placeholderTextColor={Colors.textTertiary}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -330,7 +332,7 @@ export default function SearchByCodeScreen({
             ) : (
               <>
                 <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
-                <Text style={styles.searchButtonText}>Buscar Partido</Text>
+                <Text style={styles.searchButtonText}>{t('searchByCode.searchButton')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -381,8 +383,7 @@ export default function SearchByCodeScreen({
         <View style={styles.infoSection}>
           <MaterialCommunityIcons name="information-outline" size={20} color={Colors.textSecondary} />
           <Text style={styles.infoText}>
-            El código de partido se genera al compartir el informe de estadísticas desde la app. 
-            Pídelo al entrenador o responsable del equipo.
+            {t('searchByCode.codeExplanation')}
           </Text>
         </View>
 
@@ -392,7 +393,7 @@ export default function SearchByCodeScreen({
       {/* Error Alert */}
       <CustomAlert
         visible={showErrorAlert}
-        title="Código no encontrado"
+        title={t('searchByCode.codeNotFound')}
         message={errorMessage}
         type="error"
         icon={<MaterialCommunityIcons name="magnify-close" size={32} color={Colors.error} />}
@@ -409,13 +410,13 @@ export default function SearchByCodeScreen({
       {/* Delete confirmation */}
       <CustomAlert
         visible={showDeleteConfirm}
-        title="Eliminar partido"
-        message={deleteCandidate ? `¿Eliminar ${deleteCandidate.team_name || 'este partido'} (${deleteCandidate.share_code}) de Mis partidos? Esta acción elimina el partido sólo de tu cuenta.` : '¿Eliminar este partido?'}
+        title={t('searchByCode.deleteMatch')}
+        message={deleteCandidate ? `${t('searchByCode.deleteConfirm', { name: deleteCandidate.team_name || 'este partido', code: deleteCandidate.share_code })} ${t('searchByCode.deleteNote')}` : '¿Eliminar este partido?'}
         type="warning"
         icon={<MaterialCommunityIcons name="delete" size={32} color={Colors.error} />}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => {
               setShowDeleteConfirm(false);
               setDeleteCandidate(null);
@@ -423,7 +424,7 @@ export default function SearchByCodeScreen({
             style: 'cancel',
           },
           {
-            text: 'Eliminar',
+            text: t('common.delete'),
             onPress: confirmRemoveSavedMatch,
             style: 'destructive',
           },

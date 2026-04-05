@@ -26,6 +26,7 @@ import { POSITION_STATS } from '../services/statTemplates';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
 import { StatsIcon, MenuIcon, TeamIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
+import { useTranslation } from 'react-i18next';
 import RNFS from 'react-native-fs';
 import { exportTrackingToExcel } from '../services/excelExportService';
 
@@ -127,6 +128,8 @@ export default function TeamTrackingScreen({
   onBack, 
   onOpenMenu 
 }: TeamTrackingScreenProps) {
+  const { t } = useTranslation();
+
   const [loading, setLoading] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
@@ -188,7 +191,7 @@ export default function TeamTrackingScreen({
       </TouchableOpacity>
       <View style={styles.headerCenter}>
         <StatsIcon size={24} color={Colors.primary} />
-        <Text style={styles.headerTitle} numberOfLines={1}>Seguimiento</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('teamTracking.title')}</Text>
       </View>
       <View style={styles.headerActions}>
         {showActions && teamSelectionConfirmed && teams.length > 1 && (
@@ -1467,7 +1470,7 @@ export default function TeamTrackingScreen({
     } else {
       // Para Excel, generamos un .xlsx profesional
       try {
-        const resultMap: Record<string, string> = { win: 'Victoria', loss: 'Derrota', draw: 'Empate' };
+        const resultMap: Record<string, string> = { win: t('common.victory'), loss: t('common.defeat'), draw: 'Empate' };
         const result = await exportTrackingToExcel({
           teamName,
           playerName,
@@ -1530,7 +1533,7 @@ export default function TeamTrackingScreen({
           contentContainerStyle={styles.teamSelectionContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.selectionTitle}>Selecciona el equipo para el seguimiento</Text>
+          <Text style={styles.selectionTitle}>{t('teamTracking.selectTeam')}</Text>
           <Text style={styles.selectionSubtitle}>
             Elige el equipo que quieres analizar para cargar sus métricas.
           </Text>
@@ -1579,7 +1582,7 @@ export default function TeamTrackingScreen({
         {renderHeader(true)}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Cargando datos...</Text>
+          <Text style={styles.loadingText}>{t('teamTracking.loading')}</Text>
         </View>
       </View>
     );
@@ -1632,9 +1635,9 @@ export default function TeamTrackingScreen({
         {matchPerformances.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialCommunityIcons name="chart-line" size={80} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Sin datos</Text>
+            <Text style={styles.emptyTitle}>{t('teamTracking.noData')}</Text>
             <Text style={styles.emptyText}>
-              No hay partidos finalizados para este equipo
+              {t('stats.noMatchesDesc')}
             </Text>
           </View>
         ) : (
@@ -1757,7 +1760,7 @@ export default function TeamTrackingScreen({
         visible={showExportAlert}
         icon={<MaterialCommunityIcons name="export-variant" size={48} color={Colors.primary} />}
         iconBackgroundColor={Colors.primary + '15'}
-        title="Exportar Informe"
+        title={t('teamTracking.exportTracking')}
         message="Elige el formato de exportación del informe de seguimiento"
         buttonLayout="column"
         buttons={[
@@ -1780,7 +1783,7 @@ export default function TeamTrackingScreen({
             style: 'default',
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowExportAlert(false),
             style: 'cancel',
           },
@@ -1797,7 +1800,7 @@ export default function TeamTrackingScreen({
         type="success"
         buttons={[
           {
-            text: 'Aceptar',
+            text: t('common.accept'),
             onPress: () => setShowExportSuccessAlert(false),
             style: 'primary',
           },
@@ -1814,7 +1817,7 @@ export default function TeamTrackingScreen({
         contentComponent={typeof infoAlertContent !== 'string' ? infoAlertContent : undefined}
         buttons={[
           {
-            text: 'Cerrar',
+            text: t('common.close'),
             onPress: () => setInfoAlertVisible(false),
             style: 'primary',
           },

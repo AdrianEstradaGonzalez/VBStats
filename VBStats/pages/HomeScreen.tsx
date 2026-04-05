@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
@@ -35,30 +36,31 @@ export default function HomeScreen({
   onLogout,
   onOpenMenu,
 }: HomeScreenProps) {
+  const { t } = useTranslation();
 
   const mainOptions = [
     { 
       id: 'startMatch', 
-      title: 'Comenzar Partido', 
-      description: 'Inicia las estadísticas de un partido',
+      title: t('home.startMatch'), 
+      description: t('home.startMatchDesc'),
       icon: <PlayIcon size={48} color={Colors.primary} />,
     },
     { 
       id: 'teams', 
-      title: 'Mis Equipos', 
-      description: 'Gestiona tus equipos y jugadores',
+      title: t('home.myTeams'), 
+      description: t('home.myTeamsDesc'),
       icon: <TeamIcon size={48} color={Colors.primary} />,
     },
     { 
       id: 'stats', 
-      title: 'Estadísticas', 
-      description: 'Revisa el historial de partidos',
+      title: t('home.statistics'), 
+      description: t('home.statisticsDesc'),
       icon: <StatsIcon size={48} color={Colors.primary} />,
     },
     {
       id: 'searchByCode',
-      title: 'Mis partidos',
-      description: 'Consulta los partidos guardados y busca por código',
+      title: t('home.myMatches'),
+      description: t('home.myMatchesDesc'),
       icon: <MaterialCommunityIcons name="qrcode-scan" size={48} color={Colors.primary} />,
     },
   ];
@@ -100,16 +102,16 @@ export default function HomeScreen({
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <Text style={styles.welcomeText}>{"¡Hola, "}{userName}{"!"}</Text>
+        <Text style={styles.welcomeText}>{t('home.greeting', { name: userName })}</Text>
 
         {/* Demo period notice */}
         {new Date() < new Date('2026-10-01T00:00:00') && (
           <View style={styles.demoBanner}>
             <MaterialCommunityIcons name="information" size={22} color="#FFA726" />
             <View style={styles.demoBannerTextContainer}>
-              <Text style={styles.demoBannerTitle}>Período de prueba gratuito</Text>
+              <Text style={styles.demoBannerTitle}>{t('home.trialPeriod')}</Text>
               <Text style={styles.demoBannerText}>
-                Disfruta de todas las funciones PRO gratis hasta el 1 de octubre de 2026. A partir de esa fecha, podrás adquirir los planes Básico o PRO para seguir recogiendo estadísticas de tus equipos.
+                {t('home.trialDescription')}
               </Text>
             </View>
           </View>

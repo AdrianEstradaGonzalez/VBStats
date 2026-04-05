@@ -17,6 +17,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon, PlayIcon } from '../components/VectorIcons';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -45,6 +46,7 @@ export default function MatchDetailsScreen({
   teamId,
   teamName 
 }: MatchDetailsScreenProps) {
+  const { t } = useTranslation();
   const [rivalTeam, setRivalTeam] = useState('');
   const [matchDate, setMatchDate] = useState(new Date());
   const [isHome, setIsHome] = useState(true);
@@ -52,7 +54,7 @@ export default function MatchDetailsScreen({
 
   const handleStartMatch = () => {
     if (!rivalTeam.trim()) {
-      Alert.alert('Error', 'Por favor ingresa el nombre del equipo rival');
+      Alert.alert(t('common.error'), t('matchDetails.errors.rivalName'));
       return;
     }
 
@@ -92,10 +94,10 @@ export default function MatchDetailsScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <PlayIcon size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Datos del Partido</Text>
+          <Text style={styles.headerTitle}>{t('matchDetails.title')}</Text>
         </View>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>Volver</Text>
+          <Text style={styles.backButtonText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -103,13 +105,13 @@ export default function MatchDetailsScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
           <Text style={styles.sectionDescription}>
-            Completa los datos del partido para comenzar
+            {t('matchDetails.description')}
           </Text>
         </View>
 
         {/* Tu equipo */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Tu Equipo</Text>
+          <Text style={styles.label}>{t('matchDetails.yourTeam')}</Text>
           <View style={styles.readOnlyInput}>
             <Text style={styles.readOnlyText}>{teamName}</Text>
           </View>
@@ -117,19 +119,19 @@ export default function MatchDetailsScreen({
 
         {/* Equipo rival */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Equipo Rival</Text>
+          <Text style={styles.label}>{t('matchDetails.rivalTeam')}</Text>
           <TextInput
             style={styles.readOnlyInput}
             value={rivalTeam}
             onChangeText={setRivalTeam}
-            placeholder="Nombre del equipo rival"
+            placeholder={t('matchDetails.rivalTeamPlaceholder')}
             placeholderTextColor={Colors.textTertiary}
           />
         </View>
 
         {/* Fecha */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Fecha del Partido</Text>
+          <Text style={styles.label}>{t('matchDetails.matchDate')}</Text>
           <TouchableOpacity
             style={styles.readOnlyInput}
             onPress={() => setShowDatePicker(true)}
@@ -137,7 +139,7 @@ export default function MatchDetailsScreen({
           >
             <Text style={styles.readOnlyText}>{formatDate(matchDate)}</Text>
           </TouchableOpacity>
-          <Text style={styles.hint}>Toca para cambiar la fecha</Text>
+          <Text style={styles.hint}>{t('matchDetails.tapToChangeDate')}</Text>
         </View>
         
         {showDatePicker && (
@@ -152,7 +154,7 @@ export default function MatchDetailsScreen({
 
         {/* Local/Visitante */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Ubicación</Text>
+          <Text style={styles.label}>{t('matchDetails.location')}</Text>
           <View style={styles.locationButtons}>
             <TouchableOpacity
               style={[styles.locationButton, isHome && styles.locationButtonActive]}
@@ -160,7 +162,7 @@ export default function MatchDetailsScreen({
               activeOpacity={0.7}
             >
               <Text style={[styles.locationButtonText, isHome && styles.locationButtonTextActive]}>
-                Local
+                {t('common.local')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -169,7 +171,7 @@ export default function MatchDetailsScreen({
               activeOpacity={0.7}
             >
               <Text style={[styles.locationButtonText, !isHome && styles.locationButtonTextActive]}>
-                Visitante
+                {t('common.visitor')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -182,7 +184,7 @@ export default function MatchDetailsScreen({
           activeOpacity={0.7}
         >
           <PlayIcon size={20} color={Colors.textOnPrimary} />
-          <Text style={styles.startButtonText}>Comenzar Partido</Text>
+          <Text style={styles.startButtonText}>{t('matchDetails.startMatch')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

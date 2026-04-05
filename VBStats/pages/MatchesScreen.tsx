@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { useTranslation } from 'react-i18next';
 
 interface Match {
   id: string;
@@ -21,6 +22,7 @@ interface Match {
 }
 
 export default function MatchesScreen() {
+  const { t } = useTranslation();
   const matches: Match[] = [
     { id: '1', opponent: 'Equipo A', date: '15 Ene 2026', result: 'win', score: '3-1' },
     { id: '2', opponent: 'Equipo B', date: '12 Ene 2026', result: 'win', score: '3-0' },
@@ -46,7 +48,7 @@ export default function MatchesScreen() {
                 match.result === 'win' ? styles.winBadge : styles.lossBadge
               ]}>
                 <Text style={styles.resultText}>
-                  {match.result === 'win' ? 'Victoria' : 'Derrota'}
+                  {match.result === 'win' ? t('common.victory') : t('common.defeat')}
                 </Text>
               </View>
             </View>

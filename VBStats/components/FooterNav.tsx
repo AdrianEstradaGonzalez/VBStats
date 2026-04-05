@@ -16,6 +16,7 @@ import {
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, FontSizes, Shadows } from '../styles';
 import type { SubscriptionType } from '../services/subscriptionService';
+import { useTranslation } from 'react-i18next';
 
 const FOOTER_TAB_HEIGHT = 58;
 // Bottom safe area: on Android use nav bar height, on iOS approximate notch-device safe area
@@ -40,20 +41,21 @@ interface FooterNavProps {
 }
 
 export default function FooterNav({ currentScreen, subscriptionType, onNavigate }: FooterNavProps) {
+  const { t } = useTranslation();
   const getTabs = (): FooterTab[] => {
     if (subscriptionType === 'free') {
       return [
-        { id: 'home', label: 'Mis partidos', icon: 'home' },
-        { id: 'scoreboard', label: 'Marcador', icon: 'scoreboard-outline' },
+        { id: 'home', label: t('footer.myMatches'), icon: 'home' },
+        { id: 'scoreboard', label: t('footer.scoreboard'), icon: 'scoreboard-outline' },
       ];
     }
 
     return [
-      { id: 'home', label: 'Inicio', icon: 'home' },
-      { id: 'teams', label: 'Equipos', icon: 'account-group' },
-      { id: 'startMatch', label: 'Partido', icon: 'play-circle' },
-      { id: 'stats', label: 'Estadísticas', icon: 'chart-bar' },
-      { id: 'scoreboard', label: 'Marcador', icon: 'scoreboard-outline' },
+      { id: 'home', label: t('footer.home'), icon: 'home' },
+      { id: 'teams', label: t('footer.teams'), icon: 'account-group' },
+      { id: 'startMatch', label: t('footer.match'), icon: 'play-circle' },
+      { id: 'stats', label: t('footer.statistics'), icon: 'chart-bar' },
+      { id: 'scoreboard', label: t('footer.scoreboard'), icon: 'scoreboard-outline' },
     ];
   };
 

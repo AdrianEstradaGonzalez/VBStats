@@ -8,3 +8,4 @@ export { default as SideMenu } from './SideMenu';
 export { default as CustomAlert } from './CustomAlert';
 export type { CustomAlertButton } from './CustomAlert';
 export { default as FooterNav, FOOTER_TOTAL_HEIGHT } from './FooterNav';
+export { default as LanguageSelector } from './LanguageSelector';

@@ -17,6 +17,7 @@ import {
   ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { usersService } from '../services/usersService';
 
@@ -32,6 +33,7 @@ interface ResetPasswordScreenProps {
 type Step = 'verify' | 'reset';
 
 export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetPasswordScreenProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>('verify');
   const [code, setCode] = useState(['', '', '', '', '', '', '', '']);
   const [fullToken, setFullToken] = useState('');
@@ -98,7 +100,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
     const codeString = code.join('');
     
     if (codeString.length !== 8) {
-      setMessage({ type: 'error', text: 'Por favor, ingresa el código completo de 8 caracteres' });
+      setMessage({ type: 'error', text: t('resetPassword.errors.codeRequired') });
       shakeError();
       return;
     }
@@ -111,7 +113,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
       
       if (result.valid && result.fullToken) {
         setFullToken(result.fullToken);
-        setMessage({ type: 'success', text: '¡Código verificado! Ahora establece tu nueva contraseña.' });
+        setMessage({ type: 'success', text: t('resetPassword.errors.codeVerified') });
         setTimeout(() => {
           setStep('reset');
           setMessage(null);
@@ -120,7 +122,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
-        text: error.message || 'Código inválido o expirado. Solicita uno nuevo.' 
+        text: error.message || t('resetPassword.errors.codeInvalid') 
       });
       shakeError();
     } finally {
@@ -130,19 +132,19 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
-      setMessage({ type: 'error', text: 'Por favor, completa ambos campos' });
+      setMessage({ type: 'error', text: t('resetPassword.errors.bothFields') });
       shakeError();
       return;
     }
 
     if (newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'La contraseña debe tener al menos 6 caracteres' });
+      setMessage({ type: 'error', text: t('signup.errors.passwordMinLength') });
       shakeError();
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: 'Las contraseñas no coinciden' });
+      setMessage({ type: 'error', text: t('resetPassword.errors.passwordMismatch') });
       shakeError();
       return;
     }
@@ -152,7 +154,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
 
     try {
       await usersService.resetPassword(fullToken, newPassword);
-      setMessage({ type: 'success', text: '¡Contraseña actualizada correctamente!' });
+      setMessage({ type: 'success', text: t('resetPassword.successMessage') });
       
       setTimeout(() => {
         onSuccess();
@@ -160,7 +162,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
-        text: error.message || 'Error al restablecer la contraseña. Inténtalo de nuevo.' 
+        text: error.message || t('resetPassword.errors.resetError') 
       });
       shakeError();
     } finally {
@@ -206,9 +208,9 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                 <View style={styles.iconCircle}>
                   <MaterialCommunityIcons name="email-check" size={48} color={Colors.primary} />
                 </View>
-                <Text style={styles.title}>Verificar Código</Text>
+                <Text style={styles.title}>{t('resetPassword.verifyTitle')}</Text>
                 <Text style={styles.subtitle}>
-                  Ingresa el código de 8 caracteres que enviamos a{'\n'}
+                  {t('resetPassword.verifyDescription')}{'\n'}
                   <Text style={styles.emailHighlight}>{maskedEmail}</Text>
                 </Text>
               </View>
@@ -260,21 +262,21 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                 {isLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Verificando...</Text>
+                    <Text style={styles.submitButtonText}>{t('resetPassword.verifying')}</Text>
                   </View>
                 ) : (
                   <>
                     <MaterialCommunityIcons name="check-circle" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Verificar Código</Text>
+                    <Text style={styles.submitButtonText}>{t('resetPassword.verifyButton')}</Text>
                   </>
                 )}
               </TouchableOpacity>
 
               {/* Reenviar código */}
               <View style={styles.resendContainer}>
-                <Text style={styles.resendText}>¿No recibiste el código? </Text>
+                <Text style={styles.resendText}>{t('resetPassword.didntReceive')} </Text>
                 <TouchableOpacity onPress={onBack} disabled={isLoading}>
-                  <Text style={styles.resendLink}>Solicitar nuevo</Text>
+                  <Text style={styles.resendLink}>{t('resetPassword.requestNew')}</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -284,9 +286,9 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                 <View style={styles.iconCircle}>
                   <MaterialCommunityIcons name="lock-check" size={48} color={Colors.primary} />
                 </View>
-                <Text style={styles.title}>Nueva Contraseña</Text>
+                <Text style={styles.title}>{t('resetPassword.newPassword')}</Text>
                 <Text style={styles.subtitle}>
-                  Crea una contraseña segura para tu cuenta
+                  {t('resetPassword.newPasswordDescription')}
                 </Text>
               </View>
 
@@ -307,7 +309,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
 
               {/* Nueva contraseña */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Nueva Contraseña</Text>
+                <Text style={styles.label}>{t('resetPassword.newPassword')}</Text>
                 <View style={styles.inputWrapper}>
                   <MaterialCommunityIcons 
                     name="lock-outline" 
@@ -317,7 +319,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={t('resetPassword.minChars')}
                     placeholderTextColor={Colors.textTertiary}
                     value={newPassword}
                     onChangeText={(text) => {
@@ -344,7 +346,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
 
               {/* Confirmar contraseña */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Confirmar Contraseña</Text>
+                <Text style={styles.label}>{t('profile.confirmNewPassword')}</Text>
                 <View style={styles.inputWrapper}>
                   <MaterialCommunityIcons 
                     name="lock-check" 
@@ -354,7 +356,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Repite tu contraseña"
+                    placeholder={t('resetPassword.repeatPassword')}
                     placeholderTextColor={Colors.textTertiary}
                     value={confirmPassword}
                     onChangeText={(text) => {
@@ -391,7 +393,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                     styles.securityCheckText,
                     newPassword.length >= 6 && styles.securityCheckTextValid
                   ]}>
-                    Al menos 6 caracteres
+                    {t('resetPassword.atLeast6Chars')}
                   </Text>
                 </View>
                 <View style={styles.securityCheck}>
@@ -404,7 +406,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                     styles.securityCheckText,
                     newPassword && newPassword === confirmPassword && styles.securityCheckTextValid
                   ]}>
-                    Las contraseñas coinciden
+                    {t('resetPassword.passwordsMatch')}
                   </Text>
                 </View>
               </View>
@@ -419,12 +421,12 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
                 {isLoading ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="small" color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Guardando...</Text>
+                    <Text style={styles.submitButtonText}>{t('resetPassword.savingPassword')}</Text>
                   </View>
                 ) : (
                   <>
                     <MaterialCommunityIcons name="content-save" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Guardar Contraseña</Text>
+                    <Text style={styles.submitButtonText}>{t('resetPassword.saveButton')}</Text>
                   </>
                 )}
               </TouchableOpacity>

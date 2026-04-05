@@ -16,6 +16,7 @@ import {
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { usersService } from '../services/usersService';
 
@@ -28,6 +29,7 @@ interface ForgotPasswordScreenProps {
 }
 
 export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPasswordScreenProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,13 +55,13 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
     const trimmedEmail = email.trim().toLowerCase();
     
     if (!trimmedEmail) {
-      setMessage({ type: 'error', text: 'Por favor, ingresa tu correo electrónico' });
+      setMessage({ type: 'error', text: t('forgotPassword.errors.emailRequired') });
       shakeError();
       return;
     }
 
     if (!validateEmail(trimmedEmail)) {
-      setMessage({ type: 'error', text: 'Por favor, ingresa un correo electrónico válido' });
+      setMessage({ type: 'error', text: t('forgotPassword.errors.emailInvalid') });
       shakeError();
       return;
     }
@@ -71,7 +73,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
       await usersService.forgotPassword(trimmedEmail);
       setMessage({ 
         type: 'success', 
-        text: 'Si el correo existe, recibirás un código de recuperación. Revisa tu bandeja de entrada.' 
+        text: t('forgotPassword.successMessage') 
       });
       
       // Después de 2 segundos, navegar a la pantalla de ingreso de código
@@ -82,7 +84,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
     } catch (error: any) {
       setMessage({ 
         type: 'error', 
-        text: error.message || 'Error al enviar el correo. Inténtalo de nuevo.' 
+        text: error.message || t('forgotPassword.errors.sendError') 
       });
       shakeError();
     } finally {
@@ -113,9 +115,9 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
             <View style={styles.iconCircle}>
               <MaterialCommunityIcons name="lock-reset" size={48} color={Colors.primary} />
             </View>
-            <Text style={styles.title}>¿Olvidaste tu contraseña?</Text>
+            <Text style={styles.title}>{t('forgotPassword.title')}</Text>
             <Text style={styles.subtitle}>
-              No te preocupes. Ingresa tu correo electrónico y te enviaremos un código para recuperar tu cuenta.
+              {t('forgotPassword.description')}
             </Text>
           </View>
 
@@ -138,7 +140,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
 
             {/* Input de email */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Correo Electrónico</Text>
+              <Text style={styles.label}>{t('forgotPassword.email')}</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="email-outline" 
@@ -148,7 +150,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="correo@ejemplo.com"
+                  placeholder={t('forgotPassword.emailPlaceholder')}
                   placeholderTextColor={Colors.textTertiary}
                   value={email}
                   onChangeText={(text) => {
@@ -176,12 +178,12 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>Enviando...</Text>
+                  <Text style={styles.submitButtonText}>{t('forgotPassword.sending')}</Text>
                 </View>
               ) : (
                 <>
                   <MaterialCommunityIcons name="email-send" size={20} color="#FFFFFF" />
-                  <Text style={styles.submitButtonText}>Enviar Código</Text>
+                  <Text style={styles.submitButtonText}>{t('forgotPassword.sendCode')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -193,7 +195,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
               disabled={isLoading}
             >
               <MaterialCommunityIcons name="arrow-left" size={18} color={Colors.primary} />
-              <Text style={styles.backLinkText}>Volver al inicio de sesión</Text>
+              <Text style={styles.backLinkText}>{t('forgotPassword.backToLogin')}</Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -201,7 +203,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
           <View style={styles.securityInfo}>
             <MaterialCommunityIcons name="shield-check" size={16} color={Colors.textTertiary} />
             <Text style={styles.securityText}>
-              Por seguridad, el código expirará en 1 hora
+              {t('forgotPassword.securityNote')}
             </Text>
           </View>
         </View>

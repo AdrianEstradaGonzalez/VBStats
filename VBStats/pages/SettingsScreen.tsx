@@ -41,6 +41,7 @@ import { CustomAlert, CustomAlertButton } from '../components';
 import { settingsService } from '../services/api';
 import { POSITION_STATS, Position, StatTemplates, TemplateMode } from '../services/statTemplates';
 import { SubscriptionType, subscriptionService, BASIC_ENABLED_STATS } from '../services/subscriptionService';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -57,6 +58,7 @@ interface SettingsScreenProps {
 const POSITIONS = Object.keys(POSITION_STATS) as Position[];
 
 export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptionType = 'pro', onUpgradeToPro }: SettingsScreenProps) {
+  const { t } = useTranslation();
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [settings, setSettings] = useState<Record<string, boolean>>({});
   const [originalSettings, setOriginalSettings] = useState<Record<string, boolean>>({});
@@ -129,7 +131,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
       setOriginalSettings(settingsMap);
     } catch (error) {
       console.error('Error loading settings:', error);
-      Alert.alert('Error', 'No se pudieron cargar las configuraciones');
+      Alert.alert(t('common.error'), 'No se pudieron cargar las configuraciones');
     } finally {
       setLoading(false);
     }
@@ -288,7 +290,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
       }
     } catch (error) {
       console.error('Error saving settings:', error);
-      Alert.alert('Error', 'No se pudieron guardar las configuraciones');
+      Alert.alert(t('common.error'), 'No se pudieron guardar las configuraciones');
     } finally {
       setSaving(false);
     }
@@ -329,7 +331,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
 
   const handleApplyVersion = async (version: 'basic' | 'advanced') => {
     if (!userId) {
-      Alert.alert('Error', 'Debes iniciar sesión para cambiar la configuración');
+      Alert.alert(t('common.error'), 'Debes iniciar sesión para cambiar la configuración');
       return;
     }
     
@@ -345,25 +347,25 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
       await loadActiveTemplate();
     } catch (error) {
       console.error('Error applying version:', error);
-      Alert.alert('Error', `No se pudo aplicar la configuración ${version === 'basic' ? 'básica' : 'avanzada'}`);
+      Alert.alert(t('common.error'), `No se pudo aplicar la configuración ${version === 'basic' ? 'básica' : 'avanzada'}`);
     } finally {
       setApplyingVersion(null);
     }
   };
 
   const getActiveTemplateLabel = () => {
-    if (!userId) return 'Inicia sesión para configurar';
-    if (loadingTemplate) return 'Cargando configuración...';
+    if (!userId) return t('settings.loginRequired');
+    if (loadingTemplate) return t('common.loading');
 
     switch (activeTemplate) {
       case 'basic':
-        return 'Básico activo';
+        return t('settings.basicActive');
       case 'advanced':
-        return 'Avanzada activa';
+        return t('settings.advancedActive');
       case 'custom':
-        return 'Personalizada';
+        return t('settings.custom');
       default:
-        return 'Personalizada';
+        return t('settings.custom');
     }
   };
 
@@ -377,7 +379,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
         <View style={styles.headerCenter}>
           <SettingsIcon size={24} color={Colors.primary} />
           <Text style={styles.headerTitle}>
-            {selectedPosition ? selectedPosition : 'Configuración'}
+            {selectedPosition ? selectedPosition : t('settings.title')}
           </Text>
         </View>
         {selectedPosition ? (
@@ -394,9 +396,9 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Version Toggle Button */}
           <View style={styles.versionSection}>
-            <Text style={styles.versionSectionTitle}>Plantillas de configuración</Text>
+            <Text style={styles.versionSectionTitle}>{t('settings.configTemplates')}</Text>
             <Text style={styles.versionSectionDescription}>
-              Cambia rápidamente entre modos de estadísticas
+              {t('settings.configTemplatesDesc')}
             </Text>
             
             <TouchableOpacity
@@ -410,7 +412,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                     <MaterialCommunityIcons name="swap-horizontal-variant" size={28} color="#FFFFFF" />
                   </View>
                   <View style={styles.versionToggleTextContainer}>
-                    <Text style={styles.versionToggleTitle}>Cambiar Configuración</Text>
+                    <Text style={styles.versionToggleTitle}>{t('settings.changeConfig')}</Text>
                     <Text style={styles.versionToggleSubtitle}>
                         {getActiveTemplateLabel()}
                     </Text>
@@ -424,9 +426,9 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
           <View style={styles.versionSeparator} />
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Selecciona una posición</Text>
+            <Text style={styles.sectionTitle}>{t('settings.selectPosition')}</Text>
             <Text style={styles.sectionDescription}>
-              Configura qué estadísticas deseas contabilizar para cada posición
+              {t('settings.positionDescription')}
             </Text>
           </View>
 
@@ -444,7 +446,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                 <View style={styles.positionTextContainer}>
                   <Text style={styles.positionName}>{position}</Text>
                   <Text style={styles.positionStats}>
-                    {POSITION_STATS[position].length} categorías de estadísticas
+                    {t('settings.statCategories', { count: POSITION_STATS[position].length })}
                   </Text>
                 </View>
               </View>
@@ -463,20 +465,20 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
             {loading ? (
               <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Cargando configuración...</Text>
+              <Text style={styles.loadingText}>{t('common.loading')}</Text>
             </View>
           ) : (
             <>
               <View style={styles.section}>
                 <Text style={styles.sectionDescription}>
-                  Activa o desactiva las estadísticas que deseas contabilizar para {selectedPosition}es
+                  {t('settings.positionConfig', { position: selectedPosition })}
                 </Text>
               </View>
 
               {/* Toggle All Switch */}
               <View style={styles.toggleAllCard}>
                 <View style={styles.toggleAllContent}>
-                  <Text style={styles.toggleAllText}>Activar/Desactivar Todo</Text>
+                  <Text style={styles.toggleAllText}>{t('settings.toggleAll')}</Text>
                   <Switch
                     value={areAllEnabled()}
                     onValueChange={toggleAllSettings}
@@ -553,7 +555,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                 {saving ? (
                   <ActivityIndicator size="small" color={Colors.textOnPrimary} />
                 ) : (
-                  <Text style={styles.saveButtonText}>Guardar Configuración</Text>
+                  <Text style={styles.saveButtonText}>{t('settings.saveChanges')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -571,7 +573,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
         warning="Si sales ahora, perderás todos los cambios realizados."
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowUnsavedAlert(false),
             style: 'cancel',
           },
@@ -588,11 +590,11 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
         visible={showSuccessAlert}
         icon={<TickIcon size={48} color={Colors.success} />}
         iconBackgroundColor={Colors.success + '15'}
-        title="¡Configuración guardada!"
+        title={t('settings.configSaved')}
         message="Tus preferencias de estadísticas han sido actualizadas correctamente."
         buttons={[
           {
-            text: 'Aceptar',
+            text: t('common.accept'),
             onPress: () => setShowSuccessAlert(false),
             style: 'primary',
           },
@@ -634,7 +636,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
             style: 'default' as const,
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowVersionAlert(false),
             style: 'cancel',
           },
@@ -661,7 +663,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
             style: 'primary',
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowProUpgradeAlert(false),
             style: 'cancel',
           },

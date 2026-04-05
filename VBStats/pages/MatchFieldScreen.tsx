@@ -30,6 +30,7 @@ import { playersService, settingsService, matchesService, statsService } from '.
 import type { MatchDetails } from './MatchDetailsScreen';
 import type { Player, StatSetting, MatchStatCreate, Match } from '../services/types';
 import MatchStatsScreen from './MatchStatsScreen';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -114,6 +115,8 @@ export default function MatchFieldScreen({
   userId,
   resumeMatchId
 }: MatchFieldScreenProps) {
+  const { t } = useTranslation();
+
   // 8 posiciones de campo
   const [positions, setPositions] = useState<Position[]>([
     { id: 'pos1', label: 'Receptor', playerId: null, playerName: null, playerNumber: null },
@@ -1495,7 +1498,7 @@ export default function MatchFieldScreen({
             activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, !isSetActive && styles.actionButtonTextPrimary]}>
-              Iniciar
+              {t('matchField.start')}
             </Text>
           </TouchableOpacity>
           
@@ -1526,7 +1529,7 @@ export default function MatchFieldScreen({
             activeOpacity={0.7}
           >
             <Text style={[styles.actionButtonText, isSetActive && styles.actionButtonTextPrimary]}>
-              Finalizar
+              {t('matchField.finish')}
             </Text>
           </TouchableOpacity>
           
@@ -1568,22 +1571,22 @@ export default function MatchFieldScreen({
       {/* CustomAlert para finalizar set */}
       <CustomAlert
         visible={showEndSetAlert}
-        title="Finalizar Set"
-        message={`¿Qué deseas hacer con el set ${currentSet}?`}
+        title={t('matchField.endSet')}
+        message={t('matchField.finishSetConfirm')}
         buttonLayout="column"
         buttons={[
           {
-            text: 'Finalizar set',
+            text: t('matchField.endSet'),
             onPress: confirmEndSet,
             style: 'default'
           },
           {
-            text: 'Finalizar partido',
+            text: t('matchField.endMatch'),
             onPress: handleEndMatch,
             style: 'destructive'
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowEndSetAlert(false),
             style: 'cancel'
           }
@@ -1667,7 +1670,7 @@ export default function MatchFieldScreen({
                   onPress={handleShowMatchStats}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.endMatchButtonTextPrimary}>Ver estadísticas</Text>
+                  <Text style={styles.endMatchButtonTextPrimary}>{t('stats.title')}</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -1690,7 +1693,7 @@ export default function MatchFieldScreen({
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.endMatchButtonTextCancel}>Cancelar</Text>
+                  <Text style={styles.endMatchButtonTextCancel}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1712,7 +1715,7 @@ export default function MatchFieldScreen({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccionar Jugador</Text>
+              <Text style={styles.modalTitle}>{t('matchField.selectPlayers')}</Text>
               <TouchableOpacity
                 onPress={() => {
                   setShowPlayerModal(false);
@@ -1931,7 +1934,7 @@ export default function MatchFieldScreen({
                 <PlusIcon size={32} color={Colors.primary} />
               </View>
               <Text style={styles.customAlertTitle}>Añadir Posición</Text>
-              <Text style={styles.customAlertSubtitle}>Selecciona la posición del jugador</Text>
+              <Text style={styles.customAlertSubtitle}>{t('matchField.selectAction')}</Text>
               
               <View style={styles.positionOptionsContainer}>
                 {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
@@ -1951,7 +1954,7 @@ export default function MatchFieldScreen({
                 onPress={() => setShowAddPositionModal(false)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.customAlertCancelButtonText}>Cancelar</Text>
+                <Text style={styles.customAlertCancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1993,7 +1996,7 @@ export default function MatchFieldScreen({
                 <MaterialCommunityIcons name="swap-horizontal" size={32} color={Colors.primary} />
               </View>
               <Text style={styles.customAlertTitle}>Cambiar Posición</Text>
-              <Text style={styles.customAlertSubtitle}>Selecciona la nueva posición</Text>
+              <Text style={styles.customAlertSubtitle}>{t('matchField.selectAction')}</Text>
               
               <View style={styles.positionOptionsContainer}>
               {['Receptor', 'Central', 'Opuesto', 'Colocador', 'Líbero'].map((pos) => (
@@ -2017,7 +2020,7 @@ export default function MatchFieldScreen({
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.customAlertCancelButtonText}>Cancelar</Text>
+                <Text style={styles.customAlertCancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -2047,7 +2050,7 @@ export default function MatchFieldScreen({
                 </TouchableOpacity>
                 <View style={styles.statsModalTitleContainerModern}>
                   <MaterialCommunityIcons name="chart-bar" size={20} color="#FFFFFF" />
-                  <Text style={styles.statsModalTitleModern}>Estadísticas</Text>
+                  <Text style={styles.statsModalTitleModern}>{t('stats.title')}</Text>
                 </View>
                 <View style={{ width: 36 }} />
               </View>
@@ -2089,7 +2092,7 @@ export default function MatchFieldScreen({
                         color={statsViewType === setNum ? Colors.primary : 'rgba(255,255,255,0.7)'} 
                       />
                       <Text style={[styles.statsFilterTabText, statsViewType === setNum && styles.statsFilterTabTextActive]}>
-                        Set {setNum}
+                        {t('matchField.setNumber', { number: setNum })}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -2271,7 +2274,7 @@ export default function MatchFieldScreen({
       {/* CustomAlert para errores de carga */}
       <CustomAlert
         visible={showErrorModal}
-        title="Error"
+        title={t('common.error')}
         message={errorMessage}
         buttons={[
           {

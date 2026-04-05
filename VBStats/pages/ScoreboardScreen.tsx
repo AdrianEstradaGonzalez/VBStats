@@ -17,6 +17,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { CustomAlert } from '../components';
 import { MenuIcon } from '../components/VectorIcons';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -49,8 +50,9 @@ export default function ScoreboardScreen({
   onOpenMenu,
   onBack 
 }: ScoreboardScreenProps) {
-  const [homeTeam, setHomeTeam] = React.useState<TeamScore>({ name: 'Local', points: 0, setsWon: 0 });
-  const [awayTeam, setAwayTeam] = React.useState<TeamScore>({ name: 'Visitante', points: 0, setsWon: 0 });
+  const { t } = useTranslation();
+  const [homeTeam, setHomeTeam] = React.useState<TeamScore>({ name: t('common.local'), points: 0, setsWon: 0 });
+  const [awayTeam, setAwayTeam] = React.useState<TeamScore>({ name: t('common.visitor'), points: 0, setsWon: 0 });
   const [currentSet, setCurrentSet] = React.useState(1);
   const [isMatchOver, setIsMatchOver] = React.useState(false);
   const [showResetAlert, setShowResetAlert] = React.useState(false);
@@ -197,8 +199,8 @@ export default function ScoreboardScreen({
   }, []);
 
   const resetMatch = () => {
-    setHomeTeam({ name: 'Local', points: 0, setsWon: 0 });
-    setAwayTeam({ name: 'Visitante', points: 0, setsWon: 0 });
+    setHomeTeam({ name: t('common.local'), points: 0, setsWon: 0 });
+    setAwayTeam({ name: t('common.visitor'), points: 0, setsWon: 0 });
     setCurrentSet(1);
     setIsMatchOver(false);
     setWinner(null);
@@ -217,11 +219,11 @@ export default function ScoreboardScreen({
     return (
       <View style={styles.setResults}
         >
-        <Text style={styles.setResultsTitle}>Resultado por set</Text>
+        <Text style={styles.setResultsTitle}>{t('scoreboard.setResult')}</Text>
         <View style={styles.setResultsList}>
           {setResults.map((set) => (
             <View key={set.setNumber} style={styles.setResultItem}>
-              <Text style={styles.setResultLabel}>Set {set.setNumber}</Text>
+              <Text style={styles.setResultLabel}>{t('scoreboard.set', { number: set.setNumber })}</Text>
               <Text style={styles.setResultScore}>
                 {set.home} - {set.away}
               </Text>
@@ -303,7 +305,7 @@ export default function ScoreboardScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <MaterialCommunityIcons name="scoreboard" size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Marcador</Text>
+          <Text style={styles.headerTitle}>{t('scoreboard.title')}</Text>
         </View>
         <TouchableOpacity 
           style={styles.resetButton}
@@ -333,7 +335,7 @@ export default function ScoreboardScreen({
               matchMode === 'bestOf5' && styles.modeToggleTextActive,
             ]}
           >
-            Mejor de 5
+            {t('scoreboard.bestOf5')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -354,7 +356,7 @@ export default function ScoreboardScreen({
               matchMode === 'bestOf3' && styles.modeToggleTextActive,
             ]}
           >
-            Mejor de 3
+            {t('scoreboard.bestOf3')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -381,10 +383,10 @@ export default function ScoreboardScreen({
         <View style={styles.setInfo}>
           <View style={styles.setInfoBadge}>
             <Text style={styles.setInfoText}>
-              {isMatchOver ? 'Partido Finalizado' : `Set ${currentSet}`}
+              {isMatchOver ? t('scoreboard.matchFinished') : t('scoreboard.set', { number: currentSet })}
             </Text>
             {isTiebreak && !isMatchOver && (
-              <Text style={styles.tiebreakText}>Tiebreak (a {TIEBREAK_POINTS})</Text>
+              <Text style={styles.tiebreakText}>{t('scoreboard.tiebreak', { points: TIEBREAK_POINTS })}</Text>
             )}
           </View>
         </View>
@@ -403,7 +405,7 @@ export default function ScoreboardScreen({
         {/* Match Score Summary */}
         <View style={styles.matchScore}>
           <Text style={styles.matchScoreText}>
-            Sets: {homeTeam.setsWon} - {awayTeam.setsWon}
+            {t('scoreboard.setsScore', { home: homeTeam.setsWon, away: awayTeam.setsWon })}
           </Text>
         </View>
 
@@ -415,7 +417,7 @@ export default function ScoreboardScreen({
           <View style={styles.instructions}>
             <MaterialCommunityIcons name="gesture-tap" size={20} color={Colors.textSecondary} />
             <Text style={styles.instructionsText}>
-              Toca + para sumar punto, - para restar
+              {t('scoreboard.instruction')}
             </Text>
           </View>
         )}
@@ -424,18 +426,18 @@ export default function ScoreboardScreen({
       {/* Reset Confirmation Alert */}
       <CustomAlert
         visible={showResetAlert}
-        title="Reiniciar Partido"
-        message="¿Estás seguro de que quieres reiniciar el marcador? Se perderán todos los datos del partido actual."
+        title={t('scoreboard.resetMatch')}
+        message={t('scoreboard.resetConfirm')}
         type="warning"
         icon={<MaterialCommunityIcons name="refresh" size={32} color={Colors.warning} />}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowResetAlert(false),
             style: 'cancel',
           },
           {
-            text: 'Reiniciar',
+            text: t('scoreboard.reset'),
             onPress: resetMatch,
             style: 'destructive',
           },
@@ -446,16 +448,16 @@ export default function ScoreboardScreen({
       {/* Winner Alert */}
       <CustomAlert
         visible={showWinnerAlert}
-        title="¡Partido Finalizado!"
-        message={`${winner === 'home' ? homeTeam.name : awayTeam.name} gana el partido ${homeTeam.setsWon} - ${awayTeam.setsWon}.
+        title={t('scoreboard.matchFinishedTitle')}
+        message={`${t('scoreboard.matchWinner', { winner: winner === 'home' ? homeTeam.name : awayTeam.name, home: homeTeam.setsWon, away: awayTeam.setsWon })}
 
-      Resultado por set:
-      ${setResults.map((set) => `Set ${set.setNumber}: ${set.home} - ${set.away}`).join('\n')}`}
+      ${t('scoreboard.setResult')}:
+      ${setResults.map((set) => t('scoreboard.setScore', { set: set.setNumber, home: set.home, away: set.away })).join('\n')}`}
         type="success"
         icon={<MaterialCommunityIcons name="trophy" size={48} color="#f59e0b" />}
         buttons={[
           {
-            text: 'Nuevo Partido',
+            text: t('scoreboard.newMatch'),
             onPress: () => {
               setShowWinnerAlert(false);
               resetMatch();
@@ -463,7 +465,7 @@ export default function ScoreboardScreen({
             style: 'primary',
           },
           {
-            text: 'Cerrar',
+            text: t('common.close'),
             onPress: () => setShowWinnerAlert(false),
             style: 'cancel',
           },

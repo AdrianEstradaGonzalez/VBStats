@@ -17,6 +17,7 @@ import {
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon, TeamIcon, ChevronRightIcon } from '../components/VectorIcons';
 import { teamsService, playersService } from '../services/api';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -42,6 +43,7 @@ export default function SelectTeamScreen({
   onTeamSelected,
   userId 
 }: SelectTeamScreenProps) {
+  const { t } = useTranslation();
   const [teams, setTeams] = useState<TeamWithPlayers[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -71,7 +73,7 @@ export default function SelectTeamScreen({
       console.log('SelectTeamScreen: Teams loaded with counts:', teamsWithCounts.map(t => `${t.name}: ${t.playerCount} jugadores`));
     } catch (error) {
       console.error('Error loading teams:', error);
-      Alert.alert('Error', 'No se pudieron cargar los equipos');
+      Alert.alert(t('common.error'), t('teams.errors.loadTeams'));
     } finally {
       setLoading(false);
     }
@@ -90,10 +92,10 @@ export default function SelectTeamScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <TeamIcon size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Selecciona tu Equipo</Text>
+          <Text style={styles.headerTitle}>{t('selectTeam.title')}</Text>
         </View>
         <TouchableOpacity style={styles.backButton} onPress={onBack}>
-          <Text style={styles.backButtonText}>Volver</Text>
+          <Text style={styles.backButtonText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -101,21 +103,21 @@ export default function SelectTeamScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
           <Text style={styles.sectionDescription}>
-            Selecciona el equipo con el que vas a jugar el partido
+            {t('selectTeam.description')}
           </Text>
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Cargando equipos...</Text>
+            <Text style={styles.loadingText}>{t('selectTeam.loading')}</Text>
           </View>
         ) : teams.length === 0 ? (
           <View style={styles.emptyContainer}>
             <TeamIcon size={64} color={Colors.textTertiary} />
-            <Text style={styles.emptyText}>No tienes equipos registrados</Text>
+            <Text style={styles.emptyText}>{t('selectTeam.noTeams')}</Text>
             <Text style={styles.emptySubtext}>
-              Crea un equipo desde el menú "Mis Equipos"
+              {t('selectTeam.noTeamsDesc')}
             </Text>
           </View>
         ) : (
@@ -133,7 +135,7 @@ export default function SelectTeamScreen({
                 <View style={styles.teamTextContainer}>
                   <Text style={styles.teamName}>{team.name}</Text>
                   <Text style={styles.teamPlayers}>
-                    {team.playerCount || team.player_count || 0} jugadores
+                    {t('teams.playerCount', { count: team.playerCount || team.player_count || 0 })}
                   </Text>
                 </View>
               </View>

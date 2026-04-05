@@ -17,7 +17,9 @@ import {
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import LanguageSelector from '../components/LanguageSelector';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -30,6 +32,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: LoginScreenProps) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
@@ -38,6 +41,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
 
   const shakeError = () => {
     Animated.sequence([
@@ -51,7 +55,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setErrorMessage('Por favor, completa todos los campos');
+      setErrorMessage(t('login.emptyFields'));
       shakeError();
       return;
     }
@@ -62,11 +66,11 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
     try {
       const success = await onLogin(email, password);
       if (!success) {
-        setErrorMessage('Credenciales incorrectas. Verifica tu correo y contraseña.');
+        setErrorMessage(t('login.invalidCredentials'));
         shakeError();
       }
     } catch (error) {
-      setErrorMessage('Error de conexión. Inténtalo de nuevo.');
+      setErrorMessage(t('login.connectionError'));
       shakeError();
     } finally {
       setIsLoading(false);
@@ -75,6 +79,15 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
 
   return (
     <View style={styles.safeArea}>
+      {/* Language selector button */}
+      <TouchableOpacity
+        style={styles.languageButton}
+        onPress={() => setShowLanguageSelector(true)}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons name="translate" size={22} color={Colors.textSecondary} />
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -89,8 +102,8 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>VBStats</Text>
-            <Text style={styles.subtitle}>Estadísticas de Voleibol</Text>
+            <Text style={styles.title}>{t('login.title')}</Text>
+            <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
           </View>
 
           {/* Form Section */}
@@ -105,7 +118,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Correo Electrónico</Text>
+              <Text style={styles.label}>{t('login.email')}</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="email-outline" 
@@ -115,7 +128,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="correo@ejemplo.com"
+                  placeholder={t('login.emailPlaceholder')}
                   placeholderTextColor={Colors.textTertiary}
                   value={email}
                   onChangeText={(text) => {
@@ -134,7 +147,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Contraseña</Text>
+              <Text style={styles.label}>{t('login.password')}</Text>
               <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="lock-outline" 
@@ -179,7 +192,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 disabled={isLoading}
               >
                 <Text style={styles.forgotPasswordText}>
-                  ¿Olvidaste tu contraseña?
+                  {t('login.forgotPassword')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -194,10 +207,10 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.loginButtonText}>Iniciando sesión...</Text>
+                  <Text style={styles.loginButtonText}>{t('login.loggingIn')}</Text>
                 </View>
               ) : (
-                <Text style={styles.loginButtonText}>Iniciar Sesión</Text>
+                <Text style={styles.loginButtonText}>{t('login.loginButton')}</Text>
               )}
             </TouchableOpacity>
 
@@ -209,12 +222,17 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
                 activeOpacity={0.8}
                 disabled={isLoading}
               >
-                <Text style={styles.signUpButtonText}>Crear Cuenta</Text>
+                <Text style={styles.signUpButtonText}>{t('login.createAccount')}</Text>
               </TouchableOpacity>
             )}
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+
+      <LanguageSelector
+        visible={showLanguageSelector}
+        onClose={() => setShowLanguageSelector(false)}
+      />
     </View>
   );
 }
@@ -225,6 +243,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingTop: SAFE_AREA_TOP,
     paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+  },
+  languageButton: {
+    position: 'absolute',
+    top: SAFE_AREA_TOP + Spacing.sm,
+    right: Spacing.lg,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
   },
   container: {
     flex: 1,

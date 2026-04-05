@@ -15,6 +15,7 @@ import {
   StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon, UserIcon } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
@@ -59,6 +60,7 @@ export default function ProfileScreen({
   onLogout,
   hasAppleSubscription = false,
 }: ProfileScreenProps) {
+  const { t } = useTranslation();
   // Estados para el formulario de cambio de contraseña
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -100,7 +102,7 @@ export default function ProfileScreen({
 
   const handleDeleteAccount = async () => {
     if (!userId || !deletePassword.trim()) {
-      setErrorMessage('Ingresa tu contraseña para confirmar la eliminación');
+      setErrorMessage(t('profile.deleteAccountPassword'));
       setShowErrorAlert(true);
       return;
     }
@@ -117,9 +119,9 @@ export default function ProfileScreen({
     } catch (error: any) {
       console.error('Error deleting account:', error);
       if (error.message?.includes('incorrecta') || error.message?.includes('incorrect') || error.message?.includes('Invalid')) {
-        setErrorMessage('La contraseña es incorrecta');
+        setErrorMessage(t('profile.wrongPassword'));
       } else {
-        setErrorMessage(error.message || 'Error al eliminar la cuenta');
+        setErrorMessage(error.message || t('profile.deleteAccountError'));
       }
       setShowErrorAlert(true);
     } finally {
@@ -142,12 +144,12 @@ export default function ProfileScreen({
           onSubscriptionCancelled();
         }
       } else {
-        setErrorMessage(result.error || 'Error al cancelar la suscripción');
+        setErrorMessage(result.error || t('profile.cancelSubscriptionError'));
         setShowErrorAlert(true);
       }
     } catch (error) {
       console.error('Error cancelling subscription:', error);
-      setErrorMessage('Error al cancelar la suscripción');
+      setErrorMessage(t('profile.cancelSubscriptionError'));
       setShowErrorAlert(true);
     } finally {
       setIsCancelling(false);
@@ -174,12 +176,12 @@ export default function ProfileScreen({
           onSubscriptionReactivated();
         }
       } else {
-        setErrorMessage(data.error || 'Error al reactivar la suscripción');
+        setErrorMessage(data.error || t('profile.reactivateError'));
         setShowErrorAlert(true);
       }
     } catch (error) {
       console.error('Error reactivating subscription:', error);
-      setErrorMessage('Error al reactivar la suscripción');
+      setErrorMessage(t('profile.reactivateError'));
       setShowErrorAlert(true);
     } finally {
       setIsReactivating(false);
@@ -187,26 +189,26 @@ export default function ProfileScreen({
   };
 
   const getSubscriptionName = (type: SubscriptionType): string => {
-    if (type === 'basic') return 'Básico';
-    if (type === 'pro') return 'Pro';
-    return 'Gratuita';
+    if (type === 'basic') return t('common.basic');
+    if (type === 'pro') return t('common.pro');
+    return t('common.free');
   };
 
   const validatePasswords = (): string | null => {
     if (!currentPassword.trim()) {
-      return 'Ingresa tu contraseña actual';
+      return t('profile.errors.currentPasswordRequired');
     }
     if (!newPassword.trim()) {
-      return 'Ingresa la nueva contraseña';
+      return t('profile.errors.newPasswordRequired');
     }
     if (newPassword.length < 6) {
-      return 'La nueva contraseña debe tener al menos 6 caracteres';
+      return t('profile.passwordMinLength');
     }
     if (newPassword !== confirmPassword) {
-      return 'Las contraseñas no coinciden';
+      return t('profile.passwordMismatch');
     }
     if (currentPassword === newPassword) {
-      return 'La nueva contraseña debe ser diferente a la actual';
+      return t('profile.differentPassword');
     }
     return null;
   };
@@ -220,7 +222,7 @@ export default function ProfileScreen({
     }
 
     if (!userId) {
-      setErrorMessage('Error: Usuario no identificado');
+      setErrorMessage(t('profile.userNotIdentified'));
       setShowErrorAlert(true);
       return;
     }
@@ -238,9 +240,9 @@ export default function ProfileScreen({
     } catch (error: any) {
       console.error('Error changing password:', error);
       if (error.message?.includes('incorrect') || error.message?.includes('Invalid')) {
-        setErrorMessage('La contraseña actual es incorrecta');
+        setErrorMessage(t('profile.wrongCurrentPassword'));
       } else {
-        setErrorMessage(error.message || 'Error al cambiar la contraseña');
+        setErrorMessage(error.message || t('profile.changePasswordError'));
       }
       setShowErrorAlert(true);
     } finally {
@@ -302,7 +304,7 @@ export default function ProfileScreen({
         <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
           <MenuIcon size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mi Perfil</Text>
+        <Text style={styles.headerTitle}>{t('profile.title')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -332,11 +334,11 @@ export default function ProfileScreen({
         <View style={styles.subscriptionSection}>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="credit-card-outline" size={24} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>Mi Suscripción</Text>
+            <Text style={styles.sectionTitle}>{t('profile.mySubscription')}</Text>
           </View>
           
           <View style={styles.subscriptionInfo}>
-            <Text style={styles.subscriptionLabel}>Plan actual:</Text>
+            <Text style={styles.subscriptionLabel}>{t('profile.currentPlan')}</Text>
             <View style={styles.subscriptionBadge}>
               <Text style={styles.subscriptionBadgeText}>
                 {getSubscriptionName(subscriptionType)}
@@ -351,7 +353,7 @@ export default function ProfileScreen({
                 <>
                   <View style={styles.renewalInfoHeader}>
                     <MaterialCommunityIcons name="calendar-clock" size={20} color="#f59e0b" />
-                    <Text style={styles.renewalInfoTitleWarning}>Suscripción cancelada</Text>
+                    <Text style={styles.renewalInfoTitleWarning}>{t('profile.cancelledSubscription')}</Text>
                   </View>
                   <Text style={styles.renewalInfoText}>
                     Tu plan {getSubscriptionName(subscriptionType)} estará activo hasta el{' '}
@@ -378,7 +380,7 @@ export default function ProfileScreen({
                       ) : (
                         <>
                           <MaterialCommunityIcons name="refresh" size={18} color="#fff" />
-                          <Text style={styles.reactivateButtonText}>Reactivar suscripción</Text>
+                          <Text style={styles.reactivateButtonText}>{t('profile.reactivateSubscription')}</Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -393,7 +395,7 @@ export default function ProfileScreen({
                 <>
                   <View style={styles.renewalInfoHeader}>
                     <MaterialCommunityIcons name="autorenew" size={20} color="#22c55e" />
-                    <Text style={styles.renewalInfoTitleActive}>Renovación automática activa</Text>
+                    <Text style={styles.renewalInfoTitleActive}>{t('profile.autoRenewalActive')}</Text>
                   </View>
                   <Text style={styles.renewalInfoText}>
                     Tu suscripción se renovará automáticamente el{' '}
@@ -413,7 +415,7 @@ export default function ProfileScreen({
             <View style={styles.trialInfoContainer}>
               <View style={styles.trialInfoHeader}>
                 <MaterialCommunityIcons name="gift" size={20} color="#22c55e" />
-                <Text style={styles.trialInfoTitle}>Prueba gratuita activa</Text>
+                <Text style={styles.trialInfoTitle}>{t('profile.trialActive')}</Text>
               </View>
               <Text style={styles.trialInfoText}>
                 Te quedan <Text style={styles.trialDaysHighlight}>{activeTrial.daysRemaining} días</Text> de prueba gratis del plan {getSubscriptionName(activeTrial.planType as SubscriptionType)}.
@@ -432,15 +434,15 @@ export default function ProfileScreen({
         <View style={styles.passwordSection}>
           <View style={styles.sectionHeader}>
             <MaterialCommunityIcons name="key-variant" size={24} color={Colors.primary} />
-            <Text style={styles.sectionTitle}>Cambiar Contraseña</Text>
+            <Text style={styles.sectionTitle}>{t('profile.changePassword')}</Text>
           </View>
           
           <Text style={styles.sectionDescription}>
-            Por seguridad, te recomendamos usar una contraseña única de al menos 6 caracteres.
+            {t('profile.changePasswordDesc')}
           </Text>
 
           {renderPasswordInput(
-            'Contraseña Actual',
+            t('profile.currentPassword'),
             currentPassword,
             setCurrentPassword,
             showCurrentPassword,
@@ -452,7 +454,7 @@ export default function ProfileScreen({
           )}
 
           {renderPasswordInput(
-            'Nueva Contraseña',
+            t('profile.newPassword'),
             newPassword,
             setNewPassword,
             showNewPassword,
@@ -460,11 +462,11 @@ export default function ProfileScreen({
             newPasswordFocused,
             () => setNewPasswordFocused(true),
             () => setNewPasswordFocused(false),
-            'Mínimo 6 caracteres'
+            t('resetPassword.minChars')
           )}
 
           {renderPasswordInput(
-            'Confirmar Nueva Contraseña',
+            t('profile.confirmNewPassword'),
             confirmPassword,
             setConfirmPassword,
             showConfirmPassword,
@@ -472,7 +474,7 @@ export default function ProfileScreen({
             confirmPasswordFocused,
             () => setConfirmPasswordFocused(true),
             () => setConfirmPasswordFocused(false),
-            'Repite la nueva contraseña'
+            t('resetPassword.repeatPassword')
           )}
 
           <TouchableOpacity
@@ -484,12 +486,12 @@ export default function ProfileScreen({
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.changePasswordButtonText}>Cambiando...</Text>
+                <Text style={styles.changePasswordButtonText}>{t('profile.changingPassword')}</Text>
               </View>
             ) : (
               <>
                 <MaterialCommunityIcons name="lock-reset" size={20} color="#FFFFFF" />
-                <Text style={styles.changePasswordButtonText}>Cambiar Contraseña</Text>
+                <Text style={styles.changePasswordButtonText}>{t('profile.changePasswordButton')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -518,7 +520,7 @@ export default function ProfileScreen({
                 ) : (
                   <>
                     <MaterialCommunityIcons name="cancel" size={18} color={Colors.textTertiary} />
-                    <Text style={styles.cancelSubscriptionText}>Cancelar renovación automática</Text>
+                    <Text style={styles.cancelSubscriptionText}>{t('profile.cancelSubscription')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -531,7 +533,7 @@ export default function ProfileScreen({
         <View style={styles.deleteAccountZone}>
           <View style={styles.dangerZoneHeader}>
             <MaterialCommunityIcons name="delete-forever" size={20} color="#ef4444" />
-            <Text style={styles.deleteAccountTitle}>Eliminar Cuenta</Text>
+            <Text style={styles.deleteAccountTitle}>{t('profile.deleteAccount')}</Text>
           </View>
           <Text style={styles.dangerZoneDescription}>
             Al eliminar tu cuenta se borrarán permanentemente todos tus datos: equipos, jugadores, partidos, estadísticas y configuraciones. Esta acción no se puede deshacer.
@@ -542,7 +544,7 @@ export default function ProfileScreen({
             activeOpacity={0.7}
           >
             <MaterialCommunityIcons name="delete-alert" size={18} color="#ef4444" />
-            <Text style={styles.deleteAccountButtonText}>Eliminar mi cuenta</Text>
+            <Text style={styles.deleteAccountButtonText}>{t('profile.deleteAccountButtonText')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -550,11 +552,11 @@ export default function ProfileScreen({
       {/* Alerta de éxito */}
       <CustomAlert
         visible={showSuccessAlert}
-        title="¡Contraseña Actualizada!"
-        message="Tu contraseña ha sido cambiada exitosamente."
+        title={t('profile.passwordChangedTitle')}
+        message={t('profile.passwordChanged')}
         buttons={[
           {
-            text: 'Aceptar',
+            text: t('common.accept'),
             onPress: () => setShowSuccessAlert(false),
             style: 'default',
           } as CustomAlertButton,
@@ -566,11 +568,11 @@ export default function ProfileScreen({
       {/* Alerta de error */}
       <CustomAlert
         visible={showErrorAlert}
-        title="Error"
+        title={t('common.error')}
         message={errorMessage}
         buttons={[
           {
-            text: 'Aceptar',
+            text: t('common.accept'),
             onPress: () => setShowErrorAlert(false),
             style: 'default',
           } as CustomAlertButton,
@@ -582,16 +584,16 @@ export default function ProfileScreen({
       {/* Alerta de confirmación de cancelación */}
       <CustomAlert
         visible={showCancelConfirm}
-        title="¿Cancelar Suscripción?"
-        message={`Tu suscripción no se renovará y mantendrás acceso a las funciones del plan ${getSubscriptionName(subscriptionType)} hasta que finalice el período actual. Después cambiarás automáticamente al plan Gratuito. Tus datos (equipos, jugadores, partidos, estadísticas) se conservarán.`}
+        title={t('profile.cancelSubscriptionTitle')}
+        message={t('profile.cancelSubscriptionMessage', { plan: getSubscriptionName(subscriptionType) })}
         buttons={[
           {
-            text: 'No, mantener',
+            text: t('profile.keepSubscription'),
             onPress: () => setShowCancelConfirm(false),
             style: 'default',
           } as CustomAlertButton,
           {
-            text: 'Sí, cancelar renovación',
+            text: t('profile.yesCancelRenewal'),
             onPress: handleCancelSubscription,
             style: 'destructive',
           } as CustomAlertButton,
@@ -603,11 +605,11 @@ export default function ProfileScreen({
       {/* Alerta de éxito de cancelación */}
       <CustomAlert
         visible={showCancelSuccessAlert}
-        title="Renovación Cancelada"
-        message="Tu suscripción no se renovará automáticamente. Podrás seguir usando las funciones premium hasta el final del período actual. Después, tu cuenta pasará al plan Gratuito pero conservarás todos tus datos."
+        title={t('profile.renewalCancelledTitle')}
+        message={t('profile.renewalCancelledMessage')}
         buttons={[
           {
-            text: 'Entendido',
+            text: t('common.understood'),
             onPress: () => setShowCancelSuccessAlert(false),
             style: 'default',
           } as CustomAlertButton,
@@ -619,16 +621,16 @@ export default function ProfileScreen({
       {/* Alerta de confirmación de reactivación */}
       <CustomAlert
         visible={showReactivateConfirm}
-        title="¿Reactivar suscripción?"
-        message={`Se reactivará la renovación automática de tu plan ${getSubscriptionName(subscriptionType)}. Se te cobrará automáticamente cuando finalice el período actual.`}
+        title={t('profile.reactivateTitle')}
+        message={t('profile.reactivateMessage', { plan: getSubscriptionName(subscriptionType) })}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowReactivateConfirm(false),
             style: 'cancel',
           } as CustomAlertButton,
           {
-            text: 'Reactivar',
+            text: t('profile.reactivateButton'),
             onPress: handleReactivateSubscription,
             style: 'primary',
           } as CustomAlertButton,
@@ -640,11 +642,11 @@ export default function ProfileScreen({
       {/* Alerta de éxito de reactivación */}
       <CustomAlert
         visible={showReactivateSuccessAlert}
-        title="¡Suscripción Reactivada!"
-        message={`Tu plan ${getSubscriptionName(subscriptionType)} se renovará automáticamente. Seguirás disfrutando de todas las funciones premium.`}
+        title={t('profile.reactivatedTitle')}
+        message={t('profile.reactivatedMessage', { plan: getSubscriptionName(subscriptionType) })}
         buttons={[
           {
-            text: 'Perfecto',
+            text: t('profile.reactivatedButton'),
             onPress: () => setShowReactivateSuccessAlert(false),
             style: 'default',
           } as CustomAlertButton,
@@ -656,16 +658,16 @@ export default function ProfileScreen({
       {/* Alerta de confirmación de eliminación de cuenta - Paso 1 */}
       <CustomAlert
         visible={showDeleteConfirm}
-        title="¿Eliminar tu cuenta?"
-        message="Esta acción es permanente e irreversible. Se eliminarán todos tus datos: equipos, jugadores, partidos, estadísticas, configuraciones y suscripciones. ¿Estás seguro?"
+        title={t('profile.deleteAccountConfirmTitle')}
+        message={t('profile.deleteAccountConfirmMessage')}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowDeleteConfirm(false),
             style: 'cancel',
           } as CustomAlertButton,
           {
-            text: 'Sí, eliminar cuenta',
+            text: t('profile.yesDeleteAccount'),
             onPress: () => {
               setShowDeleteConfirm(false);
               setShowDeletePasswordPrompt(true);
@@ -680,11 +682,11 @@ export default function ProfileScreen({
       {/* Alerta de contraseña para eliminación - Paso 2 */}
       <CustomAlert
         visible={showDeletePasswordPrompt}
-        title="Confirma con tu contraseña"
-        message="Ingresa tu contraseña para confirmar la eliminación de tu cuenta."
+        title={t('profile.confirmWithPassword')}
+        message={t('profile.deleteAccountPassword')}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => {
               setShowDeletePasswordPrompt(false);
               setDeletePassword('');
@@ -692,7 +694,7 @@ export default function ProfileScreen({
             style: 'cancel',
           } as CustomAlertButton,
           {
-            text: isDeleting ? 'Eliminando...' : 'Eliminar definitivamente',
+            text: isDeleting ? t('profile.deleting') : t('profile.deleteDefinitively'),
             onPress: handleDeleteAccount,
             style: 'destructive',
           } as CustomAlertButton,
@@ -704,7 +706,7 @@ export default function ProfileScreen({
         icon={<MaterialCommunityIcons name="lock-alert" size={48} color="#ef4444" />}
         contentComponent={
           <View>
-            <Text style={styles.dangerZoneDescription}>Ingresa tu contraseña para confirmar la eliminación de tu cuenta.</Text>
+            <Text style={styles.dangerZoneDescription}>{t('profile.deleteAccountPassword')}</Text>
             <View style={styles.deletePasswordContainer}>
               <View style={[styles.inputWrapper, deletePasswordFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons

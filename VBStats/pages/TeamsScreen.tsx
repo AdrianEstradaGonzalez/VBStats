@@ -30,6 +30,7 @@ import {
 } from '../components/VectorIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { CustomAlert } from '../components';
+import { useTranslation } from 'react-i18next';
 import { teamsService, playersService, Team, Player } from '../services/api';
 import { SubscriptionType, subscriptionService, BASIC_MAX_TEAMS } from '../services/subscriptionService';
 
@@ -74,6 +75,7 @@ const sortPlayers = (players: Player[]): Player[] => {
 };
 
 export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, userId, subscriptionType = 'pro', onUpgradeToPro }: TeamsScreenProps) {
+  const { t } = useTranslation();
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showPlayerModal, setShowPlayerModal] = useState(false);
@@ -152,7 +154,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         setEditingPlayer(null);
       } catch (error) {
         console.error('Error updating player:', error);
-        Alert.alert('Error', 'No se pudo actualizar el jugador');
+        Alert.alert(t('common.error'), t('teams.errors.updatePlayer'));
       } finally {
         setLoading(false);
       }
@@ -169,7 +171,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         setShowTeamModal(false);
       } catch (error) {
         console.error('Error creating team:', error);
-        Alert.alert('Error', 'No se pudo crear el equipo');
+        Alert.alert(t('common.error'), t('teams.errors.createTeam'));
       } finally {
         setLoading(false);
       }
@@ -193,7 +195,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         setShowPlayerModal(false);
       } catch (error) {
         console.error('Error adding player:', error);
-        Alert.alert('Error', 'No se pudo añadir el jugador. Por favor, verifica la conexión con el servidor.');
+        Alert.alert(t('common.error'), t('teams.errors.addPlayer'));
       } finally {
         setLoading(false);
       }
@@ -218,7 +220,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
       setTeamToDelete(null);
     } catch (error) {
       console.error('Error deleting team:', error);
-      Alert.alert('Error', 'No se pudo eliminar el equipo');
+      Alert.alert(t('common.error'), t('teams.errors.deleteTeam'));
     }
   };
 
@@ -230,7 +232,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         await reloadTeamsWithCounts();
       } catch (error) {
         console.error('Error deleting player:', error);
-        Alert.alert('Error', 'No se pudo eliminar el jugador');
+        Alert.alert(t('common.error'), t('teams.errors.deletePlayer'));
       }
     }
   };
@@ -256,12 +258,12 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         <View style={styles.headerCenter}>
           <TeamIcon size={24} color={Colors.primary} />
           <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
-            {selectedTeam ? selectedTeam.name : 'Mis Equipos'}
+            {selectedTeam ? selectedTeam.name : t('teams.title')}
           </Text>
         </View>
         {selectedTeam ? (
           <TouchableOpacity style={styles.backButton} onPress={() => setSelectedTeam(null)}>
-            <Text style={styles.backButtonText}>Volver</Text>
+            <Text style={styles.backButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.headerRight} />
@@ -274,9 +276,9 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
           {teams.length === 0 ? (
             <View style={styles.emptyState}>
               <TeamIcon size={80} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>Sin equipos</Text>
+              <Text style={styles.emptyTitle}>{t('teams.noTeams')}</Text>
               <Text style={styles.emptyText}>
-                Crea tu primer equipo para comenzar
+                {t('teams.noTeamsDesc')}
               </Text>
             </View>
           ) : (
@@ -293,7 +295,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                 <View style={styles.teamInfo}>
                   <Text style={styles.teamName}>{team.name}</Text>
                   <Text style={styles.teamPlayers}>
-                    {team.playerCount || 0} jugador{(team.playerCount || 0) !== 1 ? 'es' : ''}
+                    {t('teams.playerCount', { count: team.playerCount || 0 })}
                   </Text>
                 </View>
                 <View style={styles.teamActions}>
@@ -322,7 +324,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
             activeOpacity={0.7}
           >
             <AddIcon size={24} color={Colors.textOnPrimary} />
-            <Text style={styles.addButtonText}>Añadir Equipo</Text>
+            <Text style={styles.addButtonText}>{t('teams.addTeam')}</Text>
           </TouchableOpacity>
         </ScrollView>
       ) : (
@@ -374,7 +376,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
             activeOpacity={0.7}
           >
             <AddIcon size={24} color={Colors.textOnPrimary} />
-            <Text style={styles.addButtonText}>Añadir Jugador</Text>
+            <Text style={styles.addButtonText}>{t('teams.addPlayer')}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -401,12 +403,12 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                 <TeamIcon size={32} color={Colors.primary} />
               </View>
 
-              <Text style={styles.teamModalTitle}>Crear Nuevo Equipo</Text>
+              <Text style={styles.teamModalTitle}>{t('teams.newTeam')}</Text>
               <Text style={styles.teamModalSubtitle}>Ingresa el nombre de tu equipo</Text>
 
               <TextInput
                 style={styles.teamInput}
-                placeholder="Ej: Club Deportivo VB"
+                placeholder={t('teams.teamNamePlaceholder')}
                 placeholderTextColor={Colors.textTertiary}
                 value={newTeamName}
                 onChangeText={setNewTeamName}
@@ -422,7 +424,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.teamCancelButtonText}>Cancelar</Text>
+                  <Text style={styles.teamCancelButtonText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -435,7 +437,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   activeOpacity={0.8}
                 >
                   <Text style={styles.teamCreateButtonText}>
-                    {loading ? 'Creando...' : 'Crear Equipo'}
+                    {loading ? t('common.loading') : t('common.create')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -456,7 +458,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
               <View style={styles.addPlayerIconWrapper}>
                 <VolleyballIcon size={22} color="#fff" />
               </View>
-              <Text style={styles.addPlayerModalTitle}>Añadir Jugador</Text>
+              <Text style={styles.addPlayerModalTitle}>{t('teams.addPlayer')}</Text>
               <TouchableOpacity 
                 style={styles.addPlayerCloseButton}
                 onPress={() => {
@@ -476,7 +478,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.addPlayerLabel}>Nombre del jugador *</Text>
+                <Text style={styles.addPlayerLabel}>{t('teams.playerNamePlaceholder')} *</Text>
                 <TextInput
                   style={styles.addPlayerInput}
                   placeholder="Ej: Juan García"
@@ -487,7 +489,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   autoFocus
                 />
 
-                <Text style={styles.addPlayerLabel}>Número de dorsal</Text>
+                <Text style={styles.addPlayerLabel}>{t('teams.dorsalNumber')}</Text>
                 <TextInput
                   style={styles.addPlayerInput}
                   placeholder="Ej: 7"
@@ -501,7 +503,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   maxLength={2}
                 />
 
-                <Text style={styles.addPlayerLabel}>Posición *</Text>
+                <Text style={styles.addPlayerLabel}>{t('teams.position')} *</Text>
                 <View style={styles.addPlayerPositionsGrid}>
                   {POSITIONS.map((pos) => (
                     <TouchableOpacity
@@ -533,7 +535,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
+                  <Text style={styles.addPlayerCancelBtnText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -546,7 +548,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   activeOpacity={0.7}
                 >
                   <Text style={styles.addPlayerSubmitBtnText}>
-                    {loading ? 'Guardando...' : 'Añadir'}
+                    {loading ? t('common.saving') : t('common.save')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -563,7 +565,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
               <View style={styles.addPlayerIconWrapper}>
                 <EditIcon size={18} color="#fff" />
               </View>
-              <Text style={styles.addPlayerModalTitle}>Editar Jugador</Text>
+              <Text style={styles.addPlayerModalTitle}>{t('common.edit')}</Text>
               <TouchableOpacity
                 style={styles.addPlayerCloseButton}
                 onPress={() => { setShowEditPlayerModal(false); setEditingPlayer(null); }}
@@ -578,7 +580,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                   <Text style={styles.addPlayerLabel}>Nombre</Text>
                   <TextInput
                     style={styles.addPlayerInput}
-                    placeholder="Nombre del jugador"
+                    placeholder={t('teams.playerNamePlaceholder')}
                     placeholderTextColor={Colors.textTertiary}
                     value={editingPlayer.name}
                     onChangeText={(text) => {
@@ -609,7 +611,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                     maxLength={2}
                   />
 
-                  <Text style={styles.addPlayerLabel}>Posición</Text>
+                  <Text style={styles.addPlayerLabel}>{t('teams.position')}</Text>
                   <View style={styles.addPlayerPositionsGrid}>
                     {POSITIONS.map((pos) => (
                       <TouchableOpacity
@@ -646,7 +648,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.addPlayerCancelBtnText}>Cancelar</Text>
+                      <Text style={styles.addPlayerCancelBtnText}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -659,7 +661,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
                       activeOpacity={0.7}
                     >
                       <Text style={styles.addPlayerSubmitBtnText}>
-                        {loading ? 'Guardando...' : 'Guardar'}
+                        {loading ? t('common.saving') : t('common.save')}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -675,12 +677,12 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         visible={showDeleteConfirmModal}
         icon={<DeleteIcon size={48} color={Colors.error} />}
         iconBackgroundColor={Colors.error + '15'}
-        title="¿Eliminar equipo?"
+        title={t('teams.deleteTeam')}
         message={`¿Estás seguro de que deseas eliminar el equipo "${teamToDelete?.name}"?`}
-        warning="Esta acción no se puede deshacer y se eliminarán todos los jugadores asociados."
+        warning={t('teams.deleteTeamDesc')}
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => {
               setShowDeleteConfirmModal(false);
               setTeamToDelete(null);
@@ -688,7 +690,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
             style: 'cancel',
           },
           {
-            text: 'Eliminar',
+            text: t('common.delete'),
             onPress: confirmDeleteTeam,
             style: 'destructive',
           },
@@ -700,9 +702,9 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
         visible={showTeamLimitAlert}
         icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
         iconBackgroundColor="#f59e0b15"
-        title="Límite de equipos alcanzado"
+        title={t('teams.maxTeamsReached')}
         message={`Con la cuenta Básico puedes crear hasta ${BASIC_MAX_TEAMS} equipos. Actualmente tienes ${teams.length} equipos.`}
-        warning="Mejora a VBStats Pro para crear equipos ilimitados."
+        warning={t('teams.upgradePlan')}
         buttonLayout="column"
         buttons={[
           {
@@ -715,7 +717,7 @@ export default function TeamsScreen({ onBack, onOpenMenu, teams, onTeamsChange, 
             style: 'primary',
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowTeamLimitAlert(false),
             style: 'cancel',
           },

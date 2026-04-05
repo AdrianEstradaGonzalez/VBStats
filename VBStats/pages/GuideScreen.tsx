@@ -19,6 +19,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { MenuIcon } from '../components/VectorIcons';
 import type { SubscriptionType } from '../services/subscriptionService';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -76,108 +77,109 @@ export default function GuideScreen({
 }: GuideScreenProps) {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? (onlyRoles ? 'roles' : 'guide'));
   const [infoModal, setInfoModal] = useState<InfoModalType>(null);
+  const { t } = useTranslation();
 
   // Secciones de la guía
   const guideSections: GuideSection[] = [
     {
       id: 'teams',
       icon: 'account-group',
-      title: 'Gestión de Equipos',
-      description: 'Crea y administra tus equipos de voleibol con todos sus jugadores.',
+      title: t('guide.teamManagement'),
+      description: t('guide.teamManagementDesc'),
       steps: [
-        'Ve a "Mis Equipos" desde el menú lateral',
-        'Pulsa el botón "+" para crear un nuevo equipo',
-        'Añade jugadores con su nombre, número de dorsal y posición',
-        'Guarda el equipo para gestionar sus estadísticas',
+        t('guide.teamStep1'),
+        t('guide.teamStep2'),
+        t('guide.teamStep3'),
+        t('guide.teamStep4'),
       ],
     },
     {
       id: 'match',
       icon: 'volleyball',
-      title: 'Comenzar un Partido',
-      description: 'Inicia un partido y registra estadísticas en tiempo real.',
+      title: t('guide.startMatch'),
+      description: t('guide.startMatchDesc'),
       steps: [
-        'Pulsa "Comenzar Partido" en el menú',
-        'Selecciona tu equipo',
-        'Configura el partido (sets, nombre rival)',
-        'Selecciona los jugadores titulares',
-        'Pulsa "Iniciar" para iniciar el registro del primer set',
-        'Selecciona el set actual para consultar las estadísticas recogidas hasta el momento',
-        'Pulsa "Finalizar" para terminar el set o partido',
+        t('guide.matchStep1'),
+        t('guide.matchStep2'),
+        t('guide.matchStep3'),
+        t('guide.matchStep4'),
+        t('guide.matchStep5'),
+        t('guide.matchStep6'),
+        t('guide.matchStep7'),
       ],
     },
     {
       id: 'stats',
       icon: 'chart-line',
-      title: 'Registrar Estadísticas',
-      description: 'Captura cada acción durante el partido de forma rápida e intuitiva.',
+      title: t('guide.recordStats'),
+      description: t('guide.recordStatsDesc'),
       steps: [
-        'Durante el partido, verás el campo con los jugadores titulares',
-        'Selecciona la acción realizada (saque, ataque, bloqueo, recepción, defensa, colocación) para el jugador correspondiente',
-        'Selecciona el icono representativo de la acción (punto directo, doble positivo, positivo, neutro, error)',
-        'La estadística se registra automáticamente',
+        t('guide.statsStep1'),
+        t('guide.statsStep2'),
+        t('guide.statsStep3'),
+        t('guide.statsStep4'),
       ],
     },
     {
       id: 'config',
       icon: 'cog',
-      title: 'Configuración de Estadísticas',
-      description: 'Personaliza qué estadísticas quieres registrar según tus necesidades.',
+      title: t('guide.configStats'),
+      description: t('guide.configStatsDesc'),
       steps: [
-        'Ve a "Configuración" desde el menú',
-        'Se pueden configurar todas las acciones que incluye tu plan (activar o desactivar las acciones), realizando una configuración completamente personalizada',
-        'Se pueden establecer configuraciones predeterminadas básica o avanzada (plan PRO)',
+        t('guide.configStep1'),
+        t('guide.configStep2'),
+        t('guide.configStep3'),
       ],
     },
     {
       id: 'view',
       icon: 'eye',
-      title: 'Consultar Estadísticas',
-      description: 'Visualiza las estadísticas de tus partidos con diferentes filtros.',
+      title: t('guide.viewStats'),
+      description: t('guide.viewStatsDesc'),
       steps: [
-        'Ve a "Estadísticas" desde el menú',
-        'Selecciona un partido para ver sus estadísticas',
-        'Filtra por set o el partido para análisis detallado',
-        'Selecciona un jugador específico si lo deseas',
-        'Navega entre las diferentes métricas',
+        t('guide.viewStep1'),
+        t('guide.viewStep2'),
+        t('guide.viewStep3'),
+        t('guide.viewStep4'),
+        t('guide.viewStep5'),
       ],
     },
     {
       id: 'export',
       icon: 'file-export',
-      title: 'Exportar Estadísticas',
-      description: 'Descarga tus estadísticas en formato Excel para análisis externo.',
+      title: t('guide.exportStats'),
+      description: t('guide.exportStatsDesc'),
       steps: [
-        'Abre las estadísticas de un partido',
-        'Pulsa el botón de exportar (📤)',
-        'Selecciona el formato deseado',
-        'Comparte a través de redes sociales las estadísticas exportadas o genera un fichero Excel (función PRO)',
+        t('guide.exportStep1'),
+        t('guide.exportStep2'),
+        t('guide.exportStep3'),
+        t('guide.exportStep4'),
       ],
     },
     {
       id: 'tracking',
       icon: 'trending-up',
-      title: 'Seguimiento de Progreso',
-      description: 'Visualiza la evolución de tu equipo con gráficos avanzados.',
+      title: t('guide.tracking'),
+      description: t('guide.trackingDesc'),
       steps: [
-        'Accede a "Seguimiento" desde Estadísticas',
-        'Selecciona el equipo',
-        'Visualiza gráficos de línea, barras o dispersión',
-        'Analiza tendencias y patrones de rendimiento',
-        'Función exclusiva para usuarios PRO',
+        t('guide.trackStep1'),
+        t('guide.trackStep2'),
+        t('guide.trackStep3'),
+        t('guide.trackStep4'),
+        t('guide.trackStep5'),
       ],
     },
     {
       id: 'scoreboard',
       icon: 'scoreboard',
-      title: 'Marcador',
-      description: 'Usa el marcador para seguir el resultado sin recoger estadísticas.',
+      title: t('guide.scoreboardGuide'),
+      description: t('guide.scoreboardDesc'),
       steps: [
-        'Ve a "Marcador" desde el menú',
-        'Configura los nombres de los equipos',
-        'Usa los botones para sumar puntos',
-        'El marcador gestiona automáticamente los sets',
-        'Disponible para todos los usuarios',
+        t('guide.scoreStep1'),
+        t('guide.scoreStep2'),
+        t('guide.scoreStep3'),
+        t('guide.scoreStep4'),
+        t('guide.scoreStep5'),
       ],
     },
   ];
@@ -188,18 +190,18 @@ export default function GuideScreen({
   }
 
   const roleFeatures: RoleFeatureExtended[] = [
-    { feature: 'Crear equipos', free: false, basic: '2 equipos', pro: 'Ilimitados' },
-    { feature: 'Jugadores por equipo', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
-    { feature: 'Partidos guardados', free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
-    { feature: 'Buscar partido por código', free: true, basic: true, pro: true },
-    { feature: 'Marcador básico', free: true, basic: true, pro: true },
-    { feature: 'Configuración de estadísticas', free: false, basic: true, pro: true, infoType: 'basicConfig' },
-    { feature: 'Estadísticas avanzadas', free: false, basic: false, pro: true, infoType: 'proConfig' },
-    { feature: 'Ver estadísticas de partido', free: false, basic: true, pro: true },
-    { feature: 'Filtrar por set', free: false, basic: true, pro: true },
-    { feature: 'Filtrar por jugador', free: false, basic: true, pro: true },
-    { feature: 'Exportar a Excel', free: false, basic: false, pro: true },
-    { feature: 'Seguimiento del equipo', free: false, basic: false, pro: true },
+    { feature: t('guide.features.createTeams'), free: false, basic: '2 equipos', pro: 'Ilimitados' },
+    { feature: t('guide.features.playersPerTeam'), free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
+    { feature: t('guide.features.savedMatches'), free: false, basic: 'Ilimitados', pro: 'Ilimitados' },
+    { feature: t('guide.features.searchByCode'), free: true, basic: true, pro: true },
+    { feature: t('guide.features.basicScoreboard'), free: true, basic: true, pro: true },
+    { feature: t('guide.features.statsConfig'), free: false, basic: true, pro: true, infoType: 'basicConfig' },
+    { feature: t('guide.features.advancedStats'), free: false, basic: false, pro: true, infoType: 'proConfig' },
+    { feature: t('guide.features.viewMatchStats'), free: false, basic: true, pro: true },
+    { feature: t('guide.features.filterBySet'), free: false, basic: true, pro: true },
+    { feature: t('guide.features.filterByPlayer'), free: false, basic: true, pro: true },
+    { feature: t('guide.features.exportExcel'), free: false, basic: false, pro: true },
+    { feature: t('guide.features.teamTracking'), free: false, basic: false, pro: true },
   ];
 
   // Render de un item de la guía
@@ -249,18 +251,18 @@ export default function GuideScreen({
         </View>
         <View style={styles.roleColumn}>
           <View style={[styles.roleBadge, { backgroundColor: Colors.textSecondary + '20' }]}>
-            <Text style={[styles.roleBadgeText, { color: Colors.textSecondary }]}>GRATIS</Text>
+            <Text style={[styles.roleBadgeText, { color: Colors.textSecondary }]}>{t('common.free')}</Text>
           </View>
         </View>
         <View style={styles.roleColumn}>
           <View style={[styles.roleBadge, { backgroundColor: '#3b82f6' + '20' }]}>
-            <Text style={[styles.roleBadgeText, { color: '#3b82f6' }]}>BÁSICO</Text>
+            <Text style={[styles.roleBadgeText, { color: '#3b82f6' }]}>{t('common.basic')}</Text>
           </View>
         </View>
         <View style={styles.roleColumn}>
           <View style={[styles.roleBadge, { backgroundColor: '#f59e0b' + '20' }]}>
             <MaterialCommunityIcons name="crown" size={12} color="#f59e0b" style={{ marginRight: 2 }} />
-            <Text style={[styles.roleBadgeText, { color: '#f59e0b' }]}>PRO</Text>
+            <Text style={[styles.roleBadgeText, { color: '#f59e0b' }]}>{t('common.pro')}</Text>
           </View>
         </View>
       </View>
@@ -284,7 +286,7 @@ export default function GuideScreen({
                   activeOpacity={0.8}
                 >
                   <MaterialCommunityIcons name="information-outline" size={14} color={Colors.primary} />
-                  <Text style={styles.infoPillText}>Ver detalles</Text>
+                  <Text style={styles.infoPillText}>{t('guide.viewDetails')}</Text>
                   <MaterialCommunityIcons name="chevron-right" size={16} color={Colors.textSecondary} />
                 </TouchableOpacity>
               )}
@@ -304,18 +306,18 @@ export default function GuideScreen({
 
       {/* Descripción de cada rol */}
       <View style={styles.rolesDescriptionSection}>
-        <Text style={styles.rolesDescriptionTitle}>Descripción de Planes</Text>
+        <Text style={styles.rolesDescriptionTitle}>{t('guide.planDescription')}</Text>
         
         {/* Plan Gratis */}
         <View style={styles.roleDescriptionCard}>
           <View style={styles.roleDescriptionHeader}>
             <View style={[styles.roleDescBadge, { backgroundColor: Colors.textSecondary + '20' }]}>
-              <Text style={[styles.roleDescBadgeText, { color: Colors.textSecondary }]}>GRATIS</Text>
+              <Text style={[styles.roleDescBadgeText, { color: Colors.textSecondary }]}>{t('common.free')}</Text>
             </View>
             <Text style={styles.rolePrice}>0€/mes</Text>
           </View>
           <Text style={styles.roleDescriptionText}>
-            Perfecto para espectadores. Busca partidos por código compartido y usa el marcador básico para seguir el resultado.
+            {t('guide.planFreeDesc')}
           </Text>
         </View>
 
@@ -323,12 +325,12 @@ export default function GuideScreen({
         <View style={styles.roleDescriptionCard}>
           <View style={styles.roleDescriptionHeader}>
             <View style={[styles.roleDescBadge, { backgroundColor: '#3b82f6' + '20' }]}>
-              <Text style={[styles.roleDescBadgeText, { color: '#3b82f6' }]}>BÁSICO</Text>
+              <Text style={[styles.roleDescBadgeText, { color: '#3b82f6' }]}>{t('common.basic')}</Text>
             </View>
             <Text style={styles.rolePrice}>4,99€/mes</Text>
           </View>
           <Text style={styles.roleDescriptionText}>
-            Crea hasta 2 equipos, registra estadísticas básicas y guarda partidos ilimitados. Incluye configuración básica y filtros esenciales.
+            {t('guide.planBasicDesc')}
           </Text>
         </View>
 
@@ -337,12 +339,12 @@ export default function GuideScreen({
           <View style={styles.roleDescriptionHeader}>
             <View style={[styles.roleDescBadge, { backgroundColor: '#f59e0b' + '20' }]}>
               <MaterialCommunityIcons name="crown" size={14} color="#f59e0b" style={{ marginRight: 4 }} />
-              <Text style={[styles.roleDescBadgeText, { color: '#f59e0b' }]}>PRO</Text>
+              <Text style={[styles.roleDescBadgeText, { color: '#f59e0b' }]}>{t('common.pro')}</Text>
             </View>
             <Text style={styles.rolePrice}>9,99€/mes</Text>
           </View>
           <Text style={styles.roleDescriptionText}>
-            Sin límites en equipos, jugadores ni partidos. Acceso a todas las estadísticas avanzadas, exportación a Excel, gráficos de seguimiento y análisis de tendencias.
+            {t('guide.planProDesc')}
           </Text>
         </View>
       </View>
@@ -355,7 +357,7 @@ export default function GuideScreen({
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons name="arrow-up-bold-circle" size={22} color="#FFFFFF" />
-          <Text style={styles.selectPlanButtonText}>Mejora tu plan</Text>
+          <Text style={styles.selectPlanButtonText}>{t('guide.upgradePlan')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -454,7 +456,7 @@ export default function GuideScreen({
           <View style={[styles.infoModalBadge, { backgroundColor: isBasic ? '#3b82f620' : '#f59e0b20' }]}>
             {!isBasic && <MaterialCommunityIcons name="crown" size={16} color="#f59e0b" style={{ marginRight: 4 }} />}
             <Text style={[styles.infoModalBadgeText, { color: isBasic ? '#3b82f6' : '#f59e0b' }]}>
-              {isBasic ? 'BÁSICO' : 'PRO'}
+              {isBasic ? t('common.basic') : t('common.pro')}
             </Text>
           </View>
           <TouchableOpacity onPress={() => setInfoModal(null)} activeOpacity={0.7}>
@@ -463,7 +465,7 @@ export default function GuideScreen({
         </View>
 
         <Text style={styles.infoModalTitle}>
-          {isBasic ? 'Configuración de Estadísticas' : 'Estadísticas Avanzadas'}
+          {isBasic ? t('guide.configStats') : t('guide.features.advancedStats')}
         </Text>
         
         <Text style={styles.infoModalSubtitle}>

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking, BackHandler } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
+import './i18n';
 import { 
   LoginScreen,
   SignUpScreen,
@@ -48,6 +50,7 @@ interface StoredSession {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
@@ -97,6 +100,12 @@ export default function App() {
       }
     };
     checkVersion();
+  }, []);
+
+  // Load saved language preference on start
+  useEffect(() => {
+    const { loadSavedLanguage } = require('./i18n');
+    loadSavedLanguage();
   }, []);
 
   // Load saved session on app start
@@ -588,11 +597,11 @@ export default function App() {
       } else {
         const errorData = await response.json();
         console.error('Cancel error:', errorData);
-        Alert.alert('Error', 'No se pudo cancelar la suscripción. Inténtalo de nuevo.');
+        Alert.alert(t('common.error'), t('app.cancelError'));
       }
     } catch (error) {
       console.error('Error cancelling subscription:', error);
-      Alert.alert('Error', 'Error al cancelar la suscripción.');
+      Alert.alert(t('common.error'), t('app.cancelErrorGeneral'));
     } finally {
       setIsCancelling(false);
     }
@@ -946,11 +955,11 @@ export default function App() {
 
       <CustomAlert
         visible={showSessionAlert}
-        title="Sesión iniciada en otro dispositivo"
-        message="Solo se permite una sesión activa por cuenta. Cierra sesión para continuar."
+        title={t('app.sessionOtherDevice')}
+        message={t('app.sessionMessage')}
         buttons={[
           {
-            text: 'Cerrar sesión',
+            text: t('app.closeSession'),
             onPress: handleForcedLogout,
             style: 'destructive',
           },
@@ -960,18 +969,18 @@ export default function App() {
 
       <CustomAlert
         visible={showCancelSubscriptionAlert}
-        title="Cancelar Suscripción"
-        message={`¿Estás seguro de que quieres cancelar tu plan ${subscriptionType === 'pro' ? 'PRO' : 'BÁSICO'}? Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago. Después pasarás automáticamente al plan gratuito.`}
+        title={t('app.cancelSubscription')}
+        message={t('app.cancelSubscriptionConfirm', { type: subscriptionType === 'pro' ? 'PRO' : t('common.basic') })}
         type="warning"
         icon={<MaterialCommunityIcons name="alert" size={32} color={Colors.warning} />}
         buttons={[
           {
-            text: 'No, mantener',
+            text: t('app.keepPlan'),
             onPress: () => setShowCancelSubscriptionAlert(false),
             style: 'cancel',
           },
           {
-            text: isCancelling ? 'Cancelando...' : 'Sí, cancelar',
+            text: isCancelling ? t('app.cancelling') : t('app.yesCancelPlan'),
             onPress: () => {
               if (!isCancelling) {
                 handleCancelSubscription();
@@ -985,13 +994,13 @@ export default function App() {
 
       <CustomAlert
         visible={showCancelSuccessAlert}
-        title="Suscripción Cancelada"
-        message="Tu suscripción no se renovará. Podrás seguir usando las funciones de tu plan actual hasta que finalice tu período de pago."
+        title={t('app.cancelSuccess')}
+        message={t('app.cancelSuccessMessage')}
         type="success"
         icon={<MaterialCommunityIcons name="check-circle" size={32} color="#22c55e" />}
         buttons={[
           {
-            text: 'Entendido',
+            text: t('common.understood'),
             onPress: () => setShowCancelSuccessAlert(false),
             style: 'default',
           },
@@ -1002,14 +1011,14 @@ export default function App() {
       {/* Update Required Alert */}
       <CustomAlert
         visible={showUpdateAlert}
-        title="Actualización Requerida"
-        message={updateInfo?.message || 'Hay una nueva versión disponible. Por favor, actualiza la aplicación para continuar.'}
+        title={t('app.updateRequired')}
+        message={updateInfo?.message || t('app.updateMessage')}
         type="warning"
         icon={<MaterialCommunityIcons name="cellphone-arrow-down" size={48} color="#f59e0b" />}
         iconBackgroundColor="#f59e0b15"
         buttons={[
           {
-            text: 'Actualizar ahora',
+            text: t('app.updateNow'),
             icon: <MaterialCommunityIcons name={Platform.OS === 'ios' ? 'apple' : 'google-play'} size={18} color="#FFFFFF" />,
             onPress: () => {
               if (updateInfo?.storeUrl) {

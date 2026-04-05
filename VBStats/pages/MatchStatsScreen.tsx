@@ -28,6 +28,7 @@ import { SubscriptionType } from '../services/subscriptionService';
 import CustomAlert from '../components/CustomAlert';
 import RNFS from 'react-native-fs';
 import { exportMatchToExcel } from '../services/excelExportService';
+import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -128,6 +129,7 @@ const sortCategories = (categories: string[]): string[] => {
 };
 
 export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscriptionType = 'pro', hideExportOptions = false }: MatchStatsScreenProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [statsData, setStatsData] = useState<MatchStatsSummary | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
@@ -812,8 +814,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         <View style={styles.pieLegendTable}>
           {/* Header de la tabla */}
           <View style={styles.pieLegendHeader}>
-            <Text style={styles.pieLegendHeaderText} numberOfLines={1}>Tipo</Text>
-            <Text style={styles.pieLegendHeaderTextRight} numberOfLines={1}>Cant.</Text>
+            <Text style={styles.pieLegendHeaderText} numberOfLines={1}>{t('matchStats.type')}</Text>
+            <Text style={styles.pieLegendHeaderTextRight} numberOfLines={1}>{t('matchStats.quantity')}</Text>
             <Text style={styles.pieLegendHeaderTextRight} numberOfLines={1}>%</Text>
           </View>
           
@@ -925,8 +927,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         </View>
         <View style={styles.emptyContainer}>
           <StatsIcon size={80} color={Colors.textTertiary} />
-          <Text style={styles.emptyTitle}>Sin estadísticas</Text>
-          <Text style={styles.emptyText}>No hay estadísticas registradas para este partido</Text>
+          <Text style={styles.emptyTitle}>{t('matchStats.noStats')}</Text>
+          <Text style={styles.emptyText}>{t('matchStats.noStatsDesc')}</Text>
         </View>
       </View>
     );
@@ -984,7 +986,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
                 color={Colors.textOnPrimary} 
               />
               <Text style={styles.matchMetaText}>
-                {match.location === 'home' ? 'Local' : 'Visitante'}
+                {match.location === 'home' ? t('common.local') : t('common.visitor')}
               </Text>
             </View>
             <View style={styles.matchMetaDivider} />
@@ -1014,7 +1016,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
                   onPress={() => setSelectedSet(setNum)}
                 >
                   <Text style={[styles.filterChipText, selectedSet === setNum && styles.filterChipTextActive]}>
-                    Set {setNum}
+                    {t('scoreboard.set', { number: setNum })}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1086,7 +1088,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         {filteredStats.length === 0 ? (
           <View style={styles.noStatsForFilter}>
             <MaterialCommunityIcons name="information-outline" size={64} color={Colors.textTertiary} />
-            <Text style={styles.noStatsForFilterTitle}>Sin estadísticas</Text>
+            <Text style={styles.noStatsForFilterTitle}>{t('matchStats.noStats')}</Text>
             <Text style={styles.noStatsForFilterText}>
               No hay estadísticas registradas para el filtro seleccionado
             </Text>
@@ -1173,7 +1175,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         <View style={styles.summaryCard}>
           <View style={styles.summaryMain}>
             <Text style={styles.summaryNumber}>{totalActions}</Text>
-            <Text style={styles.summaryLabel}>Acciones Totales</Text>
+            <Text style={styles.summaryLabel}>{t('matchStats.totalActions')}</Text>
           </View>
           <View style={styles.summaryCategories}>
             {Object.keys(statsByCategory).map(category => {
@@ -1292,7 +1294,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
                   styles.shareCodeCopyText,
                   codeCopied && { color: '#22c55e' }
                 ]}>
-                  {codeCopied ? 'Copiado' : 'Compartir'}
+                  {codeCopied ? t('matchStats.codeCopied') : t('matchStats.share')}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -1353,7 +1355,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
               style: 'default',
             },
             {
-              text: 'Cancelar',
+              text: t('common.cancel'),
               onPress: () => setShowExportAlert(false),
               style: 'cancel',
             },
@@ -1371,7 +1373,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         type="success"
         buttons={[
           {
-            text: 'Aceptar',
+            text: t('common.accept'),
             onPress: () => setShowExportSuccessAlert(false),
             style: 'primary',
           },

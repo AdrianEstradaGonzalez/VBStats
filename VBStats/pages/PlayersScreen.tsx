@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows } from '../styles';
+import { useTranslation } from 'react-i18next';
 
 interface Player {
   id: string;
@@ -20,6 +21,7 @@ interface Player {
 }
 
 export default function PlayersScreen() {
+  const { t } = useTranslation();
   const players: Player[] = [
     { id: '1', name: 'Juan Pérez', position: 'Armador', number: 7 },
     { id: '2', name: 'María López', position: 'Opuesto', number: 10 },
@@ -31,9 +33,9 @@ export default function PlayersScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Jugadores</Text>
+          <Text style={styles.title}>{t('players.title')}</Text>
           <TouchableOpacity style={styles.addButton}>
-            <Text style={styles.addButtonText}>+ Agregar</Text>
+            <Text style={styles.addButtonText}>+ {t('players.addPlayer')}</Text>
           </TouchableOpacity>
         </View>
 

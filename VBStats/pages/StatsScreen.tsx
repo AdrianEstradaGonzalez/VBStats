@@ -23,6 +23,7 @@ import CustomAlert from '../components/CustomAlert';
 
 import MatchStatsScreen from './MatchStatsScreen';
 import TeamTrackingScreen from './TeamTrackingScreen';
+import { useTranslation } from 'react-i18next';
 import { SubscriptionType } from '../services/subscriptionService';
 import { 
   MenuIcon, 
@@ -71,6 +72,8 @@ export default function StatsScreen({
   teams = [],
   resetTrackingKey = 0,
 }: StatsScreenProps) {
+  const { t } = useTranslation();
+
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
@@ -223,13 +226,13 @@ export default function StatsScreen({
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <StatsIcon size={24} color={Colors.primary} />
-            <Text style={styles.headerTitle}>Estadísticas</Text>
+            <Text style={styles.headerTitle}>{t('stats.title')}</Text>
           </View>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Cargando partidos...</Text>
+          <Text style={styles.loadingText}>{t('stats.loadingMatches')}</Text>
         </View>
       </View>
     );
@@ -244,7 +247,7 @@ export default function StatsScreen({
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <StatsIcon size={24} color={Colors.primary} />
-          <Text style={styles.headerTitle}>Estadísticas</Text>
+          <Text style={styles.headerTitle}>{t('stats.title')}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -262,7 +265,7 @@ export default function StatsScreen({
             </View>
             <View style={styles.trackingTextContainer}>
               <View style={styles.trackingTitleRow}>
-                <Text style={styles.trackingTitle}>Seguimiento de Equipos</Text>
+                <Text style={styles.trackingTitle}>{t('stats.teamTracking')}</Text>
                 {!isProSubscription && (
                   <View style={styles.proBadge}>
                     <MaterialCommunityIcons name="crown" size={12} color="#f59e0b" />
@@ -271,7 +274,7 @@ export default function StatsScreen({
                 )}
               </View>
               <Text style={styles.trackingSubtitle}>
-                Analiza el progreso con gráficas comparativas
+                {t('stats.teamTrackingDesc')}
               </Text>
             </View>
             <ChevronRightIcon size={24} color="rgba(255,255,255,0.7)" />
@@ -281,20 +284,20 @@ export default function StatsScreen({
         {matches.length === 0 ? (
           <View style={styles.emptyState}>
             <StatsIcon size={80} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Sin partidos</Text>
+            <Text style={styles.emptyTitle}>{t('stats.noMatches')}</Text>
             <Text style={styles.emptyText}>
-              Aún no has finalizado ningún partido
+              {t('stats.noMatchesDesc')}
             </Text>
           </View>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>Historial de Partidos</Text>
+            <Text style={styles.sectionTitle}>{t('stats.matchHistory')}</Text>
             <Text style={styles.sectionSubtitle}>
-              {matchesFiltered.length} {matchesFiltered.length === 1 ? 'partido finalizado' : 'partidos finalizados'}
+              {matchesFiltered.length} {matchesFiltered.length === 1 ? t('stats.matchCount', { count: matchesFiltered.length }) : t('stats.matchCount_plural', { count: matchesFiltered.length })}
             </Text>
 
             <View style={styles.filterContainer}>
-              <Text style={styles.filterLabel}>Filtrar por fechas</Text>
+              <Text style={styles.filterLabel}>{t('stats.filterByDate')}</Text>
               <View style={styles.filterRow}>
                 <TouchableOpacity
                   style={styles.dateInput}
@@ -303,7 +306,7 @@ export default function StatsScreen({
                 >
                   <MaterialCommunityIcons name="calendar" size={18} color={Colors.textTertiary} />
                   <Text style={filterFromDate ? styles.dateInputText : styles.dateInputPlaceholder}>
-                    {filterFromDate ? formatFilterDate(filterFromDate) : 'Desde'}
+                    {filterFromDate ? formatFilterDate(filterFromDate) : t('stats.from')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -313,7 +316,7 @@ export default function StatsScreen({
                 >
                   <MaterialCommunityIcons name="calendar" size={18} color={Colors.textTertiary} />
                   <Text style={filterToDate ? styles.dateInputText : styles.dateInputPlaceholder}>
-                    {filterToDate ? formatFilterDate(filterToDate) : 'Hasta'}
+                    {filterToDate ? formatFilterDate(filterToDate) : t('stats.to')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -364,7 +367,7 @@ export default function StatsScreen({
                 ))}
               </ScrollView>
 
-              <Text style={styles.filterLabel}>Buscar por rival</Text>
+              <Text style={styles.filterLabel}>{t('stats.searchByRival')}</Text>
               <View style={styles.searchRow}>
                 <MaterialCommunityIcons name="magnify" size={18} color={Colors.textTertiary} />
                 <TextInput
@@ -476,7 +479,7 @@ export default function StatsScreen({
                           color={match.location === 'home' ? Colors.primary : Colors.textSecondary} 
                         />
                         <Text style={[styles.locationText, match.location === 'home' && styles.locationTextHome]}>
-                          {match.location === 'home' ? 'Local' : 'Visitante'}
+                          {match.location === 'home' ? t('common.local') : t('common.visitor')}
                         </Text>
                       </View>
                       <View style={styles.viewMore}>
@@ -500,7 +503,7 @@ export default function StatsScreen({
         buttonLayout="column"
         buttons={[
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => {
               setShowDeleteAlert(false);
               setMatchToDelete(null);
@@ -535,7 +538,7 @@ export default function StatsScreen({
             style: 'primary',
           },
           {
-            text: 'Cancelar',
+            text: t('common.cancel'),
             onPress: () => setShowProAlert(false),
             style: 'cancel',
           },

@@ -18,7 +18,9 @@ import {
   ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import LanguageSelector from '../components/LanguageSelector';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -31,6 +33,7 @@ interface SignUpScreenProps {
 }
 
 export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: SignUpScreenProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,6 +47,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
 
   const shakeError = () => {
     Animated.sequence([
@@ -57,25 +61,25 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
   const validateForm = (): string | null => {
     if (!email.trim()) {
-      return 'Por favor, ingresa tu correo electrónico';
+      return t('signup.errors.emailRequired');
     }
     
     // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return 'Por favor, ingresa un correo electrónico válido';
+      return t('signup.errors.emailInvalid');
     }
 
     if (!password.trim()) {
-      return 'Por favor, ingresa una contraseña';
+      return t('signup.errors.passwordRequired');
     }
 
     if (password.length < 6) {
-      return 'La contraseña debe tener al menos 6 caracteres';
+      return t('signup.errors.passwordMinLength');
     }
 
     if (password !== confirmPassword) {
-      return 'Las contraseñas no coinciden';
+      return t('signup.errors.passwordMismatch');
     }
 
     return null;
@@ -95,11 +99,11 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
     try {
       const success = await onSignUp(email, password, name.trim() || undefined);
       if (!success) {
-        setErrorMessage('Error al crear la cuenta. El correo puede estar en uso.');
+        setErrorMessage(t('signup.errors.createError'));
         shakeError();
       }
     } catch (error) {
-      setErrorMessage('Error de conexión. Inténtalo de nuevo.');
+      setErrorMessage(t('login.connectionError'));
       shakeError();
     } finally {
       setIsLoading(false);
@@ -108,6 +112,15 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
   return (
     <View style={styles.safeArea}>
+      {/* Language selector button */}
+      <TouchableOpacity
+        style={styles.languageButton}
+        onPress={() => setShowLanguageSelector(true)}
+        activeOpacity={0.7}
+      >
+        <MaterialCommunityIcons name="translate" size={22} color={Colors.textSecondary} />
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -126,8 +139,8 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.title}>Crear Cuenta</Text>
-            <Text style={styles.subtitle}>Únete a VBStats</Text>
+            <Text style={styles.title}>{t('signup.title')}</Text>
+            <Text style={styles.subtitle}>{t('signup.subtitle')}</Text>
           </View>
 
           {/* Form Section */}
@@ -142,7 +155,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
             {/* Name Input (Optional) */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Nombre (Opcional)</Text>
+              <Text style={styles.label}>{t('signup.name')}</Text>
               <View style={[styles.inputWrapper, nameFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="account-outline" 
@@ -152,7 +165,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Tu nombre"
+                  placeholder={t('signup.namePlaceholder')}
                   placeholderTextColor={Colors.textTertiary}
                   value={name}
                   onChangeText={(text) => {
@@ -169,7 +182,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Correo Electrónico *</Text>
+              <Text style={styles.label}>{t('signup.emailRequired')}</Text>
               <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="email-outline" 
@@ -179,7 +192,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="correo@ejemplo.com"
+                  placeholder={t('login.emailPlaceholder')}
                   placeholderTextColor={Colors.textTertiary}
                   value={email}
                   onChangeText={(text) => {
@@ -198,7 +211,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
             {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Contraseña *</Text>
+              <Text style={styles.label}>{t('signup.passwordRequired')}</Text>
               <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="lock-outline" 
@@ -208,7 +221,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t('signup.minChars')}
                   placeholderTextColor={Colors.textTertiary}
                   value={password}
                   onChangeText={(text) => {
@@ -237,7 +250,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
 
             {/* Confirm Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Repetir Contraseña *</Text>
+              <Text style={styles.label}>{t('signup.repeatPassword')}</Text>
               <View style={[styles.inputWrapper, confirmPasswordFocused && styles.inputWrapperFocused]}>
                 <MaterialCommunityIcons 
                   name="lock-check-outline" 
@@ -247,7 +260,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Repite tu contraseña"
+                  placeholder={t('signup.repeatPasswordPlaceholder')}
                   placeholderTextColor={Colors.textTertiary}
                   value={confirmPassword}
                   onChangeText={(text) => {
@@ -284,10 +297,10 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#FFFFFF" />
-                  <Text style={styles.signUpButtonText}>Creando cuenta...</Text>
+                  <Text style={styles.signUpButtonText}>{t('signup.creating')}</Text>
                 </View>
               ) : (
-                <Text style={styles.signUpButtonText}>Crear Cuenta</Text>
+                <Text style={styles.signUpButtonText}>{t('signup.createButton')}</Text>
               )}
             </TouchableOpacity>
 
@@ -300,7 +313,7 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 disabled={isLoading}
               >
                 <MaterialCommunityIcons name="information-outline" size={18} color={Colors.primary} />
-                <Text style={styles.viewPlansText}>Ver qué incluye cada plan</Text>
+                <Text style={styles.viewPlansText}>{t('signup.viewPlans')}</Text>
               </TouchableOpacity>
             )}
 
@@ -311,12 +324,17 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
               activeOpacity={0.8}
               disabled={isLoading}
             >
-              <Text style={styles.backToLoginText}>¿Ya tienes cuenta? </Text>
-              <Text style={styles.backToLoginTextBold}>Inicia Sesión</Text>
+              <Text style={styles.backToLoginText}>{t('signup.hasAccount')} </Text>
+              <Text style={styles.backToLoginTextBold}>{t('signup.loginLink')}</Text>
             </TouchableOpacity>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <LanguageSelector
+        visible={showLanguageSelector}
+        onClose={() => setShowLanguageSelector(false)}
+      />
     </View>
   );
 }
@@ -327,6 +345,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingTop: SAFE_AREA_TOP,
     paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+  },
+  languageButton: {
+    position: 'absolute',
+    top: SAFE_AREA_TOP + Spacing.sm,
+    right: Spacing.lg,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
   },
   container: {
     flex: 1,
