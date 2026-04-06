@@ -238,12 +238,17 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
     
     const sessionToken = crypto.randomUUID();
-    // PRO gratuito para todos los usuarios hasta Septiembre 2026 (periodo de demo)
-    // auto_renew = FALSE para que el scheduler los baje a free al expirar
-    const proExpiration = '2026-09-30 23:59:59';
+    // Periodo de demo: PRO gratuito hasta el 30 de septiembre 2026
+    // Después del demo: cuenta FREE (el usuario elige plan en la app)
+    const DEMO_END_DATE = new Date('2026-10-01T00:00:00');
+    const isDemoPeriod = new Date() < DEMO_END_DATE;
+    
+    const subscriptionType = isDemoPeriod ? 'pro' : 'free';
+    const subscriptionExpires = isDemoPeriod ? '2026-09-30 23:59:59' : null;
+    
     const [result] = await pool.query(
       'INSERT INTO users (email, password, name, session_token, subscription_type, subscription_expires_at, auto_renew) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [email, hashedPassword, name || null, sessionToken, 'pro', proExpiration, false]
+      [email, hashedPassword, name || null, sessionToken, subscriptionType, subscriptionExpires, false]
     );
     
     const [rows] = await pool.query(
