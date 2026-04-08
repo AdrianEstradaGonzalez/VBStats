@@ -50,6 +50,7 @@ interface SideMenuProps {
   userEmail?: string;
   subscriptionType?: SubscriptionType;
   subscriptionCancelledPending?: boolean;
+  isSuperadmin?: boolean;
 }
 
 export default function SideMenu({
@@ -63,6 +64,7 @@ export default function SideMenu({
   userEmail = 'usuario@vbstats.com',
   subscriptionType = 'free',
   subscriptionCancelledPending = false,
+  isSuperadmin = false,
 }: SideMenuProps) {
   const { t } = useTranslation();
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
@@ -91,6 +93,13 @@ export default function SideMenu({
       { id: 'settings', title: t('sideMenu.settings'), icon: <SettingsIcon size={24} color={Colors.text} /> },
       { id: 'guide', title: t('sideMenu.help'), icon: <MaterialCommunityIcons name="help-circle-outline" size={24} color={Colors.text} /> },
     );
+
+    // Superadmin panel
+    if (isSuperadmin) {
+      items.push(
+        { id: 'adminPanel', title: t('admin.panelTitle'), icon: <MaterialCommunityIcons name="shield-crown-outline" size={24} color="#f59e0b" /> },
+      );
+    }
 
     return items;
   };

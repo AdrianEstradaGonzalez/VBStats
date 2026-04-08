@@ -641,6 +641,33 @@ const es = {
     exportError: 'Error al exportar',
     proRequired: 'Función exclusiva para usuarios PRO',
   },
+
+  // Admin Panel
+  admin: {
+    panelTitle: 'Panel Admin',
+    panelSubtitle: 'Gestión de la aplicación',
+    sendNotification: 'Enviar Notificación',
+    sendNotificationDesc: 'Crear y enviar notificaciones push a todos los usuarios',
+    userManagement: 'Gestión de Usuarios',
+    userManagementDesc: 'Ver todos los usuarios, planes y última conexión',
+    composeNotification: 'Crear notificación',
+    notificationTitle: 'Título de la notificación',
+    notificationBody: 'Mensaje de la notificación',
+    send: 'Enviar',
+    confirmSend: 'Confirmar envío',
+    confirmSendMessage: '¿Estás seguro de que quieres enviar esta notificación a todos los usuarios?',
+    notificationSent: 'Notificación enviada',
+    notificationSentMessage: 'Notificación enviada correctamente a {{count}} dispositivos.',
+    notificationSendError: 'Error al enviar la notificación. Inténtalo de nuevo.',
+    notificationHistory: 'Historial de notificaciones',
+    noNotifications: 'No hay notificaciones enviadas',
+    totalUsers: 'Total usuarios',
+    searchUsers: 'Buscar por nombre o email...',
+    noUsersFound: 'No se encontraron usuarios',
+    expires: 'Expira',
+    lastLogin: 'Último acceso',
+    never: 'Nunca',
+  },
 };
 
 export default es;

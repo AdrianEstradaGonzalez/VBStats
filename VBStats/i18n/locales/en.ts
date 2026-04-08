@@ -641,6 +641,33 @@ const en = {
     exportError: 'Error exporting',
     proRequired: 'Exclusive feature for PRO users',
   },
+
+  // Admin Panel
+  admin: {
+    panelTitle: 'Admin Panel',
+    panelSubtitle: 'Application management',
+    sendNotification: 'Send Notification',
+    sendNotificationDesc: 'Create and send push notifications to all users',
+    userManagement: 'User Management',
+    userManagementDesc: 'View all users, plans and last login',
+    composeNotification: 'Compose notification',
+    notificationTitle: 'Notification title',
+    notificationBody: 'Notification message',
+    send: 'Send',
+    confirmSend: 'Confirm send',
+    confirmSendMessage: 'Are you sure you want to send this notification to all users?',
+    notificationSent: 'Notification sent',
+    notificationSentMessage: 'Notification sent successfully to {{count}} devices.',
+    notificationSendError: 'Error sending notification. Please try again.',
+    notificationHistory: 'Notification history',
+    noNotifications: 'No notifications sent',
+    totalUsers: 'Total users',
+    searchUsers: 'Search by name or email...',
+    noUsersFound: 'No users found',
+    expires: 'Expires',
+    lastLogin: 'Last login',
+    never: 'Never',
+  },
 };
 
 export default en;

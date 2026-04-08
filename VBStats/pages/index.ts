@@ -21,6 +21,9 @@ export { default as SearchByCodeScreen } from './SearchByCodeScreen';
 export { default as ScoreboardScreen } from './ScoreboardScreen';
 export { default as TeamTrackingScreen } from './TeamTrackingScreen';
 export { default as GuideScreen } from './GuideScreen';
+export { default as AdminPanelScreen } from './AdminPanelScreen';
+export { default as SendNotificationScreen } from './SendNotificationScreen';
+export { default as UserManagementScreen } from './UserManagementScreen';
 export type { Team, Player } from '../services/api';
 export type { MatchDetails } from './MatchDetailsScreen';
 

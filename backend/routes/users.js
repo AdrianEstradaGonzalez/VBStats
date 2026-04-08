@@ -192,7 +192,7 @@ router.post('/login', async (req, res) => {
 
     // Generar nuevo token de sesión y guardar (solo una sesión por usuario)
     const sessionToken = crypto.randomUUID();
-    await pool.query('UPDATE users SET session_token = ? WHERE id = ?', [sessionToken, user.id]);
+    await pool.query('UPDATE users SET session_token = ?, last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [sessionToken, user.id]);
 
     // Ensure default settings exist for this user (all enabled)
     await ensureUserSettings(user.id);

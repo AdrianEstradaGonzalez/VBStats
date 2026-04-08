@@ -19,6 +19,9 @@ import {
   MatchFieldScreen,
   ProfileScreen,
   GuideScreen,
+  AdminPanelScreen,
+  SendNotificationScreen,
+  UserManagementScreen,
   Team,
   MatchDetails,
   MatchStatsScreen,
@@ -34,8 +37,10 @@ import { teamsService, playersService, usersService, Match } from "./services/ap
 import { SubscriptionType, subscriptionService, TrialInfo, useAppleIAP } from "./services/subscriptionService";
 import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 import { appleIAPService } from "./services/appleIAPService";
+import { adminService } from "./services/adminService";
+import { notificationService } from "./services/notificationService";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode' | 'adminPanel' | 'sendNotification' | 'userManagement';
 
 // Keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -86,6 +91,7 @@ export default function App() {
   const [isCancelling, setIsCancelling] = useState(false);
   const [showUpdateAlert, setShowUpdateAlert] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<VersionCheckResult | null>(null);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const screenHistoryRef = useRef<Screen[]>([]);
   const isBackNavigationRef = useRef(false);
   const previousScreenRef = useRef<Screen>('home');
@@ -236,6 +242,10 @@ export default function App() {
     if (isLoggedIn && userId) {
       loadTeams();
       loadSubscription();
+      // Check superadmin status
+      adminService.isSuperadmin(userId).then(setIsSuperadmin);
+      // Register push notification token
+      notificationService.registerForPushNotifications(userId);
     }
   }, [isLoggedIn, userId]);
 
@@ -533,6 +543,7 @@ export default function App() {
     setAutoRenew(true);
     setSubscriptionLoaded(false);
     setActiveTrial(null);
+    setIsSuperadmin(false);
     setPendingRegistration(null);
     setPendingRegisteredUserId(null);
     setCurrentScreen('home');
@@ -847,6 +858,27 @@ export default function App() {
             subscriptionType={subscriptionType}
           />
         );
+      case 'adminPanel':
+        return (
+          <AdminPanelScreen
+            onOpenMenu={handleOpenMenu}
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'sendNotification':
+        return (
+          <SendNotificationScreen
+            onBack={() => setCurrentScreen('adminPanel')}
+            userId={userId}
+          />
+        );
+      case 'userManagement':
+        return (
+          <UserManagementScreen
+            onBack={() => setCurrentScreen('adminPanel')}
+            userId={userId}
+          />
+        );
       default:
         // Free users see search by code screen as home
         if (subscriptionType === 'free') {
@@ -929,7 +961,7 @@ export default function App() {
           <View style={{ flex: 1 }}>
             {renderCurrentScreen()}
           </View>
-          {!['selectTeam', 'matchDetails', 'matchField', 'matchStatsFromCode', 'selectPlan'].includes(currentScreen) && subscriptionLoaded && (
+          {!['selectTeam', 'matchDetails', 'matchField', 'matchStatsFromCode', 'selectPlan', 'sendNotification', 'userManagement'].includes(currentScreen) && subscriptionLoaded && (
             <FooterNav
               currentScreen={currentScreen}
               subscriptionType={subscriptionType}
@@ -948,6 +980,7 @@ export default function App() {
               userEmail={userEmail}
               subscriptionType={subscriptionType}
               subscriptionCancelledPending={subscriptionCancelledPending}
+              isSuperadmin={isSuperadmin}
             />
           )}
         </>

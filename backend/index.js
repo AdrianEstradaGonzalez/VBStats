@@ -14,6 +14,7 @@ const settings = require('./routes/settings');
 const users = require('./routes/users');
 const migrate = require('./routes/migrate');
 const subscriptions = require('./routes/subscriptions');
+const admin = require('./routes/admin');
 
 const app = express();
 app.use(cors());
@@ -41,6 +42,7 @@ app.use('/api/settings', settings);
 app.use('/api/users', users);
 app.use('/api/migrate', migrate);
 app.use('/api/subscriptions', subscriptions);
+app.use('/api/admin', admin);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 

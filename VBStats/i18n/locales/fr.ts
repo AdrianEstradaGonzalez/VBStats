@@ -641,6 +641,33 @@ const fr = {
     exportError: 'Erreur lors de l\'exportation',
     proRequired: 'Fonctionnalité exclusive pour les utilisateurs PRO',
   },
+
+  // Admin Panel
+  admin: {
+    panelTitle: 'Panneau Admin',
+    panelSubtitle: 'Gestion de l\'application',
+    sendNotification: 'Envoyer Notification',
+    sendNotificationDesc: 'Créer et envoyer des notifications push à tous les utilisateurs',
+    userManagement: 'Gestion des Utilisateurs',
+    userManagementDesc: 'Voir tous les utilisateurs, plans et dernière connexion',
+    composeNotification: 'Composer notification',
+    notificationTitle: 'Titre de la notification',
+    notificationBody: 'Message de la notification',
+    send: 'Envoyer',
+    confirmSend: 'Confirmer l\'envoi',
+    confirmSendMessage: 'Êtes-vous sûr de vouloir envoyer cette notification à tous les utilisateurs?',
+    notificationSent: 'Notification envoyée',
+    notificationSentMessage: 'Notification envoyée avec succès à {{count}} appareils.',
+    notificationSendError: 'Erreur lors de l\'envoi de la notification. Réessayez.',
+    notificationHistory: 'Historique des notifications',
+    noNotifications: 'Aucune notification envoyée',
+    totalUsers: 'Total utilisateurs',
+    searchUsers: 'Rechercher par nom ou email...',
+    noUsersFound: 'Aucun utilisateur trouvé',
+    expires: 'Expire',
+    lastLogin: 'Dernière connexion',
+    never: 'Jamais',
+  },
 };
 
 export default fr;
