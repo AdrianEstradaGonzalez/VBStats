@@ -35,5 +35,46 @@ target 'VBStats' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Fix 1: fmt 11.0.2 + Xcode 26 consteval incompatibility.
+    # Setting FMT_USE_CONSTEVAL=0 via xcconfig is unreliable because fmt headers
+    # are pulled in by many pods (React-Core, Folly, etc.) with their own flag
+    # states. The only bulletproof fix is to edit base.h so the macro is forced
+    # to 0 regardless of the compiler detection block.
+    fmt_base_h = File.join(installer.sandbox.root.to_s, 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base_h)
+      contents = File.read(fmt_base_h)
+      patch_marker = '// PATCH: force FMT_USE_CONSTEVAL=0 for Xcode 26'
+      unless contents.include?(patch_marker)
+        # Insert AFTER the detection block so our override wins regardless of
+        # what the #if/#elif/#else chain decided. We anchor on the #if
+        # FMT_USE_CONSTEVAL block that immediately follows the detection.
+        patched = contents.sub(
+          "#if FMT_USE_CONSTEVAL\n#  define FMT_CONSTEVAL consteval",
+          "#{patch_marker}\n#undef FMT_USE_CONSTEVAL\n#define FMT_USE_CONSTEVAL 0\n#if FMT_USE_CONSTEVAL\n#  define FMT_CONSTEVAL consteval"
+        )
+        File.write(fmt_base_h, patched)
+      end
+    end
+
+    # Fix 2: `openiap` pod + NitroIap use mixed-case module paths that
+    # CocoaPods 1.16 doesn't materialise. The Pods project references
+    # Headers/Public/OpenIAP/openiap.modulemap and NitroIap.xcconfig references
+    # ${PODS_CONFIGURATION_BUILD_DIR}/openiap/OpenIAP.modulemap, neither of which
+    # is created. We symlink/copy them into place after install.
+    require 'fileutils'
+    sandbox_root = installer.sandbox.root.to_s
+    src_modulemap = File.join(sandbox_root, 'Target Support Files', 'openiap', 'openiap.modulemap')
+    src_umbrella  = File.join(sandbox_root, 'Target Support Files', 'openiap', 'openiap-umbrella.h')
+    dst_public = File.join(sandbox_root, 'Headers', 'Public', 'OpenIAP')
+    if File.exist?(src_modulemap)
+      FileUtils.mkdir_p(dst_public)
+      FileUtils.ln_sf(src_modulemap, File.join(dst_public, 'openiap.modulemap'))
+      FileUtils.ln_sf(src_umbrella,  File.join(dst_public, 'openiap-umbrella.h')) if File.exist?(src_umbrella)
+      # Note: NitroIap.xcconfig references ${PODS_CONFIGURATION_BUILD_DIR}/openiap/OpenIAP.modulemap
+      # but that path points at the *build output* dir, where Xcode generates
+      # the modulemap as ${PRODUCT_MODULE_NAME}.modulemap (=OpenIAP.modulemap)
+      # at compile time. No symlink needed there.
+    end
   end
 end
