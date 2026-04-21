@@ -2,9 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
-// Superadmin email - only this user can access admin endpoints
-const SUPERADMIN_EMAIL = 'adrian.estrada2001@gmail.com';
-
 // Middleware to verify superadmin access
 async function requireSuperadmin(req, res, next) {
   const userId = req.headers['x-user-id'] || req.body.userId || req.query.userId;
@@ -13,8 +10,8 @@ async function requireSuperadmin(req, res, next) {
   }
 
   try {
-    const [rows] = await pool.query('SELECT email FROM users WHERE id = ?', [userId]);
-    if (rows.length === 0 || rows[0].email !== SUPERADMIN_EMAIL) {
+    const [rows] = await pool.query('SELECT is_superadmin FROM users WHERE id = ?', [userId]);
+    if (rows.length === 0 || !rows[0].is_superadmin) {
       return res.status(403).json({ error: 'Forbidden: superadmin access required' });
     }
     req.adminUserId = Number(userId);
@@ -33,8 +30,8 @@ router.get('/is-superadmin', async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT email FROM users WHERE id = ?', [userId]);
-    const isSuperadmin = rows.length > 0 && rows[0].email === SUPERADMIN_EMAIL;
+    const [rows] = await pool.query('SELECT is_superadmin FROM users WHERE id = ?', [userId]);
+    const isSuperadmin = rows.length > 0 && !!rows[0].is_superadmin;
     res.json({ isSuperadmin });
   } catch (err) {
     console.error('Error checking superadmin:', err);

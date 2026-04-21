@@ -330,6 +330,24 @@ async function init() {
       }
     }
 
+    // Add is_superadmin column to users table
+    try {
+      await conn.query(`ALTER TABLE users ADD COLUMN is_superadmin BOOLEAN DEFAULT FALSE AFTER last_login_at;`);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding is_superadmin column to users:', err);
+      }
+    }
+
+    // Ensure known superadmins have the flag set
+    try {
+      await conn.query(
+        `UPDATE users SET is_superadmin = TRUE WHERE email IN ('adrian.estrada2001@gmail.com', 'test@vbstats.com', 'diegocharro27@gmail.com');`
+      );
+    } catch (err) {
+      console.error('Error seeding superadmin flags:', err);
+    }
+
   } finally {
     conn.release();
   }
