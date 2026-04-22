@@ -1,6 +1,6 @@
 /**
  * UserManagementScreen - View all app users with subscription details
- * Superadmin only. Sorted by last name.
+ * Superadmin only. Sorted by most recent login.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -17,6 +17,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { adminService, AdminUser } from '../services/adminService';
 import { useTranslation } from 'react-i18next';
+import CustomAlert from '../components/CustomAlert';
 
 interface UserManagementScreenProps {
   onBack: () => void;
@@ -28,6 +29,8 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -45,7 +48,7 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
     }
   };
 
-  // Sort users by last name (surname) extracted from name field
+  // Sort users by most recent login (backend already sorts, but re-sort after filtering)
   const sortedUsers = useMemo(() => {
     let filtered = users;
 
@@ -59,17 +62,11 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
     }
 
     return [...filtered].sort((a, b) => {
-      const getSurname = (name: string | null) => {
-        if (!name) return '';
-        const parts = name.trim().split(/\s+/);
-        return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : parts[0].toLowerCase();
-      };
-      const surnameA = getSurname(a.name);
-      const surnameB = getSurname(b.name);
-      if (surnameA === surnameB) {
-        return (a.name || a.email).localeCompare(b.name || b.email);
-      }
-      return surnameA.localeCompare(surnameB);
+      // nulls go last
+      if (!a.last_login_at && !b.last_login_at) return 0;
+      if (!a.last_login_at) return 1;
+      if (!b.last_login_at) return -1;
+      return new Date(b.last_login_at).getTime() - new Date(a.last_login_at).getTime();
     });
   }, [users, searchQuery]);
 
@@ -97,6 +94,9 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return t('admin.never');
     const d = new Date(dateStr);
+    const diffMs = Date.now() - d.getTime();
+    const diffMinutes = diffMs / 1000 / 60;
+    if (diffMinutes < 10) return t('admin.activeNow');
     return d.toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
@@ -106,19 +106,41 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
     });
   };
 
+  const isActiveNow = (dateStr: string | null) => {
+    if (!dateStr) return false;
+    return (Date.now() - new Date(dateStr).getTime()) / 1000 / 60 < 10;
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget || !userId) return;
+    setDeleting(true);
+    try {
+      await adminService.deleteUser(userId, deleteTarget.id);
+      setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      // Re-show error state — for simplicity, close and let user retry
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const renderUser = ({ item }: { item: AdminUser }) => {
     const badge = getPlanBadge(item.subscription_type);
     const isExpired = item.subscription_expires_at
       ? new Date(item.subscription_expires_at) < new Date()
       : false;
+    const active = isActiveNow(item.last_login_at);
 
     return (
       <View style={styles.userCard}>
-        {/* Row 1: Name + Plan badge */}
+        {/* Row 1: Name + Plan badge + delete */}
         <View style={styles.userHeaderRow}>
           <View style={styles.userIdentity}>
-            <View style={styles.avatarSmall}>
-              <MaterialCommunityIcons name="account" size={20} color={Colors.primary} />
+            <View style={[styles.avatarSmall, active && styles.avatarActive]}>
+              <MaterialCommunityIcons name="account" size={20} color={active ? '#22c55e' : Colors.primary} />
             </View>
             <View style={styles.userNameContainer}>
               <Text style={styles.userName} numberOfLines={1}>
@@ -127,8 +149,17 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
               <Text style={styles.userEmail} numberOfLines={1}>{item.email}</Text>
             </View>
           </View>
-          <View style={[styles.planBadge, { backgroundColor: badge.bg }]}>
-            <Text style={[styles.planBadgeText, { color: badge.color }]}>{badge.text}</Text>
+          <View style={styles.userBadgesRow}>
+            <View style={[styles.planBadge, { backgroundColor: badge.bg }]}>
+              <Text style={[styles.planBadgeText, { color: badge.color }]}>{badge.text}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setDeleteTarget(item)}
+              style={styles.deleteButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialCommunityIcons name="delete-outline" size={20} color={Colors.error} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -142,11 +173,19 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
             </Text>
           </View>
           <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="login" size={14} color={Colors.textTertiary} />
-            <Text style={styles.detailLabel}>{t('admin.lastLogin')}:</Text>
-            <Text style={styles.detailValue}>
-              {formatDateTime(item.last_login_at)}
+            <MaterialCommunityIcons
+              name={active ? 'circle' : 'login'}
+              size={14}
+              color={active ? '#22c55e' : Colors.textTertiary}
+            />
+            <Text style={[styles.detailLabel, active && { color: '#22c55e' }]}>
+              {active ? t('admin.activeNow') : `${t('admin.lastLogin')}:`}
             </Text>
+            {!active && (
+              <Text style={styles.detailValue}>
+                {formatDateTime(item.last_login_at)}
+              </Text>
+            )}
           </View>
         </View>
       </View>
@@ -226,6 +265,33 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
           />
         )}
       </View>
+
+      {/* Delete confirmation */}
+      <CustomAlert
+        visible={!!deleteTarget}
+        type="error"
+        icon={<MaterialCommunityIcons name="delete-alert" size={32} color={Colors.error} />}
+        iconBackgroundColor={Colors.error + '15'}
+        title={t('admin.deleteUserConfirm')}
+        message={t('admin.deleteUserMessage', {
+          name: deleteTarget?.name || deleteTarget?.email.split('@')[0] || '',
+          email: deleteTarget?.email || '',
+        })}
+        buttonLayout="column"
+        buttons={[
+          {
+            text: deleting ? '...' : t('admin.deleteUser'),
+            style: 'destructive',
+            onPress: handleDeleteUser,
+          },
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+            onPress: () => setDeleteTarget(null),
+          },
+        ]}
+        onClose={() => setDeleteTarget(null)}
+      />
     </View>
   );
 }
@@ -329,6 +395,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarActive: {
+    backgroundColor: '#22c55e20',
+  },
   userNameContainer: {
     flex: 1,
     marginLeft: Spacing.sm,
@@ -342,6 +411,11 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
   },
+  userBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   planBadge: {
     borderRadius: BorderRadius.sm,
     paddingHorizontal: 8,
@@ -350,6 +424,9 @@ const styles = StyleSheet.create({
   planBadgeText: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
+  },
+  deleteButton: {
+    padding: 2,
   },
   userDetailsRow: {
     flexDirection: 'row',

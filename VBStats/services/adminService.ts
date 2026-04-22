@@ -89,4 +89,16 @@ export const adminService = {
     if (!response.ok) throw new Error('Failed to fetch users');
     return response.json();
   },
+
+  // Delete a user and all their data (superadmin only)
+  deleteUser: async (adminId: number, targetUserId: number): Promise<void> => {
+    const response = await fetch(`${ADMIN_URL}/users/${targetUserId}`, {
+      method: 'DELETE',
+      headers: { 'x-user-id': String(adminId) },
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to delete user');
+    }
+  },
 };

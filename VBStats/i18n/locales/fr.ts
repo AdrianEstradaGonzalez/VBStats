@@ -667,6 +667,12 @@ const fr = {
     expires: 'Expire',
     lastLogin: 'Dernière connexion',
     never: 'Jamais',
+    activeNow: 'Actif maintenant',
+    deleteUser: 'Supprimer l\'utilisateur',
+    deleteUserConfirm: 'Supprimer l\'utilisateur ?',
+    deleteUserMessage: 'Cette action supprimera définitivement {{name}} ({{email}}) et toutes ses données : équipes, matchs, statistiques et abonnements. Cette action est irréversible.',
+    deleteUserSuccess: 'Utilisateur supprimé avec succès',
+    deleteUserError: 'Erreur lors de la suppression. Réessayez.',
   },
 };
 

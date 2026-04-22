@@ -667,6 +667,12 @@ const en = {
     expires: 'Expires',
     lastLogin: 'Last login',
     never: 'Never',
+    activeNow: 'Active now',
+    deleteUser: 'Delete user',
+    deleteUserConfirm: 'Delete user?',
+    deleteUserMessage: 'This will permanently delete {{name}} ({{email}}) and all their data: teams, matches, stats and subscriptions. This action cannot be undone.',
+    deleteUserSuccess: 'User deleted successfully',
+    deleteUserError: 'Error deleting user. Please try again.',
   },
 };
 

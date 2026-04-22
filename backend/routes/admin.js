@@ -185,12 +185,66 @@ router.get('/users', requireSuperadmin, async (req, res) => {
         u.created_at,
         u.last_login_at
        FROM users u
-       ORDER BY u.name ASC, u.email ASC`
+       ORDER BY u.last_login_at DESC, u.created_at DESC`
     );
     res.json(rows);
   } catch (err) {
     console.error('Error fetching users for admin:', err);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Delete a user and all associated data (superadmin only)
+router.delete('/users/:id', requireSuperadmin, async (req, res) => {
+  const targetId = Number(req.params.id);
+
+  if (!targetId || isNaN(targetId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  // Prevent superadmin from deleting themselves
+  if (targetId === req.adminUserId) {
+    return res.status(403).json({ error: 'Cannot delete your own account from admin panel' });
+  }
+
+  try {
+    // Verify target user exists and is not a superadmin
+    const [target] = await pool.query('SELECT id, is_superadmin FROM users WHERE id = ?', [targetId]);
+    if (target.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (target[0].is_superadmin) {
+      return res.status(403).json({ error: 'Cannot delete another superadmin' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Delete stat_settings (no FK cascade)
+      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [targetId]);
+
+      // Delete players belonging to user's teams (FK is SET NULL, not CASCADE)
+      await conn.query(
+        'DELETE FROM players WHERE team_id IN (SELECT id FROM teams WHERE user_id = ?)',
+        [targetId]
+      );
+
+      // Delete the user — FK cascades handle the rest
+      await conn.query('DELETE FROM users WHERE id = ?', [targetId]);
+
+      await conn.commit();
+      console.log(`Admin ${req.adminUserId} deleted user ${targetId} and all associated data`);
+      res.json({ message: 'User deleted successfully' });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error('Error deleting user (admin):', err);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 

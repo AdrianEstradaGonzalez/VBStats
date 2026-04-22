@@ -667,6 +667,12 @@ const pt = {
     expires: 'Expira',
     lastLogin: 'Último acesso',
     never: 'Nunca',
+    activeNow: 'Ativo agora',
+    deleteUser: 'Excluir usuário',
+    deleteUserConfirm: 'Excluir usuário?',
+    deleteUserMessage: 'Esta ação excluirá permanentemente {{name}} ({{email}}) e todos os seus dados: times, partidas, estatísticas e assinaturas. Esta ação não pode ser desfeita.',
+    deleteUserSuccess: 'Usuário excluído com sucesso',
+    deleteUserError: 'Erro ao excluir o usuário. Tente novamente.',
   },
 };
 
