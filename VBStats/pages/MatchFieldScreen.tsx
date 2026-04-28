@@ -98,6 +98,11 @@ type StatAction = {
   statCategory: string;
   statType: string;
   timestamp: number;
+  // Marcador en el momento de la acción
+  scoreLocal: number;
+  scoreVisitante: number;
+  setsLocal: number;
+  setsVisitante: number;
 };
 
 // Tipo para el feedback visual
@@ -163,6 +168,12 @@ export default function MatchFieldScreen({
   const [scoreHome, setScoreHome] = useState<string>('');
   const [scoreAway, setScoreAway] = useState<string>('');
 
+  // Estados del marcador integrado (puntos y sets en tiempo real)
+  const [scoreLocal, setScoreLocal] = useState(0);
+  const [scoreVisitante, setScoreVisitante] = useState(0);
+  const [setsLocal, setSetsLocal] = useState(0);
+  const [setsVisitante, setSetsVisitante] = useState(0);
+
   // Estados para el partido en BD
   const [matchId, setMatchId] = useState<number | null>(null);
   const [matchCreated, setMatchCreated] = useState(false);
@@ -190,7 +201,11 @@ export default function MatchFieldScreen({
     isSetActive: false,
     actionHistory: [] as { type: 'start_set' | 'end_set' | 'add_stat'; data: any; timestamp: number; }[],
     pendingStats: [] as StatAction[],
-    isRestoringState: !!resumeMatchId, // Add flag to ref
+    isRestoringState: !!resumeMatchId,
+    scoreLocal: 0,
+    scoreVisitante: 0,
+    setsLocal: 0,
+    setsVisitante: 0,
   });
   
   // Actualizar el ref cada vez que cambie el estado
@@ -204,8 +219,12 @@ export default function MatchFieldScreen({
       actionHistory,
       pendingStats,
       isRestoringState,
+      scoreLocal,
+      scoreVisitante,
+      setsLocal,
+      setsVisitante,
     };
-  }, [matchId, userId, positions, currentSet, isSetActive, actionHistory, pendingStats, isRestoringState]);
+  }, [matchId, userId, positions, currentSet, isSetActive, actionHistory, pendingStats, isRestoringState, scoreLocal, scoreVisitante, setsLocal, setsVisitante]);
 
   useEffect(() => {
     loadPlayers();
@@ -274,10 +293,19 @@ export default function MatchFieldScreen({
                 statCategory: s.statCategory,
                 statType: s.statType,
                 timestamp: s.timestamp,
+                scoreLocal: s.scoreLocal ?? 0,
+                scoreVisitante: s.scoreVisitante ?? 0,
+                setsLocal: s.setsLocal ?? 0,
+                setsVisitante: s.setsVisitante ?? 0,
               }));
               console.log('Estadisticas pendientes restauradas:', restoredStats.length);
               setPendingStats(restoredStats);
             }
+            // Restore scoreboard state
+            if (matchState.score_local !== undefined) setScoreLocal(matchState.score_local);
+            if (matchState.score_visitante !== undefined) setScoreVisitante(matchState.score_visitante);
+            if (matchState.sets_local !== undefined) setSetsLocal(matchState.sets_local);
+            if (matchState.sets_visitante !== undefined) setSetsVisitante(matchState.sets_visitante);
             
             // Mark restoration as complete - now auto-save can work
             console.log('Restauracion completa, habilitando auto-save');
@@ -343,6 +371,10 @@ export default function MatchFieldScreen({
         statCategory: s.statCategory,
         statType: s.statType,
         timestamp: s.timestamp,
+        scoreLocal: s.scoreLocal,
+        scoreVisitante: s.scoreVisitante,
+        setsLocal: s.setsLocal,
+        setsVisitante: s.setsVisitante,
       }));
       
       await matchesService.saveMatchState(state.matchId, {
@@ -351,6 +383,10 @@ export default function MatchFieldScreen({
         is_set_active: state.isSetActive,
         action_history: serializedHistory,
         pending_stats: serializedStats,
+        score_local: state.scoreLocal,
+        score_visitante: state.scoreVisitante,
+        sets_local: state.setsLocal,
+        sets_visitante: state.setsVisitante,
       });
       console.log('Estado del partido guardado:', {
         matchId: state.matchId,
@@ -404,7 +440,7 @@ export default function MatchFieldScreen({
     }, 2000); // 2 seconds debounce
     
     return () => clearTimeout(saveTimeout);
-  }, [matchId, positions, currentSet, isSetActive, pendingStats.length, actionHistory.length, saveMatchState, isRestoringState]);
+  }, [matchId, positions, currentSet, isSetActive, pendingStats.length, actionHistory.length, saveMatchState, isRestoringState, scoreLocal, scoreVisitante, setsLocal, setsVisitante]);
 
   // Función para mostrar feedback visual al pulsar botón de estadística
   const showStatFeedback = useCallback((feedback: LastStatFeedback) => {
@@ -691,6 +727,11 @@ export default function MatchFieldScreen({
       statCategory: category,
       statType: statType,
       timestamp: Date.now(),
+      // Marcador en el momento de la acción
+      scoreLocal,
+      scoreVisitante,
+      setsLocal,
+      setsVisitante,
     };
     
     // Añadir a pending stats
@@ -769,6 +810,42 @@ export default function MatchFieldScreen({
     }
   };
 
+  // Añade un punto al marcador y comprueba si el set ha acabado
+  const handleAddPoint = (team: 'local' | 'visitante') => {
+    if (!isSetActive) return;
+
+    const newLocal = team === 'local' ? scoreLocal + 1 : scoreLocal;
+    const newVisitante = team === 'visitante' ? scoreVisitante + 1 : scoreVisitante;
+
+    setScoreLocal(newLocal);
+    setScoreVisitante(newVisitante);
+
+    // Comprobar si el set ha terminado (mejor de 5: sets 1-4 a 25, set 5 a 15)
+    const isTiebreak = currentSet === 5;
+    const pointsToWin = isTiebreak ? 15 : 25;
+    const diff = Math.abs(newLocal - newVisitante);
+    const localWins = newLocal >= pointsToWin && diff >= 2 && newLocal > newVisitante;
+    const visitanteWins = newVisitante >= pointsToWin && diff >= 2 && newVisitante > newLocal;
+
+    if (localWins || visitanteWins) {
+      // Actualizar sets ganados
+      if (localWins) setSetsLocal(prev => prev + 1);
+      if (visitanteWins) setSetsVisitante(prev => prev + 1);
+      // Resetear puntos para el siguiente set (también lo hace confirmEndSet, pero lo adelantamos)
+      setScoreLocal(0);
+      setScoreVisitante(0);
+      // Finalizar el set automáticamente (igual que pulsar "Finalizar Set")
+      confirmEndSet();
+    }
+  };
+
+  // Quita un punto del marcador (pulsación larga)
+  const handleRemovePoint = (team: 'local' | 'visitante') => {
+    if (!isSetActive) return;
+    if (team === 'local' && scoreLocal > 0) setScoreLocal(prev => prev - 1);
+    if (team === 'visitante' && scoreVisitante > 0) setScoreVisitante(prev => prev - 1);
+  };
+
   // Función para guardar las estadísticas pendientes en BD
   const savePendingStats = async (): Promise<boolean> => {
     if (pendingStats.length === 0 || !matchId || !userId) return true;
@@ -783,6 +860,10 @@ export default function MatchFieldScreen({
         stat_setting_id: stat.statSettingId,
         stat_category: stat.statCategory,
         stat_type: stat.statType,
+        sets_local: stat.setsLocal ?? 0,
+        sets_visitante: stat.setsVisitante ?? 0,
+        puntos_local: stat.scoreLocal ?? 0,
+        puntos_visitante: stat.scoreVisitante ?? 0,
       }));
       
       const result = await statsService.saveMatchStatsBatch(statsToSave);
@@ -809,6 +890,10 @@ export default function MatchFieldScreen({
     const finishedSetNumber = currentSet;
     setIsSetActive(false);
     setLastPressedButton(null);
+    
+    // Resetear marcador de puntos para el próximo set
+    setScoreLocal(0);
+    setScoreVisitante(0);
     
     // Registrar acción en el historial
     setActionHistory(prev => [...prev, {
@@ -1364,6 +1449,86 @@ export default function MatchFieldScreen({
     );
   }
 
+  const renderScoreboardRow = () => {
+    const localColor = '#3b82f6';
+    const visitanteColor = '#ef4444';
+    const dotSize = 10;
+
+    return (
+      <View style={[styles.playerRow, styles.scoreboardRow]}>
+        {/* Celda izquierda (misma anchura que playerCell) */}
+        <View style={[styles.playerCell, styles.scoreboardLabelCell]}>
+          <MaterialCommunityIcons name="scoreboard-outline" size={18} color={Colors.primary} />
+          <Text style={styles.scoreboardLabelText}>MRC</Text>
+        </View>
+
+        {/* Contenido del marcador */}
+        <View style={[styles.statsRow, styles.scoreboardContent]}>
+          {/* EQUIPO LOCAL */}
+          <View style={styles.scoreboardTeamSide}>
+            {/* Semáforo de sets (3 puntos) */}
+            <View style={styles.scoreboardDots}>
+              {[0, 1, 2].map(i => (
+                <View
+                  key={i}
+                  style={[
+                    styles.scoreboardDot,
+                    { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
+                    { backgroundColor: i < setsLocal ? localColor : Colors.border },
+                  ]}
+                />
+              ))}
+            </View>
+            {/* Botón de puntos */}
+            <TouchableOpacity
+              style={[styles.scoreboardScoreBtn, { borderColor: isSetActive ? localColor : Colors.border }]}
+              onPress={() => handleAddPoint('local')}
+              onLongPress={() => handleRemovePoint('local')}
+              activeOpacity={0.7}
+              disabled={!isSetActive}
+            >
+              <Text style={[styles.scoreboardScoreText, { color: isSetActive ? localColor : Colors.textTertiary }]}>
+                {scoreLocal}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Separador */}
+          <Text style={styles.scoreboardSep}>—</Text>
+
+          {/* EQUIPO VISITANTE */}
+          <View style={[styles.scoreboardTeamSide, { flexDirection: 'row-reverse' }]}>
+            {/* Semáforo de sets */}
+            <View style={[styles.scoreboardDots, { flexDirection: 'row-reverse' }]}>
+              {[0, 1, 2].map(i => (
+                <View
+                  key={i}
+                  style={[
+                    styles.scoreboardDot,
+                    { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
+                    { backgroundColor: i < setsVisitante ? visitanteColor : Colors.border },
+                  ]}
+                />
+              ))}
+            </View>
+            {/* Botón de puntos */}
+            <TouchableOpacity
+              style={[styles.scoreboardScoreBtn, { borderColor: isSetActive ? visitanteColor : Colors.border }]}
+              onPress={() => handleAddPoint('visitante')}
+              onLongPress={() => handleRemovePoint('visitante')}
+              activeOpacity={0.7}
+              disabled={!isSetActive}
+            >
+              <Text style={[styles.scoreboardScoreText, { color: isSetActive ? visitanteColor : Colors.textTertiary }]}>
+                {scoreVisitante}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   const renderPlayerRow = (position: Position, index: number) => {
     const categories = position.playerId ? getStatsForPosition(position.label) : [];
     
@@ -1554,6 +1719,9 @@ export default function MatchFieldScreen({
         ) : (
           positions.map((pos, idx) => renderPlayerRow(pos, idx))
         )}
+
+        {/* Fila del marcador (siempre visible cuando hay posiciones o set activo) */}
+        {renderScoreboardRow()}
         
         {/* Botón para añadir posición - visible siempre que haya menos de 8 jugadores */}
         {positions.length < 8 && (
@@ -2595,6 +2763,77 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary,
     marginLeft: Spacing.sm,
+  },
+
+  // ── Fila del marcador integrado ────────────────────────────────────────
+  scoreboardRow: {
+    flexDirection: 'row',
+    borderTopWidth: 2,
+    borderTopColor: Colors.primary + '40',
+    backgroundColor: Colors.primary + '08',
+    minHeight: 54,
+  },
+  scoreboardLabelCell: {
+    width: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '15',
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+    paddingVertical: 4,
+    gap: 2,
+  },
+  scoreboardLabelText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  scoreboardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.md,
+  },
+  scoreboardTeamSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  scoreboardDots: {
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'center',
+  },
+  scoreboardDot: {
+    // width/height/borderRadius set inline
+  },
+  scoreboardScoreBtn: {
+    minWidth: 52,
+    minHeight: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  scoreboardScoreText: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  scoreboardSep: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.textTertiary,
   },
 
   // Modal

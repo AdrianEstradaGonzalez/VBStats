@@ -90,12 +90,16 @@ router.post('/match-stats/batch', async (req, res) => {
         s.set_number,
         validSettingId,
         s.stat_category,
-        s.stat_type
+        s.stat_type,
+        s.sets_local ?? 0,
+        s.sets_visitante ?? 0,
+        s.puntos_local ?? 0,
+        s.puntos_visitante ?? 0,
       ]);
     }
     
     const [result] = await pool.query(
-      `INSERT INTO match_stats (user_id, match_id, player_id, set_number, stat_setting_id, stat_category, stat_type) 
+      `INSERT INTO match_stats (user_id, match_id, player_id, set_number, stat_setting_id, stat_category, stat_type, sets_local, sets_visitante, puntos_local, puntos_visitante) 
        VALUES ?`,
       [processedStats]
     );

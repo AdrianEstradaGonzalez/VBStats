@@ -159,6 +159,23 @@ async function init() {
       ) ENGINE=InnoDB;
     `);
 
+    // Add score columns to match_stats if they don't exist
+    const scoreColumns = [
+      { name: 'sets_local',      sql: 'ALTER TABLE match_stats ADD COLUMN sets_local INT NOT NULL DEFAULT 0 AFTER stat_type' },
+      { name: 'sets_visitante',  sql: 'ALTER TABLE match_stats ADD COLUMN sets_visitante INT NOT NULL DEFAULT 0 AFTER sets_local' },
+      { name: 'puntos_local',    sql: 'ALTER TABLE match_stats ADD COLUMN puntos_local INT NOT NULL DEFAULT 0 AFTER sets_visitante' },
+      { name: 'puntos_visitante',sql: 'ALTER TABLE match_stats ADD COLUMN puntos_visitante INT NOT NULL DEFAULT 0 AFTER puntos_local' },
+    ];
+    for (const col of scoreColumns) {
+      try {
+        await conn.query(col.sql);
+      } catch (err) {
+        if (err.code !== 'ER_DUP_FIELDNAME') {
+          console.error(`Error adding ${col.name} column to match_stats:`, err);
+        }
+      }
+    }
+
     // Add user_id column to stat_settings if it doesn't exist
     try {
       await conn.query(`

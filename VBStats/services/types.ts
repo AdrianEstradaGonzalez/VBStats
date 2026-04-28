@@ -91,6 +91,11 @@ export interface StatActionState {
   statCategory: string;
   statType: string;
   timestamp: number;
+  // Score at moment of action
+  scoreLocal?: number;
+  scoreVisitante?: number;
+  setsLocal?: number;
+  setsVisitante?: number;
 }
 
 // Match state for persistence
@@ -98,6 +103,11 @@ export interface MatchState {
   positions?: PositionState[];
   current_set?: number;
   is_set_active?: boolean;
+  // Scoreboard state
+  score_local?: number;
+  score_visitante?: number;
+  sets_local?: number;
+  sets_visitante?: number;
   action_history?: ActionHistoryItem[];
   pending_stats?: StatActionState[];
 }
@@ -162,6 +172,11 @@ export interface MatchStat {
   player_number?: number;
   player_position?: string;
   created_at?: string;
+  // Score at moment of action
+  sets_local?: number;
+  sets_visitante?: number;
+  puntos_local?: number;
+  puntos_visitante?: number;
 }
 
 export interface MatchStatCreate {
@@ -172,6 +187,11 @@ export interface MatchStatCreate {
   stat_setting_id: number;
   stat_category: string;
   stat_type: string;
+  // Score at moment of action (optional)
+  sets_local?: number;
+  sets_visitante?: number;
+  puntos_local?: number;
+  puntos_visitante?: number;
 }
 
 // Stats Summary Types
