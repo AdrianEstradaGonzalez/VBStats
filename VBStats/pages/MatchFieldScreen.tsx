@@ -24,7 +24,7 @@ import {
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
-import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon } from '../components/VectorIcons';
+import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon, DoublePlusIcon, TargetIcon, MinusIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
 import { userPreferencesService } from '../services/userPreferencesService';
@@ -546,7 +546,19 @@ export default function MatchFieldScreen({
         console.log(`[MatchField] ${position}: ${positionSettings.length} settings loaded`);
         const enabledSettings = positionSettings.filter(s => s.enabled);
         console.log(`[MatchField] ${position}: ${enabledSettings.length} enabled settings`);
-        statsMap[position] = enabledSettings;
+        // Pre-sort by fixed priority: doble positivo/punto directo → positivo → neutro → error
+        const sortStatPriority = (statType: string): number => {
+          const norm = statType.toLowerCase().trim();
+          if (norm.includes('punto directo') || norm.includes('ace') ||
+              norm.includes('doble positiv') || norm === '++') return 1;
+          if ((norm.includes('positiv') || norm === '+') && !norm.includes('doble')) return 2;
+          if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
+          if (norm.includes('error')) return 4;
+          return 99;
+        };
+        statsMap[position] = [...enabledSettings].sort(
+          (a, b) => sortStatPriority(a.stat_type) - sortStatPriority(b.stat_type)
+        );
       }
       
       console.log('[MatchField] Final statsMap:', Object.keys(statsMap).map(k => `${k}: ${statsMap[k].length}`));
@@ -1363,26 +1375,26 @@ export default function MatchFieldScreen({
     
     // Doble positivo = # (hash)
     if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
-      return <MaterialCommunityIcons name="pound" size={size} color={color} />;
+      return <DoublePlusIcon size={size} color={color} />;
     }
-    // Punto directo = Diana/Bullseye
+    // Punto directo = Diana
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
-      return <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />;
+      return <TargetIcon size={size} color={color} />;
     }
-    // Positivo = Plus circle
-    if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
-      return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
+    // Positivo = Plus
+    if ((normalizedType.includes('positiv') || normalizedType.includes('+')) && !normalizedType.includes('doble')) {
+      return <PlusIcon size={size} color={color} />;
     }
-    // Neutro = Minus circle (-)
+    // Neutro = Minus (-)
     if (normalizedType.includes('neutr')) {
-      return <MaterialCommunityIcons name="minus-circle" size={size} color={color} />;
+      return <MinusIcon size={size} color={color} />;
     }
     // Error = Doble menos (--)
     if (normalizedType.includes('error')) {
       return <DoubleMinusIcon size={size} color={color} />;
     }
     
-    return <MaterialCommunityIcons name="circle-outline" size={size} color={color} />;
+    return <View style={{ width: size, height: size }} />;
   };
 
   // Create SVG arc path for pie chart
