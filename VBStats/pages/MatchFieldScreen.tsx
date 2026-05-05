@@ -24,7 +24,7 @@ import {
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
-import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon } from '../components/VectorIcons';
+import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
 import { userPreferencesService } from '../services/userPreferencesService';
@@ -773,7 +773,7 @@ export default function MatchFieldScreen({
   const getStatIconName = (statType: string): string => {
     const normalizedType = statType.toLowerCase();
     if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
-      return 'plus-circle-multiple';
+      return 'pound';
     }
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
       return 'bullseye-arrow';
@@ -785,7 +785,7 @@ export default function MatchFieldScreen({
       return 'minus-circle';
     }
     if (normalizedType.includes('error')) {
-      return 'close-circle';
+      return 'minus';
     }
     return 'circle-outline';
   };
@@ -1361,9 +1361,9 @@ export default function MatchFieldScreen({
   const getStatIcon = (statType: string, color: string, size: number = 24) => {
     const normalizedType = statType.toLowerCase();
     
-    // Doble positivo = icono de doble plus
+    // Doble positivo = # (hash)
     if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
-      return <MaterialCommunityIcons name="plus-circle-multiple" size={size} color={color} />;
+      return <MaterialCommunityIcons name="pound" size={size} color={color} />;
     }
     // Punto directo = Diana/Bullseye
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
@@ -1373,13 +1373,13 @@ export default function MatchFieldScreen({
     if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
     }
-    // Neutro = Equal sign (=)
+    // Neutro = Minus circle (-)
     if (normalizedType.includes('neutr')) {
-      return <MaterialCommunityIcons name="equal" size={size} color={color} />;
+      return <MaterialCommunityIcons name="minus-circle" size={size} color={color} />;
     }
-    // Error = Close circle
+    // Error = Doble menos (--)
     if (normalizedType.includes('error')) {
-      return <MaterialCommunityIcons name="close-circle" size={size} color={color} />;
+      return <DoubleMinusIcon size={size} color={color} />;
     }
     
     return <MaterialCommunityIcons name="circle-outline" size={size} color={color} />;

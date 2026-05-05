@@ -708,19 +708,27 @@ export const WarningIcon = ({ size = 24, color = Colors.text }: IconProps) => (
   </View>
 );
 
-// Icono de doble plus (++)
+// Icono de hash (#) — usado para doble positivo
 export const DoublePlusIcon = ({ size = 24, color = Colors.text }: IconProps) => (
   <View style={[styles.iconContainer, { width: size, height: size, justifyContent: 'center', alignItems: 'center' }]}>
-    {/* Primer + */}
-    <View style={{ position: 'absolute', left: size * 0.15 }}>
-      <View style={{ width: size * 0.32, height: 3, backgroundColor: color, borderRadius: 1.5, position: 'absolute' }} />
-      <View style={{ width: 3, height: size * 0.32, backgroundColor: color, borderRadius: 1.5, position: 'absolute', left: (size * 0.32 - 3) / 2 }} />
-    </View>
-    {/* Segundo + */}
-    <View style={{ position: 'absolute', right: size * 0.15 }}>
-      <View style={{ width: size * 0.32, height: 3, backgroundColor: color, borderRadius: 1.5, position: 'absolute' }} />
-      <View style={{ width: 3, height: size * 0.32, backgroundColor: color, borderRadius: 1.5, position: 'absolute', left: (size * 0.32 - 3) / 2 }} />
-    </View>
+    {/* Barra horizontal superior */}
+    <View style={{ width: size * 0.68, height: 2.5, backgroundColor: color, borderRadius: 1.25, position: 'absolute', top: size * 0.28 }} />
+    {/* Barra horizontal inferior */}
+    <View style={{ width: size * 0.68, height: 2.5, backgroundColor: color, borderRadius: 1.25, position: 'absolute', bottom: size * 0.28 }} />
+    {/* Barra vertical izquierda */}
+    <View style={{ width: 2.5, height: size * 0.72, backgroundColor: color, borderRadius: 1.25, position: 'absolute', left: size * 0.27 }} />
+    {/* Barra vertical derecha */}
+    <View style={{ width: 2.5, height: size * 0.72, backgroundColor: color, borderRadius: 1.25, position: 'absolute', right: size * 0.27 }} />
+  </View>
+);
+
+// Icono de doble menos (--) — usado para error
+export const DoubleMinusIcon = ({ size = 24, color = Colors.text }: IconProps) => (
+  <View style={[styles.iconContainer, { width: size, height: size, justifyContent: 'center', alignItems: 'center' }]}>
+    {/* Barra superior */}
+    <View style={{ width: size * 0.6, height: 2.5, backgroundColor: color, borderRadius: 1.25, position: 'absolute', top: size * 0.33 }} />
+    {/* Barra inferior */}
+    <View style={{ width: size * 0.6, height: 2.5, backgroundColor: color, borderRadius: 1.25, position: 'absolute', bottom: size * 0.33 }} />
   </View>
 );
 
@@ -931,6 +939,7 @@ export default {
   SetIcon,
   WarningIcon,
   DoublePlusIcon,
+  DoubleMinusIcon,
   PlusIcon,
   MinusIcon,
   XIcon,

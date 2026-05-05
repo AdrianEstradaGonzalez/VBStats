@@ -23,7 +23,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
-import { StatsIcon, MenuIcon } from '../components/VectorIcons';
+import { StatsIcon, MenuIcon, DoubleMinusIcon } from '../components/VectorIcons';
 import { SubscriptionType } from '../services/subscriptionService';
 import CustomAlert from '../components/CustomAlert';
 import RNFS from 'react-native-fs';
@@ -704,9 +704,9 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const getStatIcon = (statType: string, color: string, size: number = 20) => {
     const normalizedType = statType.toLowerCase();
     
-    // Doble positivo = icono de doble plus
+    // Doble positivo = # (hash)
     if (normalizedType.includes('doble positiv') || normalizedType.includes('doble positivo') || normalizedType.includes('++')) {
-      return <MaterialCommunityIcons name="plus-circle-multiple" size={size} color={color} />;
+      return <MaterialCommunityIcons name="pound" size={size} color={color} />;
     }
     // Punto directo = Diana/Bullseye
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
@@ -716,13 +716,13 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
     if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={size} color={color} />;
     }
-    // Neutro = Minus circle
+    // Neutro = Minus circle (-)
     if (normalizedType.includes('neutr')) {
       return <MaterialCommunityIcons name="minus-circle" size={size} color={color} />;
     }
-    // Error = Close circle
+    // Error = Doble menos (--)
     if (normalizedType.includes('error')) {
-      return <MaterialCommunityIcons name="close-circle" size={size} color={color} />;
+      return <DoubleMinusIcon size={size} color={color} />;
     }
     
     return <MaterialCommunityIcons name="circle-outline" size={size} color={color} />;

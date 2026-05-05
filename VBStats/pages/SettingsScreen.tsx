@@ -36,6 +36,7 @@ import {
   TickIcon,
   TargetIcon,
   StatsIcon,
+  DoubleMinusIcon,
 } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
 import { settingsService } from '../services/api';
@@ -318,9 +319,9 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     const iconSize = 16;
     const normalizedType = type.toLowerCase();
     
-    // Doble positivo = icono de doble plus
+    // Doble positivo = # (hash)
     if (normalizedType.includes('doble positiv') || normalizedType.includes('++')) {
-      return <MaterialCommunityIcons name="plus-circle-multiple" size={iconSize} color={color} />;
+      return <MaterialCommunityIcons name="pound" size={iconSize} color={color} />;
     }
     // Punto directo = Diana/Bullseye
     if (normalizedType.includes('punto directo') || normalizedType.includes('ace')) {
@@ -330,13 +331,13 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={iconSize} color={color} />;
     }
-    // Neutro = Minus circle
+    // Neutro = Minus circle (-)
     if (normalizedType.includes('neutr')) {
       return <MaterialCommunityIcons name="minus-circle" size={iconSize} color={color} />;
     }
-    // Error = Close circle
+    // Error = Doble menos (--)
     if (normalizedType.includes('error')) {
-      return <MaterialCommunityIcons name="close-circle" size={iconSize} color={color} />;
+      return <DoubleMinusIcon size={iconSize} color={color} />;
     }
     
     return <MaterialCommunityIcons name="circle-outline" size={iconSize} color={color} />;
