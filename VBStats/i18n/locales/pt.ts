@@ -418,6 +418,8 @@ const pt = {
     discardChanges: 'Descartar alterações?',
     applyBasic: 'Aplicar configuração básica',
     applyAdvanced: 'Aplicar configuração avançada',
+    showScoreboard: 'Mostrar marcador nas partidas',
+    showScoreboardDesc: 'Exibe a linha do placar durante as partidas',
   },
 
   // Search By Code Screen

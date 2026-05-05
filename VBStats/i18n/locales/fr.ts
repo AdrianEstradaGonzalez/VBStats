@@ -418,6 +418,8 @@ const fr = {
     discardChanges: 'Abandonner les modifications ?',
     applyBasic: 'Appliquer la configuration basique',
     applyAdvanced: 'Appliquer la configuration avancée',
+    showScoreboard: 'Afficher le tableau de bord',
+    showScoreboardDesc: 'Affiche la ligne du tableau de bord pendant les matchs',
   },
 
   // Search By Code Screen

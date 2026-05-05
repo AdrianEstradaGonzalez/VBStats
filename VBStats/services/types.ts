@@ -77,6 +77,12 @@ export interface ActionHistoryItem {
     statCategory?: string;
     statType?: string;
     timestamp?: number;
+    // Score-related fields for undo support
+    team?: 'local' | 'visitante';
+    scoreLocal?: number;
+    scoreVisitante?: number;
+    setsLocal?: number;
+    setsVisitante?: number;
   };
 }
 

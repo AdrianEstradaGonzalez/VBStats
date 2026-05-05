@@ -418,6 +418,8 @@ const en = {
     discardChanges: 'Discard changes?',
     applyBasic: 'Apply basic configuration',
     applyAdvanced: 'Apply advanced configuration',
+    showScoreboard: 'Show scoreboard in matches',
+    showScoreboardDesc: 'Displays the scoreboard row during matches',
   },
 
   // Search By Code Screen

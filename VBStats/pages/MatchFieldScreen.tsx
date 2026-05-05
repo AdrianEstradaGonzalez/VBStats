@@ -27,6 +27,7 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from
 import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
+import { userPreferencesService } from '../services/userPreferencesService';
 import type { MatchDetails } from './MatchDetailsScreen';
 import type { Player, StatSetting, MatchStatCreate, Match } from '../services/types';
 import MatchStatsScreen from './MatchStatsScreen';
@@ -149,7 +150,7 @@ export default function MatchFieldScreen({
   const [currentSet, setCurrentSet] = useState(0);
   const [isSetActive, setIsSetActive] = useState(false);
   const [actionHistory, setActionHistory] = useState<{
-    type: 'start_set' | 'end_set' | 'add_stat';
+    type: 'start_set' | 'end_set' | 'add_stat' | 'add_point';
     data: any;
     timestamp: number;
   }[]>([]);
@@ -173,6 +174,7 @@ export default function MatchFieldScreen({
   const [scoreVisitante, setScoreVisitante] = useState(0);
   const [setsLocal, setSetsLocal] = useState(0);
   const [setsVisitante, setSetsVisitante] = useState(0);
+  const [showScoreboard, setShowScoreboard] = useState(true);
 
   // Estados para el partido en BD
   const [matchId, setMatchId] = useState<number | null>(null);
@@ -230,6 +232,12 @@ export default function MatchFieldScreen({
     loadPlayers();
     loadStatSettings();
   }, [matchDetails.teamId]);
+
+  useEffect(() => {
+    userPreferencesService.load(userId).then(prefs => {
+      setShowScoreboard(prefs.showScoreboard);
+    });
+  }, [userId]);
 
   // Crear el partido en BD cuando se carga la pantalla o resumir uno existente
   useEffect(() => {
@@ -814,6 +822,9 @@ export default function MatchFieldScreen({
   const handleAddPoint = (team: 'local' | 'visitante') => {
     if (!isSetActive) return;
 
+    const prevScoreLocal = scoreLocal;
+    const prevScoreVisitante = scoreVisitante;
+
     const newLocal = team === 'local' ? scoreLocal + 1 : scoreLocal;
     const newVisitante = team === 'visitante' ? scoreVisitante + 1 : scoreVisitante;
 
@@ -828,6 +839,9 @@ export default function MatchFieldScreen({
     const visitanteWins = newVisitante >= pointsToWin && diff >= 2 && newVisitante > newLocal;
 
     if (localWins || visitanteWins) {
+      // Guardar estado pre-victoria para poder deshacer
+      const prevSetsLocal = setsLocal;
+      const prevSetsVisitante = setsVisitante;
       // Actualizar sets ganados
       if (localWins) setSetsLocal(prev => prev + 1);
       if (visitanteWins) setSetsVisitante(prev => prev + 1);
@@ -835,7 +849,14 @@ export default function MatchFieldScreen({
       setScoreLocal(0);
       setScoreVisitante(0);
       // Finalizar el set automáticamente (igual que pulsar "Finalizar Set")
-      confirmEndSet();
+      confirmEndSet({ scoreLocal: newLocal, scoreVisitante: newVisitante, setsLocal: prevSetsLocal, setsVisitante: prevSetsVisitante });
+    } else {
+      // Registrar la adición de punto en el historial para poder deshacer
+      setActionHistory(prev => [...prev, {
+        type: 'add_point',
+        data: { team, scoreLocal: prevScoreLocal, scoreVisitante: prevScoreVisitante },
+        timestamp: Date.now(),
+      }]);
     }
   };
 
@@ -880,7 +901,13 @@ export default function MatchFieldScreen({
     }
   };
   
-  const confirmEndSet = async () => {
+  const confirmEndSet = async (autoWinPrevState?: { scoreLocal: number; scoreVisitante: number; setsLocal: number; setsVisitante: number }) => {
+    // Capturar puntuación antes de cualquier reset (para el caso de fin de set manual)
+    const prevScoreLocal = autoWinPrevState?.scoreLocal ?? scoreLocal;
+    const prevScoreVisitante = autoWinPrevState?.scoreVisitante ?? scoreVisitante;
+    const prevSetsLocal = autoWinPrevState?.setsLocal;
+    const prevSetsVisitante = autoWinPrevState?.setsVisitante;
+
     // Guardar estadísticas antes de finalizar el set
     const saved = await savePendingStats();
     if (!saved) {
@@ -898,7 +925,13 @@ export default function MatchFieldScreen({
     // Registrar acción en el historial
     setActionHistory(prev => [...prev, {
       type: 'end_set',
-      data: { setNumber: finishedSetNumber },
+      data: {
+        setNumber: finishedSetNumber,
+        scoreLocal: prevScoreLocal,
+        scoreVisitante: prevScoreVisitante,
+        setsLocal: prevSetsLocal,
+        setsVisitante: prevSetsVisitante,
+      },
       timestamp: Date.now(),
     }]);
     
@@ -952,9 +985,9 @@ export default function MatchFieldScreen({
     // Actualizar el partido en BD como finalizado
     if (matchId) {
       try {
-        // Preparar los datos del resultado (opcional)
-        const scoreHomeNum = scoreHome ? parseInt(scoreHome, 10) : null;
-        const scoreAwayNum = scoreAway ? parseInt(scoreAway, 10) : null;
+        // Si el marcador estaba activo usamos los sets llevados; si no, los campos manuales
+        const scoreHomeNum = showScoreboard ? setsLocal : (scoreHome ? parseInt(scoreHome, 10) : null);
+        const scoreAwayNum = showScoreboard ? setsVisitante : (scoreAway ? parseInt(scoreAway, 10) : null);
         
         const updatedMatch = await matchesService.finishMatch(
           matchId, 
@@ -1006,8 +1039,24 @@ export default function MatchFieldScreen({
         setIsSetActive(false);
         setLastPressedButton(null);
       } else if (lastAction.type === 'end_set') {
-        // Revertir finalización de set: marcar como activo nuevamente
+        // Revertir finalización de set: marcar como activo nuevamente y restaurar marcador
         setIsSetActive(true);
+        if (lastAction.data?.scoreLocal !== undefined) {
+          setScoreLocal(lastAction.data.scoreLocal);
+        }
+        if (lastAction.data?.scoreVisitante !== undefined) {
+          setScoreVisitante(lastAction.data.scoreVisitante);
+        }
+        if (lastAction.data?.setsLocal !== undefined) {
+          setSetsLocal(lastAction.data.setsLocal);
+        }
+        if (lastAction.data?.setsVisitante !== undefined) {
+          setSetsVisitante(lastAction.data.setsVisitante);
+        }
+      } else if (lastAction.type === 'add_point') {
+        // Revertir punto añadido: restaurar marcador anterior
+        setScoreLocal(lastAction.data.scoreLocal);
+        setScoreVisitante(lastAction.data.scoreVisitante);
       } else if (lastAction.type === 'add_stat') {
         // Eliminar la última estadística de pending
         const statToRemove = lastAction.data as StatAction;
@@ -1720,8 +1769,8 @@ export default function MatchFieldScreen({
           positions.map((pos, idx) => renderPlayerRow(pos, idx))
         )}
 
-        {/* Fila del marcador (siempre visible cuando hay posiciones o set activo) */}
-        {renderScoreboardRow()}
+        {/* Fila del marcador (visible solo si el usuario lo tiene activado) */}
+        {showScoreboard && renderScoreboardRow()}
         
         {/* Botón para añadir posición - visible siempre que haya menos de 8 jugadores */}
         {positions.length < 8 && (
@@ -1790,47 +1839,73 @@ export default function MatchFieldScreen({
                 <MaterialCommunityIcons name="trophy-outline" size={32} color={Colors.primary} />
               </View>
               <Text style={styles.endMatchModalTitle}>Partido finalizado</Text>
-              <Text style={styles.endMatchModalSubtitle}>
-                Añade el resultado del partido (opcional)
-              </Text>
-              
-              <View style={styles.scoreInputContainer}>
-                <View style={styles.scoreInputWrapper}>
-                  <View style={styles.scoreLabelContainer}>
-                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
-                      {matchDetails.teamName || 'Local'}
-                    </Text>
+
+              {showScoreboard ? (
+                // Resultado automático desde el marcador llevado
+                <>
+                  <Text style={styles.endMatchModalSubtitle}>Resultado del partido</Text>
+                  <View style={styles.scoreDisplayContainer}>
+                    <View style={styles.scoreDisplaySide}>
+                      <Text style={styles.scoreDisplayLabel} numberOfLines={2}>
+                        {matchDetails.teamName || 'Local'}
+                      </Text>
+                      <Text style={styles.scoreDisplayValue}>{setsLocal}</Text>
+                    </View>
+                    <Text style={styles.scoreDisplaySep}>-</Text>
+                    <View style={styles.scoreDisplaySide}>
+                      <Text style={styles.scoreDisplayLabel} numberOfLines={2}>
+                        {matchDetails.rivalTeam || 'Rival'}
+                      </Text>
+                      <Text style={styles.scoreDisplayValue}>{setsVisitante}</Text>
+                    </View>
                   </View>
-                  <TextInput
-                    style={styles.scoreInput}
-                    value={scoreHome}
-                    onChangeText={setScoreHome}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={Colors.textTertiary}
-                    maxLength={2}
-                  />
-                </View>
-                
-                <Text style={styles.scoreSeparator}>-</Text>
-                
-                <View style={styles.scoreInputWrapper}>
-                  <View style={styles.scoreLabelContainer}>
-                    <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
-                      {matchDetails.rivalTeam || 'Rival'}
-                    </Text>
+                  <Text style={styles.scoreDisplayCaption}>sets ganados</Text>
+                </>
+              ) : (
+                // Entrada manual del resultado
+                <>
+                  <Text style={styles.endMatchModalSubtitle}>
+                    Añade el resultado del partido (opcional)
+                  </Text>
+                  <View style={styles.scoreInputContainer}>
+                    <View style={styles.scoreInputWrapper}>
+                      <View style={styles.scoreLabelContainer}>
+                        <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                          {matchDetails.teamName || 'Local'}
+                        </Text>
+                      </View>
+                      <TextInput
+                        style={styles.scoreInput}
+                        value={scoreHome}
+                        onChangeText={setScoreHome}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        placeholderTextColor={Colors.textTertiary}
+                        maxLength={2}
+                      />
+                    </View>
+                    
+                    <Text style={styles.scoreSeparator}>-</Text>
+                    
+                    <View style={styles.scoreInputWrapper}>
+                      <View style={styles.scoreLabelContainer}>
+                        <Text style={styles.scoreLabel} numberOfLines={2} ellipsizeMode="tail">
+                          {matchDetails.rivalTeam || 'Rival'}
+                        </Text>
+                      </View>
+                      <TextInput
+                        style={styles.scoreInput}
+                        value={scoreAway}
+                        onChangeText={setScoreAway}
+                        keyboardType="number-pad"
+                        placeholder="0"
+                        placeholderTextColor={Colors.textTertiary}
+                        maxLength={2}
+                      />
+                    </View>
                   </View>
-                  <TextInput
-                    style={styles.scoreInput}
-                    value={scoreAway}
-                    onChangeText={setScoreAway}
-                    keyboardType="number-pad"
-                    placeholder="0"
-                    placeholderTextColor={Colors.textTertiary}
-                    maxLength={2}
-                  />
-                </View>
-              </View>
+                </>
+              )}
               
               <View style={styles.endMatchButtonsContainer}>
                 <TouchableOpacity
@@ -3790,6 +3865,45 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.xl,
     width: '100%',
+  },
+  // Tracked score display (when scoreboard is active)
+  scoreDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+    gap: Spacing.lg,
+  },
+  scoreDisplaySide: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  scoreDisplayLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#4a4a4a',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    maxWidth: 100,
+  },
+  scoreDisplayValue: {
+    fontSize: 56,
+    fontWeight: '800',
+    color: Colors.primary,
+    lineHeight: 64,
+  },
+  scoreDisplaySep: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#9e9e9e',
+    marginTop: 28,
+  },
+  scoreDisplayCaption: {
+    fontSize: FontSizes.sm,
+    color: '#9e9e9e',
+    marginBottom: Spacing.xl,
+    marginTop: Spacing.xs,
   },
   scoreInputWrapper: {
     flex: 1,

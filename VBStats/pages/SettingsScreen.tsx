@@ -41,6 +41,7 @@ import { CustomAlert, CustomAlertButton } from '../components';
 import { settingsService } from '../services/api';
 import { POSITION_STATS, Position, StatTemplates, TemplateMode } from '../services/statTemplates';
 import { SubscriptionType, subscriptionService, BASIC_ENABLED_STATS } from '../services/subscriptionService';
+import { userPreferencesService } from '../services/userPreferencesService';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
@@ -72,6 +73,7 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
   const [applyingVersion, setApplyingVersion] = useState<'basic' | 'advanced' | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<TemplateMode | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [showScoreboard, setShowScoreboard] = useState(true);
 
   const isBasicSubscription = subscriptionType === 'basic';
 
@@ -88,6 +90,17 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
       setActiveTemplate(null);
     }
   }, [userId]);
+
+  useEffect(() => {
+    userPreferencesService.load(userId).then(prefs => {
+      setShowScoreboard(prefs.showScoreboard);
+    });
+  }, [userId]);
+
+  const handleShowScoreboardChange = async (value: boolean) => {
+    setShowScoreboard(value);
+    await userPreferencesService.save({ showScoreboard: value }, userId);
+  };
 
   const loadActiveTemplate = async () => {
     if (!userId) return;
@@ -339,8 +352,12 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     try {
       if (version === 'basic') {
         await settingsService.applyBasicConfig(userId);
+        // Basic config: scoreboard off by default
+        await handleShowScoreboardChange(false);
       } else {
         await settingsService.applyAdvancedConfig(userId);
+        // Advanced config: scoreboard on by default
+        await handleShowScoreboardChange(true);
       }
       setShowVersionAlert(false);
       setShowSuccessAlert(true);
@@ -421,6 +438,26 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
                 </View>
               </View>
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionSeparator} />
+
+          {/* Scoreboard preference */}
+          <View style={styles.scoreboardPrefCard}>
+            <View style={styles.scoreboardPrefLeft}>
+              <MaterialCommunityIcons name="scoreboard-outline" size={22} color={Colors.primary} />
+              <View style={styles.scoreboardPrefTextContainer}>
+                <Text style={styles.scoreboardPrefTitle}>{t('settings.showScoreboard')}</Text>
+                <Text style={styles.scoreboardPrefDesc}>{t('settings.showScoreboardDesc')}</Text>
+              </View>
+            </View>
+            <Switch
+              value={showScoreboard}
+              onValueChange={handleShowScoreboardChange}
+              trackColor={{ false: '#3a3a3a', true: Colors.primary + '60' }}
+              thumbColor={showScoreboard ? Colors.primary : '#767577'}
+              ios_backgroundColor="#3a3a3a"
+            />
           </View>
 
           <View style={styles.versionSeparator} />
@@ -951,5 +988,35 @@ const styles = StyleSheet.create({
   versionToggleSubtitle: {
     fontSize: FontSizes.sm,
     color: 'rgba(255, 255, 255, 0.8)',
+  },
+  scoreboardPrefCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.sm,
+  },
+  scoreboardPrefLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  scoreboardPrefTextContainer: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  scoreboardPrefTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  scoreboardPrefDesc: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
   },
 });
