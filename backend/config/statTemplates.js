@@ -4,40 +4,40 @@
 
 const POSITION_STATS = {
   'Receptor': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'] },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'] },
   ],
   'Opuesto': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'] },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'] },
   ],
   'Colocador': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'] },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'] },
   ],
   'Central': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'] },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'] },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'] },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'] },
   ],
   'Líbero': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'] },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'] },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'] },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'] },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'] },
   ],
 };
@@ -45,7 +45,7 @@ const POSITION_STATS = {
 const BASIC_RECEPCION_POSITIONS = ['Receptor', 'Líbero'];
 const BASIC_DISABLED_CATEGORIES = ['Defensa', 'Colocación'];
 const BASIC_ENABLED_BY_CATEGORY = {
-  'Recepción': ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+  'Recepción': ['Doble positivo', 'Positivo', 'Negativo', 'Error'],
   'Ataque': ['Positivo', 'Error'],
   'Bloqueo': ['Positivo'],
   'Saque': ['Punto directo', 'Error'],

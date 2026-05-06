@@ -28,6 +28,7 @@ import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon, Doub
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
 import { userPreferencesService } from '../services/userPreferencesService';
+import { displayStatType } from '../services/statTemplates';
 import type { MatchDetails } from './MatchDetailsScreen';
 import type { Player, StatSetting, MatchStatCreate, Match } from '../services/types';
 import MatchStatsScreen from './MatchStatsScreen';
@@ -159,6 +160,7 @@ export default function MatchFieldScreen({
   const [showEndSetAlert, setShowEndSetAlert] = useState(false);
   const [showEndMatchAlert, setShowEndMatchAlert] = useState(false);
   const [showSetStatsModal, setShowSetStatsModal] = useState(false);
+  const [pendingMatchEnd, setPendingMatchEnd] = useState(false);
   const [completedSetNumber, setCompletedSetNumber] = useState<number>(0);
   const [setStatsFilter, setSetStatsFilter] = useState<number | null>(null);
   const [statsViewType, setStatsViewType] = useState<'match' | number>('match');
@@ -552,7 +554,7 @@ export default function MatchFieldScreen({
           if (norm.includes('punto directo') || norm.includes('ace') ||
               norm.includes('doble positiv') || norm === '++') return 1;
           if ((norm.includes('positiv') || norm === '+') && !norm.includes('doble')) return 2;
-          if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
+          if (norm.includes('neutr') || norm.includes('negativ') || norm === '-' || norm === '=') return 3;
           if (norm.includes('error')) return 4;
           return 99;
         };
@@ -602,7 +604,7 @@ export default function MatchFieldScreen({
       if (normalized.includes('punto directo') || normalized.includes('ace')) return 'punto_directo';
       if (normalized.includes('doble positiv') || normalized.includes('++')) return 'doble_positivo';
       if (normalized.includes('positiv') || normalized === '+') return 'positivo';
-      if (normalized.includes('neutr') || normalized === '-' || normalized === '=') return 'neutro';
+      if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') return 'neutro';
       if (normalized.includes('error')) return 'error';
       return normalized;
     };
@@ -635,7 +637,7 @@ export default function MatchFieldScreen({
           !norm.includes('doble')) return 2;
         
         // 3. Neutro
-        if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
+        if (norm.includes('neutr') || norm.includes('negativ') || norm === '-' || norm === '=') return 3;
         
         // 4. Error
         if (norm.includes('error')) return 4;
@@ -793,7 +795,7 @@ export default function MatchFieldScreen({
     if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return 'plus-circle';
     }
-    if (normalizedType.includes('neutr')) {
+    if (normalizedType.includes('neutr') || normalizedType.includes('negativ')) {
       return 'minus-circle';
     }
     if (normalizedType.includes('error')) {
@@ -854,14 +856,21 @@ export default function MatchFieldScreen({
       // Guardar estado pre-victoria para poder deshacer
       const prevSetsLocal = setsLocal;
       const prevSetsVisitante = setsVisitante;
+      // Calcular nuevos sets ANTES del setState (que es asíncrono)
+      const newSetsLocal = localWins ? setsLocal + 1 : setsLocal;
+      const newSetsVisitante = visitanteWins ? setsVisitante + 1 : setsVisitante;
       // Actualizar sets ganados
-      if (localWins) setSetsLocal(prev => prev + 1);
-      if (visitanteWins) setSetsVisitante(prev => prev + 1);
+      if (localWins) setSetsLocal(newSetsLocal);
+      if (visitanteWins) setSetsVisitante(newSetsVisitante);
       // Resetear puntos para el siguiente set (también lo hace confirmEndSet, pero lo adelantamos)
       setScoreLocal(0);
       setScoreVisitante(0);
       // Finalizar el set automáticamente (igual que pulsar "Finalizar Set")
       confirmEndSet({ scoreLocal: newLocal, scoreVisitante: newVisitante, setsLocal: prevSetsLocal, setsVisitante: prevSetsVisitante });
+      // Si algún equipo alcanza 3 sets, mostrar panel de fin de partido al cerrar el modal de stats
+      if (newSetsLocal >= 3 || newSetsVisitante >= 3) {
+        setPendingMatchEnd(true);
+      }
     } else {
       // Registrar la adición de punto en el historial para poder deshacer
       setActionHistory(prev => [...prev, {
@@ -960,6 +969,15 @@ export default function MatchFieldScreen({
   const handleEndMatch = async () => {
     setShowEndSetAlert(false);
     setShowEndMatchAlert(true);
+  };
+
+  // Cierra el modal de stats del set; si hay un fin de partido pendiente, lo muestra a continuación
+  const closeSetStatsModal = () => {
+    setShowSetStatsModal(false);
+    if (pendingMatchEnd) {
+      setPendingMatchEnd(false);
+      setShowEndMatchAlert(true);
+    }
   };
   
   const confirmEndMatch = async () => {
@@ -1198,7 +1216,7 @@ export default function MatchFieldScreen({
     }
     
     // Neutro: 0
-    if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+    if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') {
       return 0;
     }
     
@@ -1257,7 +1275,7 @@ export default function MatchFieldScreen({
             norm.includes('doble positiv') || norm === '++') return 1;
           if ((norm.includes('positiv') || norm === '+') && 
             !norm.includes('doble')) return 2;
-          if (norm.includes('neutr') || norm === '-' || norm === '=') return 3;
+          if (norm.includes('neutr') || norm.includes('negativ') || norm === '-' || norm === '=') return 3;
           if (norm.includes('error')) return 4;
           return 99;
         };
@@ -1358,7 +1376,7 @@ export default function MatchFieldScreen({
     }
     
     // Neutro = Amarillo
-    if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+    if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') {
       return '#f59e0b';
     }
     
@@ -1385,8 +1403,8 @@ export default function MatchFieldScreen({
     if ((normalizedType.includes('positiv') || normalizedType.includes('+')) && !normalizedType.includes('doble')) {
       return <PlusIcon size={size} color={color} />;
     }
-    // Neutro = Minus (-)
-    if (normalizedType.includes('neutr')) {
+    // Neutro / Negativo = Minus (-)
+    if (normalizedType.includes('neutr') || normalizedType.includes('negativ')) {
       return <MinusIcon size={size} color={color} />;
     }
     // Error = Doble menos (--)
@@ -1419,7 +1437,7 @@ export default function MatchFieldScreen({
   };
 
   // Render pie chart for category stats
-  const renderCategoryPieChart = (data: { statType: string; count: number; color: string }[], total: number) => {
+  const renderCategoryPieChart = (data: { statType: string; count: number; color: string }[], total: number, category: string = '') => {
     if (total === 0) return null;
 
     const size = 100;
@@ -1487,7 +1505,7 @@ export default function MatchFieldScreen({
               <View style={styles.categoryPieLegendTypeCell}>
                 {getStatIcon(segment.statType, segment.color, 16)}
                 <Text style={[styles.categoryPieLegendTypeName, { color: segment.color }]} numberOfLines={1}>
-                  {segment.statType}
+                  {displayStatType(category, segment.statType)}
                 </Text>
               </View>
               <Text style={styles.categoryPieLegendCount}>{segment.count}</Text>
@@ -1513,13 +1531,13 @@ export default function MatchFieldScreen({
   const renderScoreboardRow = () => {
     const localColor = '#3b82f6';
     const visitanteColor = '#ef4444';
-    const dotSize = 10;
+    const dotSize = 6;
 
     return (
       <View style={[styles.playerRow, styles.scoreboardRow]}>
         {/* Celda izquierda (misma anchura que playerCell) */}
         <View style={[styles.playerCell, styles.scoreboardLabelCell]}>
-          <MaterialCommunityIcons name="scoreboard-outline" size={18} color={Colors.primary} />
+          <MaterialCommunityIcons name="scoreboard-outline" size={12} color={Colors.primary} />
           <Text style={styles.scoreboardLabelText}>MRC</Text>
         </View>
 
@@ -2288,7 +2306,7 @@ export default function MatchFieldScreen({
         animationType="slide"
         presentationStyle="fullScreen"
         statusBarTranslucent={true}
-        onRequestClose={() => setShowSetStatsModal(false)}
+        onRequestClose={closeSetStatsModal}
       >
         <View style={styles.setStatsContainer}>
           {/* Safe Area Header Container */}
@@ -2299,7 +2317,7 @@ export default function MatchFieldScreen({
               <View style={styles.statsModalTopRow}>
                 <TouchableOpacity 
                   style={styles.statsModalCloseButtonModern}
-                  onPress={() => setShowSetStatsModal(false)}
+                  onPress={closeSetStatsModal}
                 >
                   <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
                 </TouchableOpacity>
@@ -2478,7 +2496,7 @@ export default function MatchFieldScreen({
                             <Text style={styles.setStatsCategoryTotal}>{total} acciones</Text>
                           </View>
                           {/* Pie chart for this category */}
-                          {renderCategoryPieChart(pieData, total)}
+                          {renderCategoryPieChart(pieData, total, category)}
                         </View>
                       );
                     })}
@@ -2492,7 +2510,7 @@ export default function MatchFieldScreen({
           <View style={styles.setStatsFooter}>
             <TouchableOpacity
               style={styles.continueButton}
-              onPress={() => setShowSetStatsModal(false)}
+              onPress={closeSetStatsModal}
               activeOpacity={0.8}
             >
               <Text style={styles.continueButtonText}>Continuar Partido</Text>
@@ -2517,7 +2535,7 @@ export default function MatchFieldScreen({
           <View style={[styles.feedbackContent, { borderColor: lastStatFeedback.color }]}>
             {getStatIcon(lastStatFeedback.statType, lastStatFeedback.color, 64)}
             <Text style={[styles.feedbackStatName, { color: lastStatFeedback.color }]}>
-              {lastStatFeedback.statType}
+              {displayStatType(lastStatFeedback.statCategory, lastStatFeedback.statType)}
             </Text>
             <Text style={styles.feedbackCategoryName}>
               {lastStatFeedback.statCategory}
@@ -2855,10 +2873,10 @@ const styles = StyleSheet.create({
   // ── Fila del marcador integrado ────────────────────────────────────────
   scoreboardRow: {
     flexDirection: 'row',
-    borderTopWidth: 2,
+    borderTopWidth: 1,
     borderTopColor: Colors.primary + '40',
     backgroundColor: Colors.primary + '08',
-    minHeight: 54,
+    minHeight: 28,
   },
   scoreboardLabelCell: {
     width: 60,
@@ -2867,11 +2885,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     borderRightWidth: 1,
     borderRightColor: Colors.border,
-    paddingVertical: 4,
-    gap: 2,
+    paddingVertical: 2,
+    gap: 1,
   },
   scoreboardLabelText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '800',
     color: Colors.primary,
     letterSpacing: 0.5,
@@ -2882,43 +2900,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.sm,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   scoreboardTeamSide: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 4,
   },
   scoreboardDots: {
     flexDirection: 'row',
-    gap: 5,
+    gap: 3,
     alignItems: 'center',
   },
   scoreboardDot: {
     // width/height/borderRadius set inline
   },
   scoreboardScoreBtn: {
-    minWidth: 52,
-    minHeight: 38,
+    minWidth: 36,
+    minHeight: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: 4,
+    elevation: 1,
   },
   scoreboardScoreText: {
-    fontSize: 22,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'center',
   },
   scoreboardSep: {
-    fontSize: 20,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.textTertiary,
   },

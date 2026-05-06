@@ -17,12 +17,14 @@ import {
   Image,
   Share,
   Alert,
+  Modal,
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import { matchesService } from '../services/api';
 import type { Match, MatchStatsSummary, MatchStat, MatchState } from '../services/types';
+import { displayStatType } from '../services/statTemplates';
 import { StatsIcon, MenuIcon, DoubleMinusIcon, DoublePlusIcon, TargetIcon, PlusIcon, MinusIcon } from '../components/VectorIcons';
 import { SubscriptionType } from '../services/subscriptionService';
 import CustomAlert from '../components/CustomAlert';
@@ -58,8 +60,8 @@ const getStatColor = (statType: string): string => {
     return '#22c55e';
   }
   
-  // Neutro = Amarillo
-  if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+  // Neutro / Negativo = Amarillo
+  if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') {
     return '#f59e0b';
   }
   
@@ -75,7 +77,7 @@ const getStatColor = (statType: string): string => {
 const STAT_TYPE_ORDER = [
   'Doble Positivo', 'Punto Directo', 
   'Positivo', 'Punto', 'Ace', '++', '+', 
-  'Neutra', 'Neutro', '-', 
+  'Neutra', 'Neutro', 'Negativo', '-', 
   'Error', 'error'
 ];
 
@@ -138,6 +140,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
   const [showExportAlert, setShowExportAlert] = useState(false);
   const [showExportSuccessAlert, setShowExportSuccessAlert] = useState(false);
   const [exportedFilePath, setExportedFilePath] = useState('');
+  const [showDetailedLog, setShowDetailedLog] = useState(false);
   
   // Filtros
   const [selectedSet, setSelectedSet] = useState<'all' | number>('all');
@@ -213,6 +216,10 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         player_name: d.playerName || '',
         player_number: d.playerNumber || undefined,
         created_at: d.timestamp ? new Date(d.timestamp).toISOString() : undefined,
+        puntos_local: d.scoreLocal,
+        puntos_visitante: d.scoreVisitante,
+        sets_local: d.setsLocal,
+        sets_visitante: d.setsVisitante,
       }))
       .filter(s => s.player_id && s.stat_setting_id && s.stat_category && s.stat_type);
   };
@@ -303,7 +310,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         const typeWeight = (v: string) => {
           const t = normalize(v);
           if (t.includes('doble positiv') || t.includes('punto directo') || t.includes('ace') || t.includes('positiv')) return 1;
-          if (t.includes('neutr')) return 2;
+          if (t.includes('neutr') || t.includes('negativ')) return 2;
           if (t.includes('error')) return 3;
           return 9;
         };
@@ -344,8 +351,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       return 1;
     }
     
-    // Neutro: 0
-    if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+    // Neutro / Negativo: 0
+    if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') {
       return 0;
     }
     
@@ -392,7 +399,7 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         performance[stat.stat_category].doblePositivo += 1;
       } else if (normalized.includes('positiv') || normalized === '+') {
         performance[stat.stat_category].positivo += 1;
-      } else if (normalized.includes('neutr') || normalized === '-' || normalized === '=') {
+      } else if (normalized.includes('neutr') || normalized.includes('negativ') || normalized === '-' || normalized === '=') {
         performance[stat.stat_category].neutro += 1;
       } else if (normalized.includes('error')) {
         performance[stat.stat_category].error += 1;
@@ -474,6 +481,30 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       total: playerMap[p.id] || 0,
     })).sort((a, b) => b.total - a.total);
   }, [filteredStats, uniquePlayers]);
+
+  // Registro detallado: todos los stats ordenados por set y timestamp
+  const detailedLogBySet = useMemo(() => {
+    if (!statsData?.stats) return [];
+    const allStats = [...statsData.stats].sort((a, b) => {
+      if (a.set_number !== b.set_number) return a.set_number - b.set_number;
+      // Orden cronológico dentro del set: por puntos totales acumulados
+      const totalA = (a.puntos_local ?? 0) + (a.puntos_visitante ?? 0);
+      const totalB = (b.puntos_local ?? 0) + (b.puntos_visitante ?? 0);
+      if (totalA !== totalB) return totalA - totalB;
+      // Desempate por timestamp
+      const tsA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tsB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tsA - tsB;
+    });
+    const bySet: Record<number, MatchStat[]> = {};
+    allStats.forEach(stat => {
+      if (!bySet[stat.set_number]) bySet[stat.set_number] = [];
+      bySet[stat.set_number].push(stat);
+    });
+    return Object.entries(bySet)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([setNum, stats]) => ({ setNumber: Number(setNum), stats }));
+  }, [statsData]);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '';
@@ -716,8 +747,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
     if ((normalizedType.includes('positiv') || normalizedType.includes('+')) && !normalizedType.includes('doble')) {
       return <PlusIcon size={size} color={color} />;
     }
-    // Neutro = Minus (-)
-    if (normalizedType.includes('neutr')) {
+    // Neutro / Negativo = Minus (-)
+    if (normalizedType.includes('neutr') || normalizedType.includes('negativ')) {
       return <MinusIcon size={size} color={color} />;
     }
     // Error = Doble menos (--)
@@ -1266,6 +1297,26 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         </>
         )}
 
+        {/* Botón de registro detallado */}
+        {statsData && statsData.stats.length > 0 && (
+          <TouchableOpacity
+            style={styles.detailedLogButton}
+            onPress={() => setShowDetailedLog(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.detailedLogButtonIconWrap}>
+              <MaterialCommunityIcons name="clipboard-text-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={styles.detailedLogButtonTextWrap}>
+              <Text style={styles.detailedLogButtonTitle}>Ver registro detallado</Text>
+              <Text style={styles.detailedLogButtonSub}>
+                {statsData.stats.length} acciones · {uniqueSets.length} sets
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textTertiary} />
+          </TouchableOpacity>
+        )}
+
         {/* Código de Partido para compartir */}
         {!hideExportOptions && !isFreeSubscription && (shareCode || match.share_code) && (
           <View style={styles.shareCodeSection}>
@@ -1325,6 +1376,117 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* Modal de Registro Detallado */}
+      <Modal
+        visible={showDetailedLog}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowDetailedLog(false)}
+      >
+        <View style={styles.logModalContainer}>
+          {/* Header */}
+          <View style={styles.logModalHeader}>
+            <TouchableOpacity style={styles.logModalCloseBtn} onPress={() => setShowDetailedLog(false)}>
+              <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <View style={styles.logModalHeaderCenter}>
+              <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={Colors.primary} />
+              <Text style={styles.logModalTitle}>Registro detallado</Text>
+            </View>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Match banner */}
+          <View style={styles.logMatchBanner}>
+            <Text style={styles.logMatchName}>
+              {match.team_name}{match.opponent ? ` vs ${match.opponent}` : ''}
+            </Text>
+            <Text style={styles.logMatchDate}>
+              {formatDate(match.date)} · {statsData?.stats.length || 0} acciones
+            </Text>
+          </View>
+
+          <ScrollView style={styles.logScrollView} showsVerticalScrollIndicator={false}>
+            {detailedLogBySet.length === 0 ? (
+              <View style={styles.logEmpty}>
+                <MaterialCommunityIcons name="clipboard-text-off-outline" size={60} color={Colors.textTertiary} />
+                <Text style={styles.logEmptyText}>Sin registros disponibles</Text>
+              </View>
+            ) : (
+              detailedLogBySet.map(({ setNumber, stats: setStats }) => (
+                <View key={setNumber} style={styles.logSetSection}>
+                  {/* Set header */}
+                  <View style={styles.logSetHeader}>
+                    <MaterialCommunityIcons name="volleyball" size={14} color={Colors.primary} />
+                    <Text style={styles.logSetTitle}>Set {setNumber}</Text>
+                    <View style={styles.logSetBadge}>
+                      <Text style={styles.logSetBadgeText}>{setStats.length} acciones</Text>
+                    </View>
+                  </View>
+
+                  {setStats.map((stat, idx) => {
+                    const statColor = getStatColor(stat.stat_type);
+                    const hasScore =
+                      stat.puntos_local !== undefined && stat.puntos_local !== null &&
+                      stat.puntos_visitante !== undefined && stat.puntos_visitante !== null;
+                    const hasSets =
+                      stat.sets_local !== undefined && stat.sets_local !== null &&
+                      stat.sets_visitante !== undefined && stat.sets_visitante !== null;
+
+                    return (
+                      <View key={idx} style={[styles.logEntry, { borderLeftColor: statColor }]}>
+                        {/* Index */}
+                        <Text style={styles.logEntryIdx}>{idx + 1}</Text>
+
+                        {/* Player badge */}
+                        <View style={[styles.logEntryBadge, { borderColor: statColor }]}>
+                          <Text style={[styles.logEntryBadgeNum, { color: statColor }]}>
+                            {stat.player_number ?? '?'}
+                          </Text>
+                        </View>
+
+                        {/* Main content */}
+                        <View style={styles.logEntryBody}>
+                          <Text style={styles.logEntryName} numberOfLines={1}>
+                            {stat.player_name || 'Jugador desconocido'}
+                          </Text>
+                          <View style={styles.logEntryAction}>
+                            <Text style={styles.logEntryCat}>{stat.stat_category}</Text>
+                            <View style={styles.logEntryTypePill}>
+                              {getStatIcon(stat.stat_type, statColor, 12)}
+                              <Text style={[styles.logEntryType, { color: statColor }]}>
+                                {displayStatType(stat.stat_category, stat.stat_type)}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Score block */}
+                        {(hasScore || hasSets) && (
+                          <View style={styles.logEntryScoreBlock}>
+                            {hasSets && (
+                              <Text style={styles.logEntryScoreSets}>
+                                {stat.sets_local}-{stat.sets_visitante}
+                              </Text>
+                            )}
+                            {hasScore && (
+                              <Text style={styles.logEntryScorePts}>
+                                {stat.puntos_local}-{stat.puntos_visitante}
+                              </Text>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Alert de exportación PRO */}
       {isProSubscription && (
@@ -2149,5 +2311,214 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     fontWeight: '600',
     color: '#fff',
+  },
+
+  // ── Botón de registro detallado ──────────────────────────────────────
+  detailedLogButton: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadows.sm,
+  },
+  detailedLogButtonIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailedLogButtonTextWrap: {
+    flex: 1,
+  },
+  detailedLogButtonTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  detailedLogButtonSub: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+
+  // ── Modal de Registro Detallado ──────────────────────────────────────
+  logModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    paddingTop: SAFE_AREA_TOP,
+  },
+  logModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.primary,
+  },
+  logModalCloseBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logModalHeaderCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  logModalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  logMatchBanner: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  logMatchName: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+  },
+  logMatchDate: {
+    fontSize: FontSizes.xs,
+    color: Colors.textOnPrimary,
+    opacity: 0.8,
+    marginTop: 2,
+  },
+  logScrollView: {
+    flex: 1,
+  },
+  logEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 80,
+    gap: Spacing.md,
+  },
+  logEmptyText: {
+    fontSize: FontSizes.md,
+    color: Colors.textSecondary,
+  },
+  logSetSection: {
+    marginTop: Spacing.lg,
+    marginHorizontal: Spacing.md,
+  },
+  logSetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.primary + '30',
+  },
+  logSetTitle: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.text,
+    flex: 1,
+  },
+  logSetBadge: {
+    backgroundColor: Colors.primary + '20',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+  },
+  logSetBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  logEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderLeftWidth: 3,
+    gap: Spacing.sm,
+    ...Shadows.sm,
+  },
+  logEntryIdx: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textTertiary,
+    width: 18,
+    textAlign: 'center',
+  },
+  logEntryBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+  },
+  logEntryBadgeNum: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
+  logEntryBody: {
+    flex: 1,
+  },
+  logEntryName: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  logEntryAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  logEntryCat: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  logEntryTypePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  logEntryType: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  logEntryScoreBlock: {
+    alignItems: 'flex-end',
+    minWidth: 40,
+  },
+  logEntryScoreSets: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  logEntryScorePts: {
+    fontSize: FontSizes.sm,
+    fontWeight: '800',
+    color: Colors.text,
   },
 });

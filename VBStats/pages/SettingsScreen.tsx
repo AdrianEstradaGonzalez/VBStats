@@ -331,8 +331,8 @@ export default function SettingsScreen({ onBack, onOpenMenu, userId, subscriptio
     if (normalizedType.includes('positiv') || normalizedType.includes('+')) {
       return <MaterialCommunityIcons name="plus-circle" size={iconSize} color={color} />;
     }
-    // Neutro = Minus circle (-)
-    if (normalizedType.includes('neutr')) {
+    // Neutro / Negativo = Minus circle (-)
+    if (normalizedType.includes('neutr') || normalizedType.includes('negativ')) {
       return <MaterialCommunityIcons name="minus-circle" size={iconSize} color={color} />;
     }
     // Error = Doble menos (--)

@@ -382,7 +382,7 @@ export default function GuideScreen({
         category: 'Recepción', 
         color: STAT_COLORS.reception, 
         iconName: 'hand-back-left',
-        types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+        types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'],
         note: 'Solo para Receptor y Líbero'
       },
       { 
@@ -411,7 +411,7 @@ export default function GuideScreen({
         category: 'Recepción', 
         color: STAT_COLORS.reception, 
         iconName: 'hand-back-left',
-        types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+        types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'],
         note: 'Todas las posiciones'
       },
       { 
@@ -436,7 +436,7 @@ export default function GuideScreen({
         category: 'Defensa', 
         color: STAT_COLORS.defense, 
         iconName: 'shield-half-full',
-        types: ['Positivo', 'Neutro', 'Error'],
+        types: ['Positivo', 'Negativo', 'Error'],
         exclusive: true
       },
       { 

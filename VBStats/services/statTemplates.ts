@@ -15,48 +15,61 @@ export interface StatConfig {
 
 export const POSITION_STATS: Record<Position, StatConfig[]> = {
   'Receptor': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Opuesto': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Colocador': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Central': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'], icon: 'reception', color: '#3b82f6' },
     { category: 'Ataque', types: ['Positivo', 'Neutro', 'Error'], icon: 'attack', color: '#f59e0b' },
     { category: 'Bloqueo', types: ['Positivo', 'Neutro', 'Error'], icon: 'block', color: '#10b981' },
     { category: 'Saque', types: ['Punto directo', 'Positivo', 'Neutro', 'Error'], icon: 'serve', color: '#8b5cf6' },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
   'Líbero': [
-    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Neutro', 'Error'], icon: 'reception', color: '#3b82f6' },
-    { category: 'Defensa', types: ['Positivo', 'Neutro', 'Error'], icon: 'defense', color: '#ef4444' },
+    { category: 'Recepción', types: ['Doble positivo', 'Positivo', 'Negativo', 'Error'], icon: 'reception', color: '#3b82f6' },
+    { category: 'Defensa', types: ['Positivo', 'Negativo', 'Error'], icon: 'defense', color: '#ef4444' },
     { category: 'Colocación', types: ['Positivo', 'Neutro', 'Error'], icon: 'set', color: '#06b6d4' },
   ],
+};
+
+/**
+ * Normaliza el nombre de un stat_type para mostrarlo al usuario.
+ * Convierte 'Neutro' a 'Negativo' cuando la categoría es Recepción o Defensa
+ * (compatibilidad con datos antiguos en BD).
+ */
+export const displayStatType = (category: string, statType: string): string => {
+  const cat = category.toLowerCase();
+  if ((cat.includes('recepci') || cat.includes('defensa')) && statType === 'Neutro') {
+    return 'Negativo';
+  }
+  return statType;
 };
 
 const BASIC_RECEPCION_POSITIONS: Position[] = ['Receptor', 'Líbero'];
 const BASIC_DISABLED_CATEGORIES = ['Defensa', 'Colocación'];
 const BASIC_ENABLED_BY_CATEGORY: Record<string, string[]> = {
-  'Recepción': ['Doble positivo', 'Positivo', 'Neutro', 'Error'],
+  'Recepción': ['Doble positivo', 'Positivo', 'Negativo', 'Error'],
   'Ataque': ['Positivo', 'Error'],
   'Bloqueo': ['Positivo'],
   'Saque': ['Punto directo', 'Error'],
