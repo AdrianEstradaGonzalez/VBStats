@@ -8,6 +8,25 @@ const { StatTemplates } = require('../config/statTemplates');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
+const VERIFICATION_CODE_EXPIRY_MINUTES = 30; // Código de registro válido por 30 min
+
+// ============================================
+// GOOGLE SIGN-IN
+// El cliente verifica el idToken de Google contra el Web Client ID.
+// Requiere la variable de entorno GOOGLE_WEB_CLIENT_ID (OAuth 2.0 Web client).
+// Si no está configurada, el endpoint /google responde 503.
+// ============================================
+const GOOGLE_WEB_CLIENT_ID = (process.env.GOOGLE_WEB_CLIENT_ID || '').trim();
+let googleClient = null;
+function getGoogleClient() {
+  if (!GOOGLE_WEB_CLIENT_ID) return null;
+  if (!googleClient) {
+    // require diferido para no romper el arranque si la dependencia no está instalada
+    const { OAuth2Client } = require('google-auth-library');
+    googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
+  }
+  return googleClient;
+}
 
 // ============================================
 // EMAIL via Gmail SMTP (Nodemailer)
@@ -66,6 +85,93 @@ async function sendEmail({ to, subject, html, text }) {
 // Función para generar token seguro
 function generateSecureToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Código de verificación de 8 caracteres alfanuméricos en mayúscula (misma UX que el reset)
+function generateVerificationCode() {
+  return crypto.randomBytes(4).toString('hex').toUpperCase();
+}
+
+// Determina el tipo de suscripción para una cuenta nueva según el periodo demo.
+// Periodo de demo: PRO gratuito hasta el 30 de septiembre 2026; después FREE.
+function getSubscriptionForNewUser() {
+  const DEMO_END_DATE = new Date('2026-10-01T00:00:00');
+  const isDemoPeriod = new Date() < DEMO_END_DATE;
+  return {
+    subscriptionType: isDemoPeriod ? 'pro' : 'free',
+    subscriptionExpires: isDemoPeriod ? '2026-09-30 23:59:59' : null,
+  };
+}
+
+// Plantilla de email para el código de verificación de registro
+function buildVerificationEmail({ name, code }) {
+  const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { text-align: center; padding: 20px 0; }
+            .logo { font-size: 32px; font-weight: bold; color: #e21d66; }
+            .content { background: #f9fafb; border-radius: 12px; padding: 30px; margin: 20px 0; }
+            .token-box { background: #fff; border: 2px dashed #e21d66; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }
+            .token { font-size: 28px; font-weight: bold; color: #e21d66; letter-spacing: 4px; }
+            .warning { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+            .code-label { font-size: 14px; color: #6b7280; margin-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">🏐 VBStats</div>
+            </div>
+            <div class="content">
+              <h2>Hola${name ? ` ${name}` : ''},</h2>
+              <p>Gracias por registrarte en VBStats. Para crear tu cuenta, confirma que este correo es tuyo introduciendo el siguiente código en la app:</p>
+              <div class="token-box">
+                <div class="code-label">Tu código de verificación es:</div>
+                <div class="token">${code}</div>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 10px;">
+                  Introduce este código en la app para completar el registro
+                </p>
+              </div>
+              <div class="warning">
+                <strong>⚠️ Importante:</strong>
+                <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                  <li>Este código expira en <strong>${VERIFICATION_CODE_EXPIRY_MINUTES} minutos</strong></li>
+                  <li>Si no intentaste crear una cuenta, ignora este correo</li>
+                  <li>Nunca compartas este código con nadie</li>
+                </ul>
+              </div>
+            </div>
+            <div class="footer">
+              <p>Este correo fue enviado automáticamente por VBStats.</p>
+              <p>© ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+  const text = `
+Hola${name ? ` ${name}` : ''},
+
+Gracias por registrarte en VBStats. Para crear tu cuenta, introduce el siguiente código en la app:
+
+Tu código de verificación es: ${code}
+
+IMPORTANTE:
+- Este código expira en ${VERIFICATION_CODE_EXPIRY_MINUTES} minutos
+- Si no intentaste crear una cuenta, ignora este correo
+- Nunca compartas este código con nadie
+
+© ${new Date().getFullYear()} VBStats - Estadísticas de Voleibol
+      `;
+
+  return { html, text };
 }
 
 async function ensureUserSettings(userId) {
@@ -267,6 +373,228 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     console.error('Error during registration:', err);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// ==========================================
+// REGISTRO CON VERIFICACIÓN DE EMAIL
+// ==========================================
+
+// Paso 1: solicitar código de verificación.
+// Guarda el registro como pendiente y envía un código al correo indicado.
+// La cuenta NO se crea hasta verificar el código (paso 2).
+router.post('/register/request-code', async (req, res) => {
+  try {
+    const { email: rawEmail, password, name } = req.body;
+
+    if (!rawEmail || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    const email = rawEmail.toLowerCase().trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Correo electrónico no válido' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // El correo no puede estar ya registrado
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    if (!transporter) {
+      // Sin email configurado no se puede verificar la propiedad del correo
+      return res.status(503).json({ error: 'El servicio de correo no está disponible. Inténtalo más tarde.' });
+    }
+
+    // Hashear la contraseña ya en este paso (no se guarda en texto plano)
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Invalidar códigos anteriores para este correo
+    await pool.query(
+      'UPDATE email_verification_codes SET used = TRUE WHERE email = ? AND used = FALSE',
+      [email]
+    );
+
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000);
+
+    await pool.query(
+      'INSERT INTO email_verification_codes (email, code, password_hash, name, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [email, code, hashedPassword, name || null, expiresAt]
+    );
+
+    const { html, text } = buildVerificationEmail({ name, code });
+    await sendEmail({
+      to: email,
+      subject: 'Verifica tu correo - VBStats',
+      html,
+      text,
+    });
+    console.log(`Verification code sent to: ${email}`);
+
+    res.json({
+      message: 'Te hemos enviado un código de verificación. Revisa tu bandeja de entrada.',
+      ...(process.env.NODE_ENV === 'development' && { debug_code: code }),
+    });
+  } catch (err) {
+    console.error('Error in register/request-code:', err);
+    res.status(500).json({ error: 'Error al enviar el código. Inténtalo de nuevo.' });
+  }
+});
+
+// Paso 2: verificar el código y crear la cuenta definitivamente.
+router.post('/register/verify-code', async (req, res) => {
+  try {
+    const { email: rawEmail, code } = req.body;
+
+    if (!rawEmail || !code) {
+      return res.status(400).json({ error: 'Email y código son obligatorios' });
+    }
+
+    const email = rawEmail.toLowerCase().trim();
+    const normalizedCode = String(code).toUpperCase().trim();
+
+    // Buscar el código pendiente más reciente, válido y sin usar
+    const [codes] = await pool.query(
+      `SELECT * FROM email_verification_codes
+       WHERE email = ? AND code = ? AND used = FALSE AND expires_at > NOW()
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [email, normalizedCode]
+    );
+
+    if (codes.length === 0) {
+      return res.status(400).json({ error: 'Código inválido o expirado. Solicita uno nuevo.' });
+    }
+
+    const pending = codes[0];
+
+    // Comprobar de nuevo que el correo no se haya registrado mientras tanto
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      await pool.query('UPDATE email_verification_codes SET used = TRUE WHERE email = ?', [email]);
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+
+    const sessionToken = crypto.randomUUID();
+    const { subscriptionType, subscriptionExpires } = getSubscriptionForNewUser();
+
+    const [result] = await pool.query(
+      'INSERT INTO users (email, password, auth_provider, name, session_token, subscription_type, subscription_expires_at, auto_renew) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [email, pending.password_hash, 'local', pending.name || null, sessionToken, subscriptionType, subscriptionExpires, false]
+    );
+
+    // Marcar como usado el código (y cualquier otro pendiente del correo)
+    await pool.query('UPDATE email_verification_codes SET used = TRUE WHERE email = ?', [email]);
+
+    const [rows] = await pool.query(
+      'SELECT id, email, name, created_at FROM users WHERE id = ?',
+      [result.insertId]
+    );
+
+    const user = rows[0];
+    await ensureUserSettings(user.id);
+
+    console.log(`Account created after email verification: ${email}`);
+    res.status(201).json({
+      ...user,
+      session_token: sessionToken,
+    });
+  } catch (err) {
+    console.error('Error in register/verify-code:', err);
+    res.status(500).json({ error: 'Error al verificar el código. Inténtalo de nuevo.' });
+  }
+});
+
+// ==========================================
+// GOOGLE SIGN-IN
+// ==========================================
+// Recibe el idToken de Google, lo verifica y crea/inicia sesión del usuario.
+router.post('/google', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ error: 'idToken is required' });
+    }
+
+    const client = getGoogleClient();
+    if (!client) {
+      return res.status(503).json({ error: 'El inicio de sesión con Google no está configurado en el servidor.' });
+    }
+
+    // Verificar el idToken contra el Web Client ID
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: GOOGLE_WEB_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      console.warn('Google idToken verification failed:', verifyErr.message);
+      return res.status(401).json({ error: 'Token de Google no válido.' });
+    }
+
+    if (!payload || !payload.email) {
+      return res.status(401).json({ error: 'No se pudo obtener el correo de Google.' });
+    }
+    if (payload.email_verified === false) {
+      return res.status(401).json({ error: 'El correo de Google no está verificado.' });
+    }
+
+    const email = payload.email.toLowerCase().trim();
+    const displayName = payload.name || payload.given_name || null;
+    const sessionToken = crypto.randomUUID();
+
+    // Buscar usuario existente
+    const [existing] = await pool.query(
+      'SELECT id, email, name, created_at FROM users WHERE email = ?',
+      [email]
+    );
+
+    let user;
+    if (existing.length > 0) {
+      // Usuario existente: actualizar sesión
+      user = existing[0];
+      await pool.query(
+        'UPDATE users SET session_token = ?, last_login_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [sessionToken, user.id]
+      );
+    } else {
+      // Crear cuenta nueva vinculada a Google (sin contraseña utilizable)
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), SALT_ROUNDS);
+      const { subscriptionType, subscriptionExpires } = getSubscriptionForNewUser();
+
+      const [result] = await pool.query(
+        'INSERT INTO users (email, password, auth_provider, name, session_token, last_login_at, subscription_type, subscription_expires_at, auto_renew) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)',
+        [email, randomPassword, 'google', displayName, sessionToken, subscriptionType, subscriptionExpires, false]
+      );
+      const [rows] = await pool.query(
+        'SELECT id, email, name, created_at FROM users WHERE id = ?',
+        [result.insertId]
+      );
+      user = rows[0];
+    }
+
+    await ensureUserSettings(user.id);
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      created_at: user.created_at,
+      session_token: sessionToken,
+    });
+  } catch (err) {
+    console.error('Error during Google sign-in:', err);
+    res.status(500).json({ error: 'Error al iniciar sesión con Google' });
   }
 });
 

@@ -67,6 +67,8 @@ const fr = {
     emptyFields: 'Veuillez remplir tous les champs',
     invalidCredentials: 'Identifiants incorrects. Vérifiez votre e-mail et mot de passe.',
     connectionError: 'Erreur de connexion. Réessayez.',
+    or: 'ou',
+    continueWithGoogle: 'Continuer avec Google',
   },
 
   // Sign Up Screen
@@ -85,6 +87,7 @@ const fr = {
     hasAccount: 'Vous avez déjà un compte ?',
     loginLink: 'Se connecter',
     viewPlans: 'Voir ce que chaque plan inclut',
+    continueWithGoogle: 'Continuer avec Google',
     errors: {
       emailRequired: 'Veuillez entrer votre e-mail',
       emailInvalid: 'Veuillez entrer un e-mail valide',
@@ -137,6 +140,24 @@ const fr = {
       bothFields: 'Veuillez remplir les deux champs',
       passwordMismatch: 'Les mots de passe ne correspondent pas',
       resetError: 'Erreur lors de la réinitialisation du mot de passe. Réessayez.',
+    },
+  },
+
+  // Verify Email Screen (inscription avec vérification de l'e-mail)
+  verifyEmail: {
+    title: 'Vérifiez votre e-mail',
+    description: 'Saisissez le code à 8 caractères que nous avons envoyé à',
+    verifying: 'Vérification...',
+    verifyButton: 'Vérifier et créer le compte',
+    didntReceive: "Vous n'avez pas reçu le code ?",
+    resend: 'Renvoyer',
+    resending: 'Renvoi...',
+    resent: 'Nous vous avons envoyé un nouveau code.',
+    success: 'E-mail vérifié ! Création de votre compte...',
+    errors: {
+      codeRequired: 'Veuillez saisir le code complet à 8 caractères',
+      codeInvalid: 'Code invalide ou expiré. Demandez-en un nouveau.',
+      resendError: 'Erreur lors du renvoi du code. Réessayez.',
     },
   },
 

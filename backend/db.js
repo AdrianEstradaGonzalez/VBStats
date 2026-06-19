@@ -159,6 +159,24 @@ async function init() {
       ) ENGINE=InnoDB;
     `);
 
+    // Create email verification codes table.
+    // Stores pending registrations until the email is verified with a code,
+    // so accounts can only be created with a real, owned email address.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS email_verification_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        code VARCHAR(8) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_email (email),
+        INDEX idx_expires (expires_at)
+      ) ENGINE=InnoDB;
+    `);
+
     // Add score columns to match_stats if they don't exist
     const scoreColumns = [
       { name: 'sets_local',      sql: 'ALTER TABLE match_stats ADD COLUMN sets_local INT NOT NULL DEFAULT 0 AFTER stat_type' },
@@ -353,6 +371,15 @@ async function init() {
     } catch (err) {
       if (err.code !== 'ER_DUP_FIELDNAME') {
         console.error('Error adding is_superadmin column to users:', err);
+      }
+    }
+
+    // Add auth_provider column to users table ('local' = email/password, 'google' = Google Sign-In)
+    try {
+      await conn.query(`ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) NOT NULL DEFAULT 'local' AFTER password;`);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding auth_provider column to users:', err);
       }
     }
 

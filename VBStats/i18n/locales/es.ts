@@ -67,6 +67,8 @@ const es = {
     emptyFields: 'Por favor, completa todos los campos',
     invalidCredentials: 'Credenciales incorrectas. Verifica tu correo y contraseña.',
     connectionError: 'Error de conexión. Inténtalo de nuevo.',
+    or: 'o',
+    continueWithGoogle: 'Continuar con Google',
   },
 
   // Sign Up Screen
@@ -85,6 +87,7 @@ const es = {
     hasAccount: '¿Ya tienes cuenta?',
     loginLink: 'Inicia Sesión',
     viewPlans: 'Ver qué incluye cada plan',
+    continueWithGoogle: 'Continuar con Google',
     errors: {
       emailRequired: 'Por favor, ingresa tu correo electrónico',
       emailInvalid: 'Por favor, ingresa un correo electrónico válido',
@@ -137,6 +140,24 @@ const es = {
       bothFields: 'Por favor, completa ambos campos',
       passwordMismatch: 'Las contraseñas no coinciden',
       resetError: 'Error al restablecer la contraseña. Inténtalo de nuevo.',
+    },
+  },
+
+  // Verify Email Screen (registro con verificación de correo)
+  verifyEmail: {
+    title: 'Verifica tu correo',
+    description: 'Introduce el código de 8 caracteres que enviamos a',
+    verifying: 'Verificando...',
+    verifyButton: 'Verificar y crear cuenta',
+    didntReceive: '¿No recibiste el código?',
+    resend: 'Reenviar',
+    resending: 'Reenviando...',
+    resent: 'Te hemos reenviado un nuevo código.',
+    success: '¡Correo verificado! Creando tu cuenta...',
+    errors: {
+      codeRequired: 'Por favor, introduce el código completo de 8 caracteres',
+      codeInvalid: 'Código inválido o expirado. Solicita uno nuevo.',
+      resendError: 'Error al reenviar el código. Inténtalo de nuevo.',
     },
   },
 

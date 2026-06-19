@@ -9,7 +9,8 @@ import {
   SignUpScreen,
   ForgotPasswordScreen,
   ResetPasswordScreen,
-  HomeScreen, 
+  VerifyEmailScreen,
+  HomeScreen,
   TeamsScreen, 
   StartMatchScreen, 
   StatsScreen,
@@ -34,6 +35,8 @@ import { SideMenu } from "./components";
 import FooterNav from "./components/FooterNav";
 import CustomAlert from "./components/CustomAlert";
 import { teamsService, playersService, usersService, Match } from "./services/api";
+import { User } from "./services/types";
+import { signInWithGoogle } from "./services/googleAuth";
 import { SubscriptionType, subscriptionService, TrialInfo, useAppleIAP } from "./services/subscriptionService";
 import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 import { appleIAPService } from "./services/appleIAPService";
@@ -62,6 +65,8 @@ export default function App() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetPasswordEmail, setResetPasswordEmail] = useState('');
+  const [showVerifyEmail, setShowVerifyEmail] = useState(false);
+  const [verifyEmailData, setVerifyEmailData] = useState<{ email: string; password: string; name?: string } | null>(null);
   const [showSelectPlan, setShowSelectPlan] = useState(false);
   const [pendingRegistration, setPendingRegistration] = useState<{ email: string; password: string; name?: string } | null>(null);
   const [pendingRegisteredUserId, setPendingRegisteredUserId] = useState<number | null>(null);
@@ -149,6 +154,10 @@ export default function App() {
       }
 
       if (!isLoggedIn) {
+        if (showVerifyEmail) {
+          handleBackFromVerify();
+          return true;
+        }
         if (showResetPassword) {
           setShowResetPassword(false);
           setShowForgotPassword(true);
@@ -183,7 +192,7 @@ export default function App() {
 
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [menuVisible, isLoggedIn, showResetPassword, showForgotPassword, showSignUp, showSelectPlan, currentScreen]);
+  }, [menuVisible, isLoggedIn, showVerifyEmail, showResetPassword, showForgotPassword, showSignUp, showSelectPlan, currentScreen]);
 
   const loadSavedSession = async () => {
     try {
@@ -382,54 +391,108 @@ export default function App() {
   const isDemoPeriod = new Date() < DEMO_END_DATE;
 
   const handleSignUp = async (email: string, password: string, name?: string): Promise<boolean> => {
+    // Email verification required: request a code instead of creating the account directly.
+    // The account is only created once the user verifies the code (handleEmailVerified).
+    const normalizedEmail = email.trim().toLowerCase();
+    await usersService.requestRegisterCode({ email: normalizedEmail, password, name });
+    setVerifyEmailData({ email: normalizedEmail, password, name });
+    setShowSignUp(false);
+    setShowVerifyEmail(true);
+    return true;
+  };
+
+  // Re-send the verification code for the pending registration
+  const handleResendCode = async () => {
+    if (!verifyEmailData) return;
+    await usersService.requestRegisterCode(verifyEmailData);
+  };
+
+  const handleBackFromVerify = () => {
+    setShowVerifyEmail(false);
+    setVerifyEmailData(null);
+    setShowSignUp(true);
+  };
+
+  // Called after the email code is verified and the account has been created
+  const handleEmailVerified = async (user: User) => {
+    const displayName = user.name || user.email.split('@')[0];
+    setUserId(user.id);
+    setUserName(displayName);
+    setUserEmail(user.email);
+    setSessionToken(user.session_token || null);
+
+    await saveSession({
+      userId: user.id,
+      userName: displayName,
+      userEmail: user.email,
+      sessionToken: user.session_token || null,
+    });
+
+    setShowVerifyEmail(false);
+    setVerifyEmailData(null);
+
     if (isDemoPeriod) {
-      // During demo period, create user directly with PRO (backend assigns PRO until Sept 30, 2026)
+      // During demo period, log in directly (backend assigns PRO until Sept 30, 2026)
       try {
-        const user = await usersService.register({ email, password, name });
-        const displayName = user.name || email.split('@')[0];
-        setUserId(user.id);
-        setUserName(displayName);
-        setUserEmail(user.email);
-        setSessionToken(user.session_token || null);
-
-        await saveSession({
-          userId: user.id,
-          userName: displayName,
-          userEmail: user.email,
-          sessionToken: user.session_token || null,
-        });
-
-        // Load subscription info
-        try {
-          const subscription = await subscriptionService.getSubscription(user.id);
-          setSubscriptionType(subscription.type);
-          setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
-          setSubscriptionExpiresAt(subscription.expiresAt || null);
-          setAutoRenew(subscription.autoRenew !== false);
-          setActiveTrial(subscription.activeTrial || null);
-          setSubscriptionLoaded(true);
-        } catch (subError) {
-          console.error('Error loading subscription after demo signup:', subError);
-          setSubscriptionType('pro');
-          setSubscriptionLoaded(true);
-        }
-
-        setShowSignUp(false);
-        setIsLoggedIn(true);
-        setCurrentScreen('home');
-        return true;
-      } catch (error) {
-        console.error('Demo sign up error:', error);
-        return false;
+        const subscription = await subscriptionService.getSubscription(user.id);
+        setSubscriptionType(subscription.type);
+        setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+        setSubscriptionExpiresAt(subscription.expiresAt || null);
+        setAutoRenew(subscription.autoRenew !== false);
+        setActiveTrial(subscription.activeTrial || null);
+        setSubscriptionLoaded(true);
+      } catch (subError) {
+        console.error('Error loading subscription after verified signup:', subError);
+        setSubscriptionType('pro');
+        setSubscriptionLoaded(true);
       }
+      setIsLoggedIn(true);
+      setCurrentScreen('home');
+      return;
     }
 
-    // After demo period: show plan selection
-    setPendingRegistration({ email, password, name });
-    setPendingRegisteredUserId(null);
-    setShowSignUp(false);
+    // After demo period: account already exists, let the user pick a plan
+    setPendingRegisteredUserId(user.id);
     setShowSelectPlan(true);
-    return true;
+  };
+
+  // Sign in / sign up with Google
+  const handleGoogleSignIn = async () => {
+    const idToken = await signInWithGoogle();
+    const user = await usersService.googleSignIn(idToken);
+    const displayName = user.name || user.email.split('@')[0];
+
+    setUserId(user.id);
+    setUserName(displayName);
+    setUserEmail(user.email);
+    setSessionToken(user.session_token || null);
+
+    await saveSession({
+      userId: user.id,
+      userName: displayName,
+      userEmail: user.email,
+      sessionToken: user.session_token || null,
+    });
+
+    try {
+      const subscription = await subscriptionService.getSubscription(user.id);
+      setSubscriptionType(subscription.type);
+      setSubscriptionCancelledPending(subscription.cancelAtPeriodEnd || false);
+      setSubscriptionExpiresAt(subscription.expiresAt || null);
+      setAutoRenew(subscription.autoRenew !== false);
+      setActiveTrial(subscription.activeTrial || null);
+      setSubscriptionLoaded(true);
+    } catch (subError) {
+      console.error('Error loading subscription after Google sign-in:', subError);
+      setSubscriptionType('free');
+      setSubscriptionLoaded(true);
+    }
+
+    setShowSignUp(false);
+    setShowVerifyEmail(false);
+    setVerifyEmailData(null);
+    setIsLoggedIn(true);
+    setCurrentScreen('home');
   };
 
   const ensurePendingRegistrationUser = async (): Promise<number | null> => {
@@ -546,6 +609,8 @@ export default function App() {
     setIsSuperadmin(false);
     setPendingRegistration(null);
     setPendingRegisteredUserId(null);
+    setShowVerifyEmail(false);
+    setVerifyEmailData(null);
     setCurrentScreen('home');
     setMenuVisible(false);
   };
@@ -929,10 +994,18 @@ export default function App() {
             currentPlan={undefined}
             userId={userId || pendingRegisteredUserId}
           />
+        ) : showVerifyEmail && verifyEmailData ? (
+          <VerifyEmailScreen
+            email={verifyEmailData.email}
+            onBack={handleBackFromVerify}
+            onVerified={handleEmailVerified}
+            onResend={handleResendCode}
+          />
         ) : showSignUp ? (
           <SignUpScreen
             onSignUp={handleSignUp}
             onBackToLogin={handleBackToLogin}
+            onGoogleSignIn={handleGoogleSignIn}
             onViewPlans={isDemoPeriod ? undefined : () => {
               setShowSignUp(false);
               setShowSelectPlan(true);
@@ -954,6 +1027,7 @@ export default function App() {
             onLogin={handleLogin}
             onForgotPassword={handleForgotPassword}
             onSignUp={handleShowSignUp}
+            onGoogleSignIn={handleGoogleSignIn}
           />
         )
       ) : (
