@@ -20,6 +20,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import LanguageSelector from '../components/LanguageSelector';
+import GoogleSignInButton from '../components/GoogleSignInButton';
+import { isGoogleSignInConfigured } from '../services/config';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -29,9 +31,10 @@ interface LoginScreenProps {
   onLogin: (email: string, password: string) => Promise<boolean>;
   onForgotPassword?: () => void;
   onSignUp?: () => void;
+  onGoogleSignIn?: () => Promise<void>;
 }
 
-export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, onForgotPassword, onSignUp, onGoogleSignIn }: LoginScreenProps) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,9 +42,11 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  const googleEnabled = isGoogleSignInConfigured();
 
   const shakeError = () => {
     Animated.sequence([
@@ -51,6 +56,22 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
       Animated.timing(shakeAnimation, { toValue: -10, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!onGoogleSignIn) return;
+    setIsGoogleLoading(true);
+    setErrorMessage(null);
+    try {
+      await onGoogleSignIn();
+    } catch (error: any) {
+      if (error?.name !== 'GoogleSignInCancelled') {
+        setErrorMessage(error?.message || t('login.connectionError'));
+        shakeError();
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -224,6 +245,17 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp }: Log
               >
                 <Text style={styles.signUpButtonText}>{t('login.createAccount')}</Text>
               </TouchableOpacity>
+            )}
+
+            {/* Google Sign-In */}
+            {googleEnabled && onGoogleSignIn && (
+              <GoogleSignInButton
+                onPress={handleGoogleSignIn}
+                loading={isGoogleLoading}
+                disabled={isLoading}
+                label={t('login.continueWithGoogle')}
+                dividerText={t('login.or')}
+              />
             )}
           </Animated.View>
         </View>

@@ -40,6 +40,17 @@ const getApiUrl = (): string => {
 
 export const API_BASE_URL = getApiUrl();
 
+/**
+ * Google Sign-In configuration.
+ * Use the OAuth 2.0 "Web client" ID from Google Cloud Console (the same value the
+ * backend uses in GOOGLE_WEB_CLIENT_ID). Leave empty to disable the Google button.
+ * Setup guide: GOOGLE_SIGNIN_SETUP.md
+ */
+export const GOOGLE_WEB_CLIENT_ID = '';
+
+/** Whether Google Sign-In has a configured Web client ID */
+export const isGoogleSignInConfigured = (): boolean => GOOGLE_WEB_CLIENT_ID.trim().length > 0;
+
 export const API_ENDPOINTS = {
   teams: `${API_BASE_URL}/teams`,
   players: `${API_BASE_URL}/players`,

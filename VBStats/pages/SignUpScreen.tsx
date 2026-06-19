@@ -21,6 +21,8 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
 import LanguageSelector from '../components/LanguageSelector';
+import GoogleSignInButton from '../components/GoogleSignInButton';
+import { isGoogleSignInConfigured } from '../services/config';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -30,9 +32,10 @@ interface SignUpScreenProps {
   onSignUp: (email: string, password: string, name?: string) => Promise<boolean>;
   onBackToLogin: () => void;
   onViewPlans?: () => void;
+  onGoogleSignIn?: () => Promise<void>;
 }
 
-export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: SignUpScreenProps) {
+export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans, onGoogleSignIn }: SignUpScreenProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,9 +48,11 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shakeAnimation] = useState(new Animated.Value(0));
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+  const googleEnabled = isGoogleSignInConfigured();
 
   const shakeError = () => {
     Animated.sequence([
@@ -85,6 +90,22 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
     return null;
   };
 
+  const handleGoogleSignIn = async () => {
+    if (!onGoogleSignIn) return;
+    setIsGoogleLoading(true);
+    setErrorMessage(null);
+    try {
+      await onGoogleSignIn();
+    } catch (error: any) {
+      if (error?.name !== 'GoogleSignInCancelled') {
+        setErrorMessage(error?.message || t('login.connectionError'));
+        shakeError();
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleSignUp = async () => {
     const validationError = validateForm();
     if (validationError) {
@@ -102,8 +123,8 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
         setErrorMessage(t('signup.errors.createError'));
         shakeError();
       }
-    } catch (error) {
-      setErrorMessage(t('login.connectionError'));
+    } catch (error: any) {
+      setErrorMessage(error?.message || t('login.connectionError'));
       shakeError();
     } finally {
       setIsLoading(false);
@@ -303,6 +324,17 @@ export default function SignUpScreen({ onSignUp, onBackToLogin, onViewPlans }: S
                 <Text style={styles.signUpButtonText}>{t('signup.createButton')}</Text>
               )}
             </TouchableOpacity>
+
+            {/* Google Sign-In */}
+            {googleEnabled && onGoogleSignIn && (
+              <GoogleSignInButton
+                onPress={handleGoogleSignIn}
+                loading={isGoogleLoading}
+                disabled={isLoading}
+                label={t('signup.continueWithGoogle')}
+                dividerText={t('login.or')}
+              />
+            )}
 
             {/* View Plans Button */}
             {onViewPlans && (

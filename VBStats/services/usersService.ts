@@ -42,12 +42,61 @@ export const usersService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Registration failed');
     }
-    
+
+    return response.json();
+  },
+
+  // Step 1 of verified registration: request an email verification code.
+  // The account is NOT created until the code is verified.
+  requestRegisterCode: async (data: RegisterData): Promise<{ message: string }> => {
+    const response = await fetch(`${USERS_URL}/register/request-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Error al enviar el código de verificación');
+    }
+
+    return response.json();
+  },
+
+  // Step 2 of verified registration: verify the code and create the account.
+  verifyRegisterCode: async (email: string, code: string): Promise<User> => {
+    const response = await fetch(`${USERS_URL}/register/verify-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Código inválido o expirado');
+    }
+
+    return response.json();
+  },
+
+  // Sign in / sign up with a Google idToken
+  googleSignIn: async (idToken: string): Promise<User> => {
+    const response = await fetch(`${USERS_URL}/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Error al iniciar sesión con Google');
+    }
+
     return response.json();
   },
 
