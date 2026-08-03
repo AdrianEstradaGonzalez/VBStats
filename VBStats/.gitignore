@@ -35,6 +35,22 @@ local.properties
 !debug.keystore
 .kotlin/
 
+# Signing material — must never be committed.
+# The release keystore and its passwords were previously published in this repo.
+*.jks
+android/keystore.properties
+!android/keystore.properties.example
+
+# Firebase config (contains project identifiers tied to your account)
+android/app/google-services.json
+ios/**/GoogleService-Info.plist
+
+# Secrets
+.env
+.env.local
+!.env.example
+services/overrideApiUrl.ts
+
 # node.js
 #
 node_modules/

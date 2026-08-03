@@ -1,90 +1,115 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { scopeToUser, requireAuth } = require('../middleware/auth');
 
-// Get all legacy stats
-router.get('/', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM stats ORDER BY id DESC');
-  res.json(rows);
-});
+/**
+ * Resolves read access to a match's statistics.
+ *
+ * Allowed when the caller owns the match, or when the match has been explicitly
+ * shared (it has a share_code) — that is the free plan's "view a shared report"
+ * feature. Matches without a code stay private to their owner.
+ */
+async function canReadMatchStats(req, matchId) {
+  const [rows] = await pool.query('SELECT user_id, share_code FROM matches WHERE id = ? LIMIT 1', [matchId]);
+  if (rows.length === 0) return false;
+  if (rows[0].share_code) return true;
+  return !!req.auth.userId && rows[0].user_id === req.auth.userId;
+}
 
-// Create legacy stat
-router.post('/', async (req, res) => {
-  const { match_id, player_id, metric, value } = req.body;
-  if (!match_id || !player_id || !metric || value === undefined) {
-    return res.status(400).json({ error: 'match_id, player_id, metric, and value are required' });
-  }
-  const [result] = await pool.query(
-    'INSERT INTO stats (match_id, player_id, metric, value) VALUES (?, ?, ?, ?)',
-    [match_id, player_id, metric, value]
-  );
-  const [rows] = await pool.query('SELECT * FROM stats WHERE id = ?', [result.insertId]);
-  res.status(201).json(rows[0]);
-});
+function withMatchReadAccess(paramName = 'matchId') {
+  return async (req, res, next) => {
+    const matchId = Number(req.params[paramName]);
+    if (!Number.isInteger(matchId) || matchId <= 0) {
+      return res.status(400).json({ error: 'Invalid match id' });
+    }
+    try {
+      if (!(await canReadMatchStats(req, matchId))) {
+        return res.status(404).json({ error: 'Match not found' });
+      }
+      req.readableMatchId = matchId;
+      next();
+    } catch (err) {
+      console.error('Match stats access check failed:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+}
 
-// Get legacy stat by id
-router.get('/:id', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM stats WHERE id = ?', [req.params.id]);
-  if (!rows.length) return res.status(404).json({ error: 'not found' });
-  res.json(rows[0]);
-});
-
-// Delete legacy stat
-router.delete('/:id', async (req, res) => {
-  await pool.query('DELETE FROM stats WHERE id = ?', [req.params.id]);
-  res.status(204).end();
-});
-
-// ==================== MATCH STATS (New System) ====================
+// ==================== MATCH STATS ====================
 
 // Save multiple stats at once (batch save at end of set/match)
-router.post('/match-stats/batch', async (req, res) => {
+router.post('/match-stats/batch', scopeToUser, async (req, res) => {
   try {
     const { stats } = req.body;
-    
+
     if (!stats || !Array.isArray(stats) || stats.length === 0) {
       return res.status(400).json({ error: 'stats array is required' });
     }
 
-    // Para evitar errores de FK cuando los stat_setting_id no existen,
-    // buscamos o creamos settings válidos para cada stat
-    const processedStats = [];
-    
-    for (const s of stats) {
-      // Intentar encontrar un setting válido para este user/category/type
-      const [existingSettings] = await pool.query(
-        `SELECT id FROM stat_settings 
-         WHERE user_id = ? AND stat_category = ? AND stat_type = ? 
-         LIMIT 1`,
-        [s.user_id, s.stat_category, s.stat_type]
+    // Guard against an oversized payload wedging the connection pool.
+    if (stats.length > 5000) {
+      return res.status(413).json({ error: 'Too many stats in a single batch' });
+    }
+
+    const userId = req.effectiveUserId;
+
+    // Every stat must belong to a match the caller owns. Checked once per distinct
+    // match id rather than per row.
+    const matchIds = [...new Set(stats.map((s) => Number(s.match_id)).filter((n) => Number.isInteger(n) && n > 0))];
+    if (matchIds.length === 0) {
+      return res.status(400).json({ error: 'match_id is required on every stat' });
+    }
+    const [ownedMatches] = await pool.query(
+      'SELECT id FROM matches WHERE id IN (?) AND user_id = ?',
+      [matchIds, userId]
+    );
+    if (ownedMatches.length !== matchIds.length) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    // Same for players: they must belong to one of the caller's teams.
+    const playerIds = [...new Set(stats.map((s) => Number(s.player_id)).filter((n) => Number.isInteger(n) && n > 0))];
+    if (playerIds.length > 0) {
+      const [ownedPlayers] = await pool.query(
+        `SELECT p.id FROM players p JOIN teams t ON p.team_id = t.id
+         WHERE p.id IN (?) AND t.user_id = ?`,
+        [playerIds, userId]
       );
-      
-      let validSettingId = s.stat_setting_id;
-      
-      if (existingSettings.length > 0) {
-        // Usar el setting existente
-        validSettingId = existingSettings[0].id;
-      } else {
-        // Verificar si el stat_setting_id proporcionado existe
-        const [settingExists] = await pool.query(
-          'SELECT id FROM stat_settings WHERE id = ?',
-          [s.stat_setting_id]
-        );
-        
-        if (settingExists.length === 0) {
-          // El setting no existe, crear uno nuevo
-          const [newSetting] = await pool.query(
-            `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id) 
-             VALUES ('General', ?, ?, true, ?)`,
-            [s.stat_category, s.stat_type, s.user_id]
-          );
-          validSettingId = newSetting.insertId;
-          console.log(`Created new stat_setting (id: ${validSettingId}) for ${s.stat_category}/${s.stat_type}`);
-        }
+      if (ownedPlayers.length !== playerIds.length) {
+        return res.status(404).json({ error: 'Player not found' });
       }
-      
+    }
+
+    // Resolve stat_setting_id per category/type once, instead of issuing two or three
+    // queries for every single stat in the batch.
+    const [existingSettings] = await pool.query(
+      'SELECT id, stat_category, stat_type FROM stat_settings WHERE user_id = ?',
+      [userId]
+    );
+    const settingByKey = new Map(
+      existingSettings.map((s) => [`${s.stat_category}||${s.stat_type}`, s.id])
+    );
+
+    const processedStats = [];
+
+    for (const s of stats) {
+      const key = `${s.stat_category}||${s.stat_type}`;
+      let validSettingId = settingByKey.get(key);
+
+      if (!validSettingId) {
+        const [newSetting] = await pool.query(
+          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+           VALUES ('General', ?, ?, true, ?)
+           ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+          [s.stat_category, s.stat_type, userId]
+        );
+        validSettingId = newSetting.insertId;
+        settingByKey.set(key, validSettingId);
+      }
+
       processedStats.push([
-        s.user_id,
+        userId,
         s.match_id,
         s.player_id,
         s.set_number,
@@ -97,16 +122,16 @@ router.post('/match-stats/batch', async (req, res) => {
         s.puntos_visitante ?? 0,
       ]);
     }
-    
+
     const [result] = await pool.query(
-      `INSERT INTO match_stats (user_id, match_id, player_id, set_number, stat_setting_id, stat_category, stat_type, sets_local, sets_visitante, puntos_local, puntos_visitante) 
+      `INSERT INTO match_stats (user_id, match_id, player_id, set_number, stat_setting_id, stat_category, stat_type, sets_local, sets_visitante, puntos_local, puntos_visitante)
        VALUES ?`,
       [processedStats]
     );
-    
-    res.status(201).json({ 
-      success: true, 
-      inserted: result.affectedRows 
+
+    res.status(201).json({
+      success: true,
+      inserted: result.affectedRows
     });
   } catch (error) {
     console.error('Error saving batch stats:', error);
@@ -115,10 +140,10 @@ router.post('/match-stats/batch', async (req, res) => {
 });
 
 // Get match stats by match_id
-router.get('/match-stats/:matchId', async (req, res) => {
+router.get('/match-stats/:matchId', withMatchReadAccess('matchId'), async (req, res) => {
   try {
     const [stats] = await pool.query(`
-      SELECT 
+      SELECT
         ms.*,
         p.name as player_name,
         p.number as player_number,
@@ -127,8 +152,8 @@ router.get('/match-stats/:matchId', async (req, res) => {
       JOIN players p ON ms.player_id = p.id
       WHERE ms.match_id = ?
       ORDER BY ms.set_number, ms.created_at
-    `, [req.params.matchId]);
-    
+    `, [req.readableMatchId]);
+
     res.json(stats);
   } catch (error) {
     console.error('Error fetching match stats:', error);
@@ -137,25 +162,20 @@ router.get('/match-stats/:matchId', async (req, res) => {
 });
 
 // Get stats summary for a match
-router.get('/match-stats/:matchId/summary', async (req, res) => {
+router.get('/match-stats/:matchId/summary', withMatchReadAccess('matchId'), async (req, res) => {
   try {
-    const matchId = req.params.matchId;
-    
-    // Overall team summary by category and type
+    const matchId = req.readableMatchId;
+
     const [teamSummary] = await pool.query(`
-      SELECT 
-        stat_category,
-        stat_type,
-        COUNT(*) as total
+      SELECT stat_category, stat_type, COUNT(*) as total
       FROM match_stats
       WHERE match_id = ?
       GROUP BY stat_category, stat_type
       ORDER BY stat_category, stat_type
     `, [matchId]);
-    
-    // Per-player summary
+
     const [playerSummary] = await pool.query(`
-      SELECT 
+      SELECT
         ms.player_id,
         p.name as player_name,
         p.number as player_number,
@@ -169,23 +189,17 @@ router.get('/match-stats/:matchId/summary', async (req, res) => {
       GROUP BY ms.player_id, ms.stat_category, ms.stat_type
       ORDER BY p.name, ms.stat_category
     `, [matchId]);
-    
-    // Per-set summary
+
     const [setSummary] = await pool.query(`
-      SELECT 
-        set_number,
-        stat_category,
-        stat_type,
-        COUNT(*) as total
+      SELECT set_number, stat_category, stat_type, COUNT(*) as total
       FROM match_stats
       WHERE match_id = ?
       GROUP BY set_number, stat_category, stat_type
       ORDER BY set_number, stat_category
     `, [matchId]);
-    
-    // Per-player per-set summary
+
     const [playerSetSummary] = await pool.query(`
-      SELECT 
+      SELECT
         ms.set_number,
         ms.player_id,
         p.name as player_name,
@@ -198,24 +212,21 @@ router.get('/match-stats/:matchId/summary', async (req, res) => {
       GROUP BY ms.set_number, ms.player_id, ms.stat_category, ms.stat_type
       ORDER BY ms.set_number, p.name
     `, [matchId]);
-    
-    res.json({
-      teamSummary,
-      playerSummary,
-      setSummary,
-      playerSetSummary
-    });
+
+    res.json({ teamSummary, playerSummary, setSummary, playerSetSummary });
   } catch (error) {
     console.error('Error fetching stats summary:', error);
     res.status(500).json({ error: 'Failed to fetch stats summary' });
   }
 });
 
-// Get user's all-time stats
-router.get('/user/:userId/summary', async (req, res) => {
+// Get the authenticated user's all-time stats.
+// The :userId segment is kept for URL compatibility but the query is always scoped
+// to the session, so it can't be used to read another account's totals.
+router.get('/user/:userId/summary', requireAuth, async (req, res) => {
   try {
     const [summary] = await pool.query(`
-      SELECT 
+      SELECT
         ms.stat_category,
         ms.stat_type,
         COUNT(*) as total,
@@ -224,8 +235,8 @@ router.get('/user/:userId/summary', async (req, res) => {
       WHERE ms.user_id = ?
       GROUP BY ms.stat_category, ms.stat_type
       ORDER BY ms.stat_category, total DESC
-    `, [req.params.userId]);
-    
+    `, [req.auth.userId]);
+
     res.json(summary);
   } catch (error) {
     console.error('Error fetching user stats:', error);

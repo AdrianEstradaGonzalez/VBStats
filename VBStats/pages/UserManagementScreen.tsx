@@ -37,9 +37,8 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
   }, []);
 
   const loadUsers = async () => {
-    if (!userId) return;
     try {
-      const data = await adminService.getUsers(userId);
+      const data = await adminService.getUsers();
       setUsers(data);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -112,10 +111,10 @@ export default function UserManagementScreen({ onBack, userId }: UserManagementS
   };
 
   const handleDeleteUser = async () => {
-    if (!deleteTarget || !userId) return;
+    if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await adminService.deleteUser(userId, deleteTarget.id);
+      await adminService.deleteUser(deleteTarget.id);
       setUsers(prev => prev.filter(u => u.id !== deleteTarget.id));
       setDeleteTarget(null);
     } catch (error) {

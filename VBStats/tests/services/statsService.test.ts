@@ -1,8 +1,11 @@
 /**
  * Tests for Stats Service
  *
- * Covers: legacy stats, match stats (batch save, per-match, summary),
- * user stats summary, error handling.
+ * Covers: match stats (batch save, per-match, summary), user stats summary,
+ * error handling.
+ *
+ * The legacy `stats` table methods were removed along with their endpoints — they
+ * were unused by the app and returned every user's rows, so their tests went too.
  */
 
 import { statsService } from '../../services/statsService';
@@ -17,62 +20,7 @@ import {
 
 afterEach(() => clearFetchMock());
 
-const LEGACY_STATS = [
-  { id: 1, match_id: 1, player_id: 1, metric: 'aces', value: 3 },
-  { id: 2, match_id: 1, player_id: 2, metric: 'aces', value: 1 },
-  { id: 3, match_id: 2, player_id: 1, metric: 'kills', value: 5 },
-];
-
-// ─── Legacy stats ────────────────────────────────────────────────────
-
-describe('statsService legacy methods', () => {
-  test('getAll fetches all stats', async () => {
-    setFetchMock(mockFetchSuccess(LEGACY_STATS));
-    const stats = await statsService.getAll();
-    expect(stats).toHaveLength(3);
-  });
-
-  test('getByMatch filters by match_id (client-side)', async () => {
-    setFetchMock(mockFetchSuccess(LEGACY_STATS));
-    const stats = await statsService.getByMatch(1);
-    expect(stats).toHaveLength(2);
-    expect(stats.every(s => s.match_id === 1)).toBe(true);
-  });
-
-  test('getByPlayer filters by player_id (client-side)', async () => {
-    setFetchMock(mockFetchSuccess(LEGACY_STATS));
-    const stats = await statsService.getByPlayer(1);
-    expect(stats).toHaveLength(2);
-    expect(stats.every(s => s.player_id === 1)).toBe(true);
-  });
-
-  test('create sends correct payload', async () => {
-    const newStat = { id: 4, match_id: 3, player_id: 1, metric: 'digs', value: 7 };
-    const mock = setFetchMock(mockFetchSuccess(newStat));
-    const stat = await statsService.create({ match_id: 3, player_id: 1, metric: 'digs', value: 7 });
-    expect(stat.metric).toBe('digs');
-    expect(mock).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ method: 'POST' }),
-    );
-  });
-
-  test('delete calls correct endpoint', async () => {
-    const mock = setFetchMock(mockFetchSuccess({}));
-    await statsService.delete(1);
-    expect(mock).toHaveBeenCalledWith(
-      expect.stringContaining('/1'),
-      expect.objectContaining({ method: 'DELETE' }),
-    );
-  });
-
-  test('delete throws on error', async () => {
-    setFetchMock(mockFetchError({}, 500));
-    await expect(statsService.delete(999)).rejects.toThrow('Failed to delete stat');
-  });
-});
-
-// ─── Match Stats (new system) ────────────────────────────────────────
+// ─── Match Stats ─────────────────────────────────────────────────────
 
 describe('statsService match stats', () => {
   const MATCH_STATS = [
@@ -121,7 +69,10 @@ describe('statsService match stats', () => {
     const mock = setFetchMock(mockFetchSuccess(MATCH_STATS));
     const stats = await statsService.getMatchStats(10);
     expect(stats).toHaveLength(2);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/match-stats/10'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('/match-stats/10'),
+      expect.anything(),
+    );
   });
 
   test('getMatchStatsSummary fetches summary', async () => {
@@ -134,7 +85,10 @@ describe('statsService match stats', () => {
     const result = await statsService.getMatchStatsSummary(10);
     expect(result.summary).toHaveLength(1);
     expect(result.bySet).toHaveLength(1);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/match-stats/10/summary'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('/match-stats/10/summary'),
+      expect.anything(),
+    );
   });
 
   test('getUserStatsSummary fetches user aggregated stats', async () => {
@@ -146,6 +100,9 @@ describe('statsService match stats', () => {
     const result = await statsService.getUserStatsSummary(1);
     expect(result).toHaveLength(2);
     expect(result[0].total).toBe(42);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/user/1/summary'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('/user/1/summary'),
+      expect.anything(),
+    );
   });
 });

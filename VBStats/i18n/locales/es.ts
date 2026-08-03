@@ -666,6 +666,12 @@ const es = {
   },
 
   // Admin Panel
+  notifications: {
+    optInTitle: 'Activar notificaciones',
+    optInMessage: 'VBStats puede avisarte de novedades, mejoras y mensajes importantes del equipo. Puedes cambiarlo cuando quieras desde los ajustes del teléfono.',
+    optInAccept: 'Activar',
+    optInDecline: 'Ahora no',
+  },
   admin: {
     panelTitle: 'Panel Admin',
     panelSubtitle: 'Gestión de la aplicación',

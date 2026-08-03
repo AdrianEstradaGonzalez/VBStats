@@ -42,29 +42,35 @@ describe('matchesService.getAll', () => {
     expect(mock.mock.calls[0][0]).not.toContain('?');
   });
 
-  test('fetches with user_id filter', async () => {
+  test('never sends user_id: the server scopes to the session', async () => {
     const mock = setFetchMock(mockFetchSuccess([MATCH]));
     await matchesService.getAll({ user_id: 1 });
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('user_id=1'));
+    expect(mock.mock.calls[0][0] as string).not.toContain('user_id=');
   });
 
   test('fetches with status filter', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await matchesService.getAll({ status: 'finished' });
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('status=finished'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('status=finished'),
+      expect.anything(),
+    );
   });
 
   test('fetches with team_id filter', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await matchesService.getAll({ team_id: 2 });
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('team_id=2'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('team_id=2'),
+      expect.anything(),
+    );
   });
 
   test('combines multiple filters', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await matchesService.getAll({ user_id: 1, status: 'finished', team_id: 3 });
     const url = mock.mock.calls[0][0] as string;
-    expect(url).toContain('user_id=1');
+    expect(url).not.toContain('user_id=');
     expect(url).toContain('status=finished');
     expect(url).toContain('team_id=3');
   });
@@ -161,19 +167,19 @@ describe('matchesService.finishMatch', () => {
 // ─── getFinishedByUser / getInProgressByUser ─────────────────────────
 
 describe('matchesService convenience filters', () => {
-  test('getFinishedByUser calls getAll with correct filters', async () => {
+  test('getFinishedByUser filters by status only', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await matchesService.getFinishedByUser(5);
     const url = mock.mock.calls[0][0] as string;
-    expect(url).toContain('user_id=5');
+    expect(url).not.toContain('user_id=');
     expect(url).toContain('status=finished');
   });
 
-  test('getInProgressByUser calls getAll with correct filters', async () => {
+  test('getInProgressByUser filters by status only', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await matchesService.getInProgressByUser(5);
     const url = mock.mock.calls[0][0] as string;
-    expect(url).toContain('user_id=5');
+    expect(url).not.toContain('user_id=');
     expect(url).toContain('status=in_progress');
   });
 });

@@ -13,5 +13,10 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(react-native|@react-native|react-native-vector-icons|@react-native-async-storage|react-native-iap|react-native-svg|react-native-fs)/)',
   ],
+  moduleNameMapper: {
+    // Services now reach AsyncStorage through services/http.ts, so the native
+    // module has to be replaced before any of them is imported.
+    '^@react-native-async-storage/async-storage$': '<rootDir>/tests/helpers/asyncStorageMock.ts',
+  },
   setupFiles: ['<rootDir>/tests/helpers/setup.ts'],
 };

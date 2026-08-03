@@ -666,6 +666,12 @@ const en = {
   },
 
   // Admin Panel
+  notifications: {
+    optInTitle: 'Turn on notifications',
+    optInMessage: 'VBStats can let you know about news, improvements and important team messages. You can change this any time in your phone settings.',
+    optInAccept: 'Turn on',
+    optInDecline: 'Not now',
+  },
   admin: {
     panelTitle: 'Admin Panel',
     panelSubtitle: 'Application management',

@@ -36,7 +36,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('verify');
   const [code, setCode] = useState(['', '', '', '', '', '', '', '']);
-  const [fullToken, setFullToken] = useState('');
+  const [verifiedCode, setVerifiedCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -109,10 +109,12 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
     setMessage(null);
 
     try {
-      const result = await usersService.verifyResetToken(codeString);
-      
-      if (result.valid && result.fullToken) {
-        setFullToken(result.fullToken);
+      const result = await usersService.verifyResetToken(email, codeString);
+
+      if (result.valid) {
+        // The code itself is what the reset step consumes; the server no longer
+        // returns the underlying token.
+        setVerifiedCode(codeString);
         setMessage({ type: 'success', text: t('resetPassword.errors.codeVerified') });
         setTimeout(() => {
           setStep('reset');
@@ -153,7 +155,7 @@ export default function ResetPasswordScreen({ email, onBack, onSuccess }: ResetP
     setMessage(null);
 
     try {
-      await usersService.resetPassword(fullToken, newPassword);
+      await usersService.resetPassword(email, verifiedCode, newPassword);
       setMessage({ type: 'success', text: t('resetPassword.successMessage') });
       
       setTimeout(() => {

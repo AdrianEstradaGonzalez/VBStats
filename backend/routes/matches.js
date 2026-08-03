@@ -1,23 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { scopeToUser, requireMatchOwner } = require('../middleware/auth');
 
-// Get all matches (optionally filter by user_id)
-router.get('/', async (req, res) => {
+// Get all matches for the authenticated user
+router.get('/', scopeToUser, async (req, res) => {
   try {
-    const { user_id, status, team_id } = req.query;
+    const { status, team_id } = req.query;
     let query = `
-      SELECT m.*, t.name as team_name 
-      FROM matches m 
-      LEFT JOIN teams t ON m.team_id = t.id 
-      WHERE 1=1
+      SELECT m.*, t.name as team_name
+      FROM matches m
+      LEFT JOIN teams t ON m.team_id = t.id
+      WHERE m.user_id = ?
     `;
-    const params = [];
-    
-    if (user_id) {
-      query += ' AND m.user_id = ?';
-      params.push(user_id);
-    }
+    const params = [req.effectiveUserId];
+
     if (status) {
       query += ' AND m.status = ?';
       params.push(status);
@@ -26,9 +23,9 @@ router.get('/', async (req, res) => {
       query += ' AND m.team_id = ?';
       params.push(team_id);
     }
-    
+
     query += ' ORDER BY m.date DESC';
-    
+
     const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (error) {
@@ -38,34 +35,47 @@ router.get('/', async (req, res) => {
 });
 
 // Create a new match
-router.post('/', async (req, res) => {
+router.post('/', scopeToUser, async (req, res) => {
   try {
-    const { user_id, team_id, opponent, date, location, notes } = req.body;
-    
-    if (!user_id || !team_id) {
-      return res.status(400).json({ error: 'user_id and team_id are required' });
+    const { team_id, opponent, date, location, notes } = req.body;
+
+    const teamId = Number(team_id);
+    if (!Number.isInteger(teamId) || teamId <= 0) {
+      return res.status(400).json({ error: 'team_id is required' });
     }
-    
+
+    // The match must belong to one of the caller's own teams.
+    const [owned] = await pool.query(
+      'SELECT id FROM teams WHERE id = ? AND user_id = ?',
+      [teamId, req.effectiveUserId]
+    );
+    if (owned.length === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
     // Convert ISO date to MySQL DATETIME format
     let mysqlDate = new Date();
     if (date) {
-      mysqlDate = new Date(date);
+      const parsed = new Date(date);
+      if (!isNaN(parsed.getTime())) {
+        mysqlDate = parsed;
+      }
     }
     const formattedDate = mysqlDate.toISOString().slice(0, 19).replace('T', ' ');
-    
+
     const [result] = await pool.query(
-      `INSERT INTO matches (user_id, team_id, opponent, date, location, status, notes) 
+      `INSERT INTO matches (user_id, team_id, opponent, date, location, status, notes)
        VALUES (?, ?, ?, ?, ?, 'in_progress', ?)`,
-      [user_id, team_id, opponent || null, formattedDate, location || 'home', notes || null]
+      [req.effectiveUserId, teamId, opponent || null, formattedDate, location || 'home', notes || null]
     );
-    
+
     const [rows] = await pool.query(`
-      SELECT m.*, t.name as team_name 
-      FROM matches m 
-      LEFT JOIN teams t ON m.team_id = t.id 
+      SELECT m.*, t.name as team_name
+      FROM matches m
+      LEFT JOIN teams t ON m.team_id = t.id
       WHERE m.id = ?
     `, [result.insertId]);
-    
+
     res.status(201).json(rows[0]);
   } catch (error) {
     console.error('Error creating match:', error);
@@ -73,43 +83,27 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get a single match with full details
-router.get('/:id', async (req, res) => {
-  try {
-    const [matches] = await pool.query(`
-      SELECT m.*, t.name as team_name 
-      FROM matches m 
-      LEFT JOIN teams t ON m.team_id = t.id 
-      WHERE m.id = ?
-    `, [req.params.id]);
-    
-    if (!matches.length) {
-      return res.status(404).json({ error: 'Match not found' });
-    }
-    
-    res.json(matches[0]);
-  } catch (error) {
-    console.error('Error fetching match:', error);
-    res.status(500).json({ error: 'Failed to fetch match' });
-  }
-});
-
-// Get match by share code (for free account users)
+// Get match by share code.
+// Intentionally public: this is how free accounts open a report someone shared
+// with them. Only matches that have been explicitly given a code are reachable.
 router.get('/by-code/:code', async (req, res) => {
   try {
-    const code = req.params.code.toUpperCase();
-    
+    const code = String(req.params.code || '').toUpperCase();
+    if (!/^[A-Z0-9]{8}$/.test(code)) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
     const [matches] = await pool.query(`
-      SELECT m.*, t.name as team_name 
-      FROM matches m 
-      LEFT JOIN teams t ON m.team_id = t.id 
+      SELECT m.*, t.name as team_name
+      FROM matches m
+      LEFT JOIN teams t ON m.team_id = t.id
       WHERE m.share_code = ?
     `, [code]);
-    
+
     if (!matches.length) {
       return res.status(404).json({ error: 'Match not found' });
     }
-    
+
     res.json(matches[0]);
   } catch (error) {
     console.error('Error fetching match by code:', error);
@@ -117,36 +111,53 @@ router.get('/by-code/:code', async (req, res) => {
   }
 });
 
-// Generate share code for a match
-router.post('/:id/generate-code', async (req, res) => {
+// Get a single match with full details (owner only)
+router.get('/:id', requireMatchOwner('id'), async (req, res) => {
   try {
-    const matchId = req.params.id;
-    
-    // Generate unique code
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code;
-    let isUnique = false;
-    
-    while (!isUnique) {
-      code = '';
-      for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      
-      // Check if code is unique
-      const [existing] = await pool.query(
-        'SELECT id FROM matches WHERE share_code = ?',
-        [code]
-      );
-      isUnique = existing.length === 0;
+    const [matches] = await pool.query(`
+      SELECT m.*, t.name as team_name
+      FROM matches m
+      LEFT JOIN teams t ON m.team_id = t.id
+      WHERE m.id = ?
+    `, [req.match.id]);
+
+    res.json(matches[0]);
+  } catch (error) {
+    console.error('Error fetching match:', error);
+    res.status(500).json({ error: 'Failed to fetch match' });
+  }
+});
+
+// Generate share code for a match (owner only)
+router.post('/:id/generate-code', requireMatchOwner('id'), async (req, res) => {
+  try {
+    // Reuse the existing code so a link already shared keeps working.
+    if (req.match.share_code) {
+      return res.json({ share_code: req.match.share_code });
     }
-    
-    // Update match with new code
-    await pool.query(
-      'UPDATE matches SET share_code = ? WHERE id = ?',
-      [code, matchId]
-    );
-    
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = null;
+
+    // Bounded retries: the previous unbounded `while` could spin forever if the
+    // uniqueness query ever failed to converge.
+    for (let attempt = 0; attempt < 10 && !code; attempt++) {
+      let candidate = '';
+      for (let i = 0; i < 8; i++) {
+        candidate += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const [existing] = await pool.query('SELECT id FROM matches WHERE share_code = ?', [candidate]);
+      if (existing.length === 0) {
+        code = candidate;
+      }
+    }
+
+    if (!code) {
+      return res.status(500).json({ error: 'Failed to generate a unique share code' });
+    }
+
+    await pool.query('UPDATE matches SET share_code = ? WHERE id = ?', [code, req.match.id]);
+
     res.json({ share_code: code });
   } catch (error) {
     console.error('Error generating share code:', error);
@@ -155,13 +166,17 @@ router.post('/:id/generate-code', async (req, res) => {
 });
 
 // Update match (e.g., finish match, update sets)
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireMatchOwner('id'), async (req, res) => {
   try {
     const { status, total_sets, notes, score_home, score_away } = req.body;
     const updates = [];
     const params = [];
-    
+
     if (status !== undefined) {
+      const validStatuses = ['in_progress', 'finished', 'cancelled'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
       updates.push('status = ?');
       params.push(status);
       if (status === 'finished') {
@@ -184,25 +199,25 @@ router.put('/:id', async (req, res) => {
       updates.push('notes = ?');
       params.push(notes);
     }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
-    params.push(req.params.id);
-    
+
+    params.push(req.match.id);
+
     await pool.query(
       `UPDATE matches SET ${updates.join(', ')} WHERE id = ?`,
       params
     );
-    
+
     const [rows] = await pool.query(`
-      SELECT m.*, t.name as team_name 
-      FROM matches m 
-      LEFT JOIN teams t ON m.team_id = t.id 
+      SELECT m.*, t.name as team_name
+      FROM matches m
+      LEFT JOIN teams t ON m.team_id = t.id
       WHERE m.id = ?
-    `, [req.params.id]);
-    
+    `, [req.match.id]);
+
     res.json(rows[0]);
   } catch (error) {
     console.error('Error updating match:', error);
@@ -211,20 +226,17 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete a match and all its statistics
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireMatchOwner('id'), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    
-    // First delete all match_stats for this match
-    await connection.query('DELETE FROM match_stats WHERE match_id = ?', [req.params.id]);
-    console.log(`Deleted stats for match ${req.params.id}`);
-    
-    // Then delete the match
-    await connection.query('DELETE FROM matches WHERE id = ?', [req.params.id]);
-    console.log(`Deleted match ${req.params.id}`);
-    
+
+    await connection.query('DELETE FROM match_stats WHERE match_id = ?', [req.match.id]);
+    await connection.query('DELETE FROM match_states WHERE match_id = ?', [req.match.id]);
+    await connection.query('DELETE FROM matches WHERE id = ?', [req.match.id]);
+
     await connection.commit();
+    console.log(`Deleted match ${req.match.id} and its stats`);
     res.status(204).end();
   } catch (error) {
     await connection.rollback();
@@ -236,13 +248,12 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Get match statistics summary
-router.get('/:id/stats', async (req, res) => {
+router.get('/:id/stats', requireMatchOwner('id'), async (req, res) => {
   try {
-    const matchId = req.params.id;
-    
-    // Get all stats for this match
+    const matchId = req.match.id;
+
     const [stats] = await pool.query(`
-      SELECT 
+      SELECT
         ms.*,
         p.name as player_name,
         p.number as player_number,
@@ -252,10 +263,9 @@ router.get('/:id/stats', async (req, res) => {
       WHERE ms.match_id = ?
       ORDER BY ms.set_number, ms.created_at
     `, [matchId]);
-    
-    // Get summary by player and category
+
     const [summary] = await pool.query(`
-      SELECT 
+      SELECT
         ms.player_id,
         p.name as player_name,
         p.number as player_number,
@@ -269,10 +279,9 @@ router.get('/:id/stats', async (req, res) => {
       GROUP BY ms.player_id, ms.stat_category, ms.stat_type
       ORDER BY p.name, ms.stat_category, ms.stat_type
     `, [matchId]);
-    
-    // Get summary by set
+
     const [bySet] = await pool.query(`
-      SELECT 
+      SELECT
         ms.set_number,
         ms.player_id,
         p.name as player_name,
@@ -285,12 +294,8 @@ router.get('/:id/stats', async (req, res) => {
       GROUP BY ms.set_number, ms.player_id, ms.stat_category, ms.stat_type
       ORDER BY ms.set_number, p.name
     `, [matchId]);
-    
-    res.json({
-      stats,
-      summary,
-      bySet
-    });
+
+    res.json({ stats, summary, bySet });
   } catch (error) {
     console.error('Error fetching match stats:', error);
     res.status(500).json({ error: 'Failed to fetch match stats' });
@@ -298,11 +303,11 @@ router.get('/:id/stats', async (req, res) => {
 });
 
 // Save match state (for resuming matches)
-router.put('/:id/state', async (req, res) => {
+router.put('/:id/state', requireMatchOwner('id'), async (req, res) => {
   try {
-    const matchId = req.params.id;
+    const matchId = req.match.id;
     const { positions, current_set, is_set_active, action_history, pending_stats } = req.body;
-    
+
     const stateJson = JSON.stringify({
       positions,
       current_set,
@@ -310,27 +315,16 @@ router.put('/:id/state', async (req, res) => {
       action_history,
       pending_stats
     });
-    
-    // Check if state already exists
-    const [existing] = await pool.query(
-      'SELECT id FROM match_states WHERE match_id = ?',
-      [matchId]
+
+    // Single statement instead of SELECT-then-INSERT/UPDATE: two devices saving at
+    // once could both see "no row" and race to insert.
+    await pool.query(
+      `INSERT INTO match_states (match_id, state_json)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE state_json = VALUES(state_json), updated_at = NOW()`,
+      [matchId, stateJson]
     );
-    
-    if (existing.length > 0) {
-      // Update existing state
-      await pool.query(
-        'UPDATE match_states SET state_json = ?, updated_at = NOW() WHERE match_id = ?',
-        [stateJson, matchId]
-      );
-    } else {
-      // Insert new state
-      await pool.query(
-        'INSERT INTO match_states (match_id, state_json) VALUES (?, ?)',
-        [matchId, stateJson]
-      );
-    }
-    
+
     console.log(`Match state saved for match ${matchId}`);
     res.json({ success: true });
   } catch (error) {
@@ -340,30 +334,29 @@ router.put('/:id/state', async (req, res) => {
 });
 
 // Get match state (for resuming matches)
-router.get('/:id/state', async (req, res) => {
+router.get('/:id/state', requireMatchOwner('id'), async (req, res) => {
   try {
-    const matchId = req.params.id;
-    
+    const matchId = req.match.id;
+
     const [rows] = await pool.query(
       'SELECT state_json FROM match_states WHERE match_id = ?',
       [matchId]
     );
-    
+
     if (!rows.length) {
       return res.status(404).json({ error: 'No state found for this match' });
     }
-    
+
     // MySQL JSON columns are auto-parsed by mysql2, handle both cases
     const stateJson = rows[0].state_json;
-    const state = typeof stateJson === 'string' ? JSON.parse(stateJson) : stateJson;
-    
-    console.log(`Match state retrieved for match ${matchId}:`, {
-      positions: state.positions?.filter(p => p.playerId).length || 0,
-      current_set: state.current_set,
-      is_set_active: state.is_set_active,
-      pending_stats: state.pending_stats?.length || 0
-    });
-    
+    let state;
+    try {
+      state = typeof stateJson === 'string' ? JSON.parse(stateJson) : stateJson;
+    } catch (parseErr) {
+      console.error(`Corrupt match state for match ${matchId}:`, parseErr);
+      return res.status(404).json({ error: 'No state found for this match' });
+    }
+
     res.json(state);
   } catch (error) {
     console.error('Error fetching match state:', error);
@@ -372,9 +365,9 @@ router.get('/:id/state', async (req, res) => {
 });
 
 // Delete match state when match is finished
-router.delete('/:id/state', async (req, res) => {
+router.delete('/:id/state', requireMatchOwner('id'), async (req, res) => {
   try {
-    await pool.query('DELETE FROM match_states WHERE match_id = ?', [req.params.id]);
+    await pool.query('DELETE FROM match_states WHERE match_id = ?', [req.match.id]);
     res.status(204).end();
   } catch (error) {
     console.error('Error deleting match state:', error);

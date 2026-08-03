@@ -222,16 +222,10 @@ async function init() {
       }
     }
 
-    // Create default test user if not exists
-    try {
-      await conn.query(`
-        INSERT INTO users (email, password, name) 
-        VALUES ('test@vbstats.com', 'test123', 'Usuario de Prueba')
-        ON DUPLICATE KEY UPDATE name = name;
-      `);
-    } catch (err) {
-      console.error('Error creating test user:', err);
-    }
+    // NOTE: a seeded `test@vbstats.com` account used to be created here with the
+    // password stored in plain text *and* the superadmin flag. Those credentials were
+    // public (this repo), so anyone could sign in with full admin rights. Removed.
+    // See `scripts/make_superadmin.js` to grant admin to a real account.
 
     // Add session_token column to users table if it doesn't exist
     try {
@@ -328,6 +322,20 @@ async function init() {
       }
     }
 
+    // Match state snapshots, used to resume an interrupted match.
+    // Created here (not only in db/create_match_states.sql) so a fresh deploy can't
+    // end up without it and silently lose in-progress matches.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS match_states (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        match_id INT NOT NULL UNIQUE,
+        state_json JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
     // Push notification tokens table
     await conn.query(`
       CREATE TABLE IF NOT EXISTS push_tokens (
@@ -351,10 +359,20 @@ async function init() {
         body TEXT NOT NULL,
         sent_by INT NOT NULL,
         recipients_count INT DEFAULT 0,
+        audience VARCHAR(20) NOT NULL DEFAULT 'all',
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (sent_by) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB;
     `);
+
+    // Added later: which segment a notification targeted
+    try {
+      await conn.query(`ALTER TABLE admin_notifications ADD COLUMN audience VARCHAR(20) NOT NULL DEFAULT 'all' AFTER recipients_count;`);
+    } catch (err) {
+      if (err.code !== 'ER_DUP_FIELDNAME') {
+        console.error('Error adding audience column to admin_notifications:', err);
+      }
+    }
 
     // Add last_login_at column to users table
     try {
@@ -383,13 +401,32 @@ async function init() {
       }
     }
 
-    // Ensure known superadmins have the flag set
+    // Superadmins come from the environment so the list isn't baked into a public repo
+    // and so a seeded address can't silently regain admin after being revoked.
+    // e.g. SUPERADMIN_EMAILS=you@example.com,other@example.com
+    const superadminEmails = (process.env.SUPERADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (superadminEmails.length > 0) {
+      try {
+        await conn.query(
+          `UPDATE users SET is_superadmin = TRUE WHERE LOWER(email) IN (?)`,
+          [superadminEmails]
+        );
+      } catch (err) {
+        console.error('Error seeding superadmin flags:', err);
+      }
+    }
+
+    // Revoke the flag from the removed seed account, in case it is still set in prod.
     try {
       await conn.query(
-        `UPDATE users SET is_superadmin = TRUE WHERE email IN ('adrian.estrada2001@gmail.com', 'test@vbstats.com', 'diegocharro27@gmail.com');`
+        `UPDATE users SET is_superadmin = FALSE WHERE email = 'test@vbstats.com';`
       );
     } catch (err) {
-      console.error('Error seeding superadmin flags:', err);
+      console.error('Error revoking test account admin flag:', err);
     }
 
   } finally {

@@ -1,0 +1,23 @@
+# Secrets — never commit these.
+# backend/.env was previously committed to this public repository; every credential
+# it contained (MySQL, Stripe live key, Gmail app password, Apple shared secret)
+# must be rotated.
+.env
+.env.*
+!.env.example
+**/.env
+!**/.env.example
+
+# Firebase service account (grants send rights on the whole project)
+firebase-service-account*.json
+**/firebase-service-account*.json
+
+# Signing material
+*.jks
+*.keystore
+!**/debug.keystore
+**/keystore.properties
+!**/keystore.properties.example
+
+node_modules/
+.DS_Store

@@ -203,7 +203,9 @@ export default function MatchFieldScreen({
     positions: [] as Position[],
     currentSet: 0,
     isSetActive: false,
-    actionHistory: [] as { type: 'start_set' | 'end_set' | 'add_stat'; data: any; timestamp: number; }[],
+    // Must match the actionHistory state union, which also carries 'add_point'
+    // (scoreboard points). Leaving it out made this ref assignment a type error.
+    actionHistory: [] as { type: 'start_set' | 'end_set' | 'add_stat' | 'add_point'; data: any; timestamp: number; }[],
     pendingStats: [] as StatAction[],
     isRestoringState: !!resumeMatchId,
     scoreLocal: 0,

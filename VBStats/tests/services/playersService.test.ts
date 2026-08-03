@@ -57,7 +57,10 @@ describe('playersService.getByTeam', () => {
     const mock = setFetchMock(mockFetchSuccess(team1Players));
     const players = await playersService.getByTeam(1);
     expect(players).toHaveLength(2);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('team_id=1'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('team_id=1'),
+      expect.anything(),
+    );
   });
 
   test('falls back to client-side filtering on server error', async () => {
