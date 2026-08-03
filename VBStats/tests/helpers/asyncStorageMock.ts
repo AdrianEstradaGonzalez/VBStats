@@ -33,6 +33,10 @@ const AsyncStorageMock = {
   __reset: () => store.clear(),
 };
 
+// The real package exposes the store as both a default and a namespace export;
+// mirroring that keeps `import AsyncStorage from '...'` working under ts-jest.
+export const getItem = AsyncStorageMock.getItem;
+export const setItem = AsyncStorageMock.setItem;
+export const removeItem = AsyncStorageMock.removeItem;
+
 export default AsyncStorageMock;
-module.exports = AsyncStorageMock;
-module.exports.default = AsyncStorageMock;
