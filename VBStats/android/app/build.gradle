@@ -109,7 +109,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Bumped for the auth rework: the rollout plan relies on raising
         // MIN_APP_VERSION to 5.1 to force clients onto the token-authenticated build.
-        versionCode 27
+        // 27 was the locally built test APK; 28 is the bundle uploaded to Play.
+        versionCode 28
         versionName "5.1"
     }
     // Release signing credentials come from android/keystore.properties, which is
