@@ -2,22 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
+const { scopeToUser } = require('../middleware/auth');
 
-// Get all settings for a user
-router.get('/', async (req, res) => {
+// Stat settings are per-user. The user id always comes from the session, so a
+// request can neither read nor overwrite another account's configuration.
+// Global rows (user_id IS NULL) remain readable as the shared default template.
+
+// Get all settings for the authenticated user
+router.get('/', scopeToUser, async (req, res) => {
   try {
-    const userId = req.query.userId;
-    let query = 'SELECT * FROM stat_settings';
-    const params = [];
-    
-    if (userId) {
-      query += ' WHERE user_id = ?';
-      params.push(userId);
-    }
-    
-    query += ' ORDER BY position, stat_category, stat_type';
-    
-    const [rows] = await pool.query(query, params);
+    const [rows] = await pool.query(
+      'SELECT * FROM stat_settings WHERE user_id = ? ORDER BY position, stat_category, stat_type',
+      [req.effectiveUserId]
+    );
     res.json(rows);
   } catch (err) {
     console.error('Error fetching settings:', err);
@@ -25,75 +22,58 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get settings by position for a user
-router.get('/position/:position', async (req, res) => {
+// Get settings by position for the authenticated user
+router.get('/position/:position', scopeToUser, async (req, res) => {
   try {
-    const userId = req.query.userId;
     const position = req.params.position;
-    
-    if (userId) {
-      // Buscar configuraciones específicas del usuario
-      const [userSettings] = await retryQuery(() =>
-        pool.query(
-          'SELECT * FROM stat_settings WHERE position = ? AND user_id = ? ORDER BY stat_category, stat_type',
-          [position, userId]
-        )
-      );
-      
-      // Si el usuario tiene configuraciones personalizadas, usarlas
-      if (userSettings.length > 0) {
-        return res.json(userSettings);
-      }
-      
-      // Si no tiene configuraciones personalizadas, devolver las globales
-      const [globalSettings] = await retryQuery(() =>
-        pool.query(
-          'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
-          [position]
-        )
-      );
-      return res.json(globalSettings);
-    } else {
-      // Sin userId, devolver solo configuraciones globales
-      const [rows] = await retryQuery(() =>
-        pool.query(
-          'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
-          [position]
-        )
-      );
-      res.json(rows);
+
+    const [userSettings] = await retryQuery(() =>
+      pool.query(
+        'SELECT * FROM stat_settings WHERE position = ? AND user_id = ? ORDER BY stat_category, stat_type',
+        [position, req.effectiveUserId]
+      )
+    );
+
+    if (userSettings.length > 0) {
+      return res.json(userSettings);
     }
+
+    // Fall back to the shared defaults when the user has nothing configured yet.
+    const [globalSettings] = await retryQuery(() =>
+      pool.query(
+        'SELECT * FROM stat_settings WHERE position = ? AND user_id IS NULL ORDER BY stat_category, stat_type',
+        [position]
+      )
+    );
+    res.json(globalSettings);
   } catch (err) {
     console.error('Error fetching position settings:', err);
     res.status(500).json({ error: 'Failed to fetch position settings' });
   }
 });
 
-// Create or update setting
-router.post('/', async (req, res) => {
+// Create or update one setting
+router.post('/', scopeToUser, async (req, res) => {
   try {
-    const { position, stat_category, stat_type, enabled, user_id } = req.body;
-    
-    const [result] = await pool.query(
+    const { position, stat_category, stat_type, enabled } = req.body;
+
+    if (!position || !stat_category || !stat_type) {
+      return res.status(400).json({ error: 'position, stat_category and stat_type are required' });
+    }
+
+    await pool.query(
       `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
        VALUES (?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
-      [position, stat_category, stat_type, enabled, user_id || null]
+      [position, stat_category, stat_type, !!enabled, req.effectiveUserId]
     );
-    
-    // Fetch the inserted/updated row
-    let query = 'SELECT * FROM stat_settings WHERE position = ? AND stat_category = ? AND stat_type = ?';
-    const params = [position, stat_category, stat_type];
-    
-    if (user_id) {
-      query += ' AND user_id = ?';
-      params.push(user_id);
-    } else {
-      query += ' AND user_id IS NULL';
-    }
-    
-    const [rows] = await pool.query(query, params);
-    
+
+    const [rows] = await pool.query(
+      `SELECT * FROM stat_settings
+       WHERE position = ? AND stat_category = ? AND stat_type = ? AND user_id = ?`,
+      [position, stat_category, stat_type, req.effectiveUserId]
+    );
+
     res.json(rows[0]);
   } catch (err) {
     console.error('Error saving setting:', err);
@@ -102,38 +82,27 @@ router.post('/', async (req, res) => {
 });
 
 // Batch update settings
-router.post('/batch', async (req, res) => {
+router.post('/batch', scopeToUser, async (req, res) => {
   try {
-    const { settings, user_id } = req.body; // array of {position, stat_category, stat_type, enabled}
-    
+    const { settings } = req.body;
+
+    if (!Array.isArray(settings) || settings.length === 0) {
+      return res.status(400).json({ error: 'settings array is required' });
+    }
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      
-      // Si es un usuario específico, primero verificamos si ya tiene configuraciones personalizadas
-      if (user_id) {
-        // Para cada configuración, verificar si el usuario ya la tiene personalizada
-        for (const setting of settings) {
-          // Intentar insertar, si existe actualizar solo el enabled
-          await conn.query(
-            `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-             VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
-            [setting.position, setting.stat_category, setting.stat_type, setting.enabled, user_id]
-          );
-        }
-      } else {
-        // Para configuraciones globales (user_id IS NULL)
-        for (const setting of settings) {
-          await conn.query(
-            `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-             VALUES (?, ?, ?, ?, NULL)
-             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
-            [setting.position, setting.stat_category, setting.stat_type, setting.enabled]
-          );
-        }
+
+      for (const setting of settings) {
+        await conn.query(
+          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
+          [setting.position, setting.stat_category, setting.stat_type, !!setting.enabled, req.effectiveUserId]
+        );
       }
-      
+
       await conn.commit();
       res.json({ message: 'Settings updated successfully' });
     } catch (err) {
@@ -148,10 +117,16 @@ router.post('/batch', async (req, res) => {
   }
 });
 
-// Delete setting
-router.delete('/:id', async (req, res) => {
+// Delete one of your own settings
+router.delete('/:id', scopeToUser, async (req, res) => {
   try {
-    await pool.query('DELETE FROM stat_settings WHERE id = ?', [req.params.id]);
+    const [result] = await pool.query(
+      'DELETE FROM stat_settings WHERE id = ? AND user_id = ?',
+      [req.params.id, req.effectiveUserId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Setting not found' });
+    }
     res.json({ message: 'Setting deleted' });
   } catch (err) {
     console.error('Error deleting setting:', err);
@@ -159,49 +134,40 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Initialize default settings for a position and user
-router.post('/init/:position', async (req, res) => {
+// Initialize default settings for a position
+router.post('/init/:position', scopeToUser, async (req, res) => {
   try {
     const { position } = req.params;
-    const { user_id } = req.body;
 
     const positionStats = StatTemplates.getPositionStats()[position];
     if (!positionStats) {
       return res.status(400).json({ error: 'Invalid position' });
     }
-    
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      
+
       for (const stat of positionStats) {
         for (const type of stat.types) {
           await conn.query(
             `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
              VALUES (?, ?, ?, TRUE, ?)
              ON DUPLICATE KEY UPDATE enabled = enabled`,
-            [position, stat.category, type, user_id || null]
+            [position, stat.category, type, req.effectiveUserId]
           );
         }
       }
-      
+
       await conn.commit();
-      
-      // Return the initialized settings with retry
-      let query = 'SELECT * FROM stat_settings WHERE position = ?';
-      const params = [position];
-      
-      if (user_id) {
-        query += ' AND user_id = ?';
-        params.push(user_id);
-      } else {
-        query += ' AND user_id IS NULL';
-      }
-      
-      query += ' ORDER BY stat_category, stat_type';
-      
-      const [rows] = await retryQuery(() => pool.query(query, params));
-      
+
+      const [rows] = await retryQuery(() =>
+        pool.query(
+          'SELECT * FROM stat_settings WHERE position = ? AND user_id = ? ORDER BY stat_category, stat_type',
+          [position, req.effectiveUserId]
+        )
+      );
+
       res.json(rows);
     } catch (err) {
       await conn.rollback();
@@ -215,41 +181,33 @@ router.post('/init/:position', async (req, res) => {
   }
 });
 
-// Apply basic configuration (template-defined)
-router.post('/apply-basic', async (req, res) => {
+/** Replaces the caller's whole configuration with one of the built-in templates. */
+async function applyTemplate(userId, templateSettings) {
+  const conn = await pool.getConnection();
   try {
-    const { user_id } = req.body;
-    
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id is required' });
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [userId]);
+    for (const setting of templateSettings) {
+      await conn.query(
+        `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [setting.position, setting.stat_category, setting.stat_type, setting.enabled, userId]
+      );
     }
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
 
-    const basicSettings = StatTemplates.getBasicSettings();
-    
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      
-      // Delete existing user settings
-      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
-      
-      // Apply basic template
-      for (const setting of basicSettings) {
-        await conn.query(
-          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-           VALUES (?, ?, ?, ?, ?)`,
-          [setting.position, setting.stat_category, setting.stat_type, setting.enabled, user_id]
-        );
-      }
-      
-      await conn.commit();
-      res.json({ message: 'Basic configuration applied successfully' });
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
+// Apply basic configuration (template-defined)
+router.post('/apply-basic', scopeToUser, async (req, res) => {
+  try {
+    await applyTemplate(req.effectiveUserId, StatTemplates.getBasicSettings());
+    res.json({ message: 'Basic configuration applied successfully' });
   } catch (err) {
     console.error('Error applying basic config:', err);
     res.status(500).json({ error: 'Failed to apply basic configuration' });
@@ -257,40 +215,10 @@ router.post('/apply-basic', async (req, res) => {
 });
 
 // Apply advanced configuration (all options enabled)
-router.post('/apply-advanced', async (req, res) => {
+router.post('/apply-advanced', scopeToUser, async (req, res) => {
   try {
-    const { user_id } = req.body;
-    
-    if (!user_id) {
-      return res.status(400).json({ error: 'user_id is required' });
-    }
-
-    const advancedSettings = StatTemplates.getAdvancedSettings();
-    
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      
-      // Delete existing user settings
-      await conn.query('DELETE FROM stat_settings WHERE user_id = ?', [user_id]);
-      
-      // Insert all settings with template values
-      for (const setting of advancedSettings) {
-        await conn.query(
-          `INSERT INTO stat_settings (position, stat_category, stat_type, enabled, user_id)
-           VALUES (?, ?, ?, ?, ?)`,
-          [setting.position, setting.stat_category, setting.stat_type, setting.enabled, user_id]
-        );
-      }
-      
-      await conn.commit();
-      res.json({ message: 'Advanced configuration applied successfully' });
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
+    await applyTemplate(req.effectiveUserId, StatTemplates.getAdvancedSettings());
+    res.json({ message: 'Advanced configuration applied successfully' });
   } catch (err) {
     console.error('Error applying advanced config:', err);
     res.status(500).json({ error: 'Failed to apply advanced configuration' });

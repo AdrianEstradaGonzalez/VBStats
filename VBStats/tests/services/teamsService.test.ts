@@ -1,7 +1,11 @@
 /**
  * Tests for Teams Service
  *
- * Covers: CRUD operations, user scoping, error handling.
+ * Covers: CRUD operations, error handling.
+ *
+ * User scoping is no longer asserted here: the server derives the owner from the
+ * session token, so the client must NOT put a user id in the URL or body. The tests
+ * below check that it doesn't.
  */
 
 import { teamsService } from '../../services/teamsService';
@@ -28,8 +32,11 @@ describe('teamsService.getAll', () => {
     const teams = await teamsService.getAll(1);
     expect(teams).toHaveLength(2);
     expect(teams[0].name).toBe('Eagles');
-    // Check user_id is sent as query param
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('user_id=1'));
+    // The user id must not be sent: the server takes it from the session.
+    expect(mock).toHaveBeenCalledWith(
+      expect.not.stringContaining('user_id='),
+      expect.anything(),
+    );
   });
 
   test('returns empty array when user has no teams', async () => {
@@ -51,7 +58,10 @@ describe('teamsService.getById', () => {
     const mock = setFetchMock(mockFetchSuccess(TEAMS[0]));
     const team = await teamsService.getById(1, 1);
     expect(team.name).toBe('Eagles');
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/1?user_id=1'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('/1'),
+      expect.anything(),
+    );
   });
 
   test('throws on 404', async () => {
@@ -73,7 +83,7 @@ describe('teamsService.create', () => {
       expect.any(String),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ name: 'Ravens', user_id: 1 }),
+        body: JSON.stringify({ name: 'Ravens' }),
       }),
     );
   });
@@ -107,7 +117,7 @@ describe('teamsService.delete', () => {
     const mock = setFetchMock(mockFetchSuccess({}));
     await teamsService.delete(1, 1);
     expect(mock).toHaveBeenCalledWith(
-      expect.stringContaining('/1?user_id=1'),
+      expect.stringContaining('/1'),
       expect.objectContaining({ method: 'DELETE' }),
     );
   });

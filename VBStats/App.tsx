@@ -42,6 +42,9 @@ import { checkAppVersion, VersionCheckResult } from "./services/versionService";
 import { appleIAPService } from "./services/appleIAPService";
 import { adminService } from "./services/adminService";
 import { notificationService } from "./services/notificationService";
+// Aliased: the component already has a `setSessionToken` React state setter, and an
+// unaliased import would be shadowed by it inside the component body.
+import { setSessionToken as persistAuthToken, loadSessionToken } from "./services/http";
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode' | 'adminPanel' | 'sendNotification' | 'userManagement';
 
@@ -97,6 +100,8 @@ export default function App() {
   const [showUpdateAlert, setShowUpdateAlert] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<VersionCheckResult | null>(null);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [showNotificationOptIn, setShowNotificationOptIn] = useState(false);
+  const [foregroundNotification, setForegroundNotification] = useState<{ title: string; body: string } | null>(null);
   const screenHistoryRef = useRef<Screen[]>([]);
   const isBackNavigationRef = useRef(false);
   const previousScreenRef = useRef<Screen>('home');
@@ -196,9 +201,14 @@ export default function App() {
 
   const loadSavedSession = async () => {
     try {
+      // The bearer token has to be in place before any API call is made, otherwise
+      // the session check below goes out unauthenticated and fails.
+      await loadSessionToken();
+
       const savedSession = await AsyncStorage.getItem(STORAGE_KEYS.USER_SESSION);
       if (savedSession) {
         const session: StoredSession = JSON.parse(savedSession);
+        await persistAuthToken(session.sessionToken);
         // Verify session is still valid on server
         try {
           const currentSession = await usersService.getSession(session.userId);
@@ -212,6 +222,7 @@ export default function App() {
           } else {
             // Session invalidated (logged in elsewhere), clear stored session
             await AsyncStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+            await persistAuthToken(null);
           }
         } catch (error) {
           console.warn('Error verifying session, keeping local session:', error);
@@ -233,6 +244,7 @@ export default function App() {
   const saveSession = async (session: StoredSession) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(session));
+      await persistAuthToken(session.sessionToken);
     } catch (error) {
       console.error('Error saving session:', error);
     }
@@ -241,6 +253,7 @@ export default function App() {
   const clearSession = async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+      await persistAuthToken(null);
     } catch (error) {
       console.error('Error clearing session:', error);
     }
@@ -252,11 +265,59 @@ export default function App() {
       loadTeams();
       loadSubscription();
       // Check superadmin status
-      adminService.isSuperadmin(userId).then(setIsSuperadmin);
-      // Register push notification token
-      notificationService.registerForPushNotifications(userId);
+      adminService.isSuperadmin().then(setIsSuperadmin);
+
+      // Notifications: never prompt silently. If the user has already answered we
+      // just refresh the token; otherwise we show our own explanation first and only
+      // then hand over to the OS dialog (which can only be shown once on iOS).
+      (async () => {
+        try {
+          const alreadyAsked = await notificationService.hasBeenPrompted();
+          if (alreadyAsked) {
+            await notificationService.syncTokenIfAlreadyGranted();
+          } else {
+            setShowNotificationOptIn(true);
+          }
+        } catch (error) {
+          console.error('Error preparing notifications:', error);
+        }
+      })();
     }
   }, [isLoggedIn, userId]);
+
+  // Keep the server's copy of the FCM token current; it can rotate at any time.
+  useEffect(() => {
+    if (!isLoggedIn || !userId) return;
+    const unsubscribeRefresh = notificationService.onTokenRefresh();
+    const unsubscribeForeground = notificationService.onForegroundMessage((message) => {
+      if (message.title || message.body) {
+        setForegroundNotification({ title: message.title || '', body: message.body || '' });
+      }
+    });
+    return () => {
+      unsubscribeRefresh();
+      unsubscribeForeground();
+    };
+  }, [isLoggedIn, userId]);
+
+  const handleAcceptNotifications = async () => {
+    setShowNotificationOptIn(false);
+    try {
+      await notificationService.requestPermissionAndRegister();
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  const handleDeclineNotifications = async () => {
+    setShowNotificationOptIn(false);
+    // Record the answer so we don't ask again on every login.
+    try {
+      await AsyncStorage.setItem('@VBStats:pushPrompted', 'true');
+    } catch (error) {
+      console.error('Error saving notification preference:', error);
+    }
+  };
 
   const loadSubscription = async () => {
     if (!userId) return;
@@ -585,9 +646,14 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    // Clear saved session first
-    await clearSession();
-    
+    // Drop this device's push token first, while the session is still valid —
+    // otherwise the next account signing in on this phone would inherit it.
+    try {
+      await notificationService.unregister();
+    } catch (error) {
+      console.warn('Error unregistering push token (ignored):', error);
+    }
+
     if (userId) {
       try {
         await usersService.logout(userId);
@@ -595,6 +661,10 @@ export default function App() {
         console.warn('Logout error (ignored):', error);
       }
     }
+
+    // Clear the stored session and bearer token last, after the authenticated
+    // logout/unregister calls have gone out.
+    await clearSession();
     setIsLoggedIn(false);
     setUserId(null);
     setUserName("");
@@ -1059,6 +1129,45 @@ export default function App() {
           )}
         </>
       )}
+
+      {/* Notification opt-in: our own explanation, shown before the OS dialog */}
+      <CustomAlert
+        visible={showNotificationOptIn}
+        title={t('notifications.optInTitle')}
+        message={t('notifications.optInMessage')}
+        type="default"
+        icon={<MaterialCommunityIcons name="bell-ring-outline" size={32} color={Colors.primary} />}
+        buttons={[
+          {
+            text: t('notifications.optInDecline'),
+            onPress: handleDeclineNotifications,
+            style: 'cancel',
+          },
+          {
+            text: t('notifications.optInAccept'),
+            onPress: handleAcceptNotifications,
+            style: 'primary',
+          },
+        ]}
+        onClose={handleDeclineNotifications}
+      />
+
+      {/* In-app banner for a notification received while the app is open */}
+      <CustomAlert
+        visible={!!foregroundNotification}
+        title={foregroundNotification?.title || ''}
+        message={foregroundNotification?.body || ''}
+        type="default"
+        icon={<MaterialCommunityIcons name="bell" size={32} color={Colors.primary} />}
+        buttons={[
+          {
+            text: t('common.understood'),
+            onPress: () => setForegroundNotification(null),
+            style: 'default',
+          },
+        ]}
+        onClose={() => setForegroundNotification(null)}
+      />
 
       <CustomAlert
         visible={showSessionAlert}

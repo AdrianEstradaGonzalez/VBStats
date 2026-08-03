@@ -698,6 +698,8 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
       const result = await exportMatchToExcel({
         matchInfo,
         dateStr,
+        teamName: match.team_name || undefined,
+        opponentName: match.opponent || undefined,
         scoreHome: match.score_home,
         scoreAway: match.score_away,
         location: match.location === 'home' ? 'home' : 'away',
@@ -707,13 +709,21 @@ export default function MatchStatsScreen({ match, onBack, onOpenMenu, subscripti
         statsByCategory,
         orderedCategoryKeys,
         playerStats,
+        // Carry the scoreboard context through: it lets the workbook rebuild the
+        // set-by-set score and the point progression, which used to be dropped here.
         rawStats: (statsData?.stats || []).map(stat => ({
           set_number: stat.set_number,
           player_id: stat.player_id,
           player_name: stat.player_name || '',
           player_number: stat.player_number || 0,
+          player_position: stat.player_position || undefined,
           stat_category: stat.stat_category,
           stat_type: stat.stat_type,
+          puntos_local: stat.puntos_local,
+          puntos_visitante: stat.puntos_visitante,
+          sets_local: stat.sets_local,
+          sets_visitante: stat.sets_visitante,
+          created_at: stat.created_at,
         })),
         selectedSet: selectedSet,
         selectedPlayerName: selectedPlayerObj ? `${selectedPlayerObj.name} (#${selectedPlayerObj.number})` : undefined,

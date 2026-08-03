@@ -31,10 +31,10 @@ describe('settingsService.getAll', () => {
     expect(mock.mock.calls[0][0]).not.toContain('userId');
   });
 
-  test('fetches settings filtered by userId', async () => {
+  test('never sends userId: settings are scoped to the session', async () => {
     const mock = setFetchMock(mockFetchSuccess(SETTINGS));
     await settingsService.getAll(1);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('userId=1'));
+    expect(mock.mock.calls[0][0] as string).not.toContain('userId');
   });
 
   test('throws on error', async () => {
@@ -51,13 +51,16 @@ describe('settingsService.getByPosition', () => {
     const mock = setFetchMock(mockFetchSuccess(receptorSettings));
     const settings = await settingsService.getByPosition('Receptor');
     expect(settings).toHaveLength(3);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('/position/Receptor'));
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('/position/Receptor'),
+      expect.anything(),
+    );
   });
 
-  test('includes userId when provided', async () => {
+  test('does not leak a userId into the position URL', async () => {
     const mock = setFetchMock(mockFetchSuccess([]));
     await settingsService.getByPosition('Central', 5);
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('userId=5'));
+    expect(mock.mock.calls[0][0] as string).not.toContain('userId');
   });
 });
 
@@ -97,7 +100,9 @@ describe('settingsService.batchUpdate', () => {
       expect.stringContaining('/batch'),
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"user_id":1'),
+        // The target user is no longer part of the payload: the server takes it
+        // from the session token.
+        body: expect.not.stringContaining('user_id'),
       }),
     );
   });
@@ -135,36 +140,28 @@ describe('settingsService.delete', () => {
   });
 });
 
-// ─── getBasicConfig / applyBasicConfig / applyAdvancedConfig ─────────
+// ─── applyBasicConfig / applyAdvancedConfig ─────────────────────────
+//
+// `getBasicConfig` was dropped: it read the settings of hardcoded user id 1 (the
+// removed seeded test account) as a "basic template". The server owns the templates
+// now, and the target user comes from the session rather than the request body.
 
 describe('settingsService config presets', () => {
-  test('getBasicConfig fetches from userId=1', async () => {
-    const mock = setFetchMock(mockFetchSuccess(SETTINGS));
-    await settingsService.getBasicConfig();
-    expect(mock).toHaveBeenCalledWith(expect.stringContaining('userId=1'));
-  });
-
-  test('applyBasicConfig sends POST with user_id', async () => {
+  test('applyBasicConfig sends POST to the right endpoint', async () => {
     const mock = setFetchMock(mockFetchSuccess({}));
     await settingsService.applyBasicConfig(5);
     expect(mock).toHaveBeenCalledWith(
       expect.stringContaining('/apply-basic'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ user_id: 5 }),
-      }),
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 
-  test('applyAdvancedConfig sends POST with user_id', async () => {
+  test('applyAdvancedConfig sends POST to the right endpoint', async () => {
     const mock = setFetchMock(mockFetchSuccess({}));
     await settingsService.applyAdvancedConfig(5);
     expect(mock).toHaveBeenCalledWith(
       expect.stringContaining('/apply-advanced'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ user_id: 5 }),
-      }),
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 

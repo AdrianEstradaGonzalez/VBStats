@@ -620,6 +620,7 @@ const en = {
 
   // Match Field Screen
   matchField: {
+    offlineSaved: 'Saved on this device. It will sync when you are back online.',
     selectPlayers: 'Select Players',
     selectStartingPlayers: 'Select the starting players',
     start: 'Start',
@@ -666,6 +667,12 @@ const en = {
   },
 
   // Admin Panel
+  notifications: {
+    optInTitle: 'Turn on notifications',
+    optInMessage: 'VBStats can let you know about news, improvements and important team messages. You can change this any time in your phone settings.',
+    optInAccept: 'Turn on',
+    optInDecline: 'Not now',
+  },
   admin: {
     panelTitle: 'Admin Panel',
     panelSubtitle: 'Application management',

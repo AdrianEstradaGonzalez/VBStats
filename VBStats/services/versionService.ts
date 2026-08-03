@@ -6,8 +6,13 @@
 import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 
-// Versión actual de la aplicación (debe coincidir con versionName en build.gradle)
-export const APP_VERSION = '5.0';
+// Versión actual de la aplicación.
+//
+// AVISO: este valor está duplicado a mano. Debe coincidir con `versionName` en
+// android/app/build.gradle y con MARKETING_VERSION en iOS. Si se queda atrás, la
+// comprobación de actualización obligatoria compara la versión equivocada y puede
+// dejar a los usuarios fuera de la app (o no forzar la actualización cuando toca).
+export const APP_VERSION = '5.1';
 
 export interface VersionInfo {
   minVersion: string;

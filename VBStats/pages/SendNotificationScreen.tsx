@@ -16,35 +16,55 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
-import { adminService, AdminNotification, SendNotificationResult } from '../services/adminService';
+import {
+  adminService,
+  AdminNotification,
+  SendNotificationResult,
+  NotificationAudience,
+  NotificationAudienceInfo,
+} from '../services/adminService';
 import CustomAlert from '../components/CustomAlert';
 import { useTranslation } from 'react-i18next';
 
 interface SendNotificationScreenProps {
   onBack: () => void;
-  userId: number | null;
+  userId?: number | null;
 }
 
-export default function SendNotificationScreen({ onBack, userId }: SendNotificationScreenProps) {
+const AUDIENCES: Array<{ id: NotificationAudience; label: string; icon: string }> = [
+  { id: 'all', label: 'Todos', icon: 'account-group' },
+  { id: 'free', label: 'Gratis', icon: 'account-outline' },
+  { id: 'basic', label: 'Básico', icon: 'account' },
+  { id: 'pro', label: 'Pro', icon: 'crown' },
+  { id: 'paid', label: 'De pago', icon: 'credit-card-check' },
+];
+
+export default function SendNotificationScreen({ onBack }: SendNotificationScreenProps) {
   const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [audience, setAudience] = useState<NotificationAudience>('all');
   const [sending, setSending] = useState(false);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [audienceInfo, setAudienceInfo] = useState<NotificationAudienceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [showConfirmAlert, setShowConfirmAlert] = useState(false);
   const [showResultAlert, setShowResultAlert] = useState(false);
   const [sendResult, setSendResult] = useState<SendNotificationResult | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     loadNotifications();
   }, []);
 
   const loadNotifications = async () => {
-    if (!userId) return;
     try {
-      const data = await adminService.getNotifications(userId);
+      const [data, info] = await Promise.all([
+        adminService.getNotifications(),
+        adminService.getNotificationAudience().catch(() => null),
+      ]);
       setNotifications(data);
+      setAudienceInfo(info);
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
@@ -52,21 +72,38 @@ export default function SendNotificationScreen({ onBack, userId }: SendNotificat
     }
   };
 
+  /** Devices the currently selected audience would reach. */
+  const estimatedReach = (): number | null => {
+    if (!audienceInfo) return null;
+    const plan = audienceInfo.byPlan || { free: 0, basic: 0, pro: 0 };
+    switch (audience) {
+      case 'free': return Number(plan.free || 0);
+      case 'basic': return Number(plan.basic || 0);
+      case 'pro': return Number(plan.pro || 0);
+      case 'paid': return Number(plan.basic || 0) + Number(plan.pro || 0);
+      default: return audienceInfo.devices;
+    }
+  };
+
   const handleSend = async () => {
-    if (!userId || !title.trim() || !body.trim()) return;
+    if (!title.trim() || !body.trim()) return;
     setShowConfirmAlert(false);
     setSending(true);
+    setSendError(null);
 
     try {
-      const result = await adminService.sendNotification(userId, title.trim(), body.trim());
+      const result = await adminService.sendNotification(title.trim(), body.trim(), audience);
       setSendResult(result);
       setShowResultAlert(true);
       setTitle('');
       setBody('');
       loadNotifications();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending notification:', error);
       setSendResult(null);
+      // Surface the real reason (e.g. Firebase not configured) instead of a
+      // generic failure message.
+      setSendError(error?.message || null);
       setShowResultAlert(true);
     } finally {
       setSending(false);
@@ -94,7 +131,14 @@ export default function SendNotificationScreen({ onBack, userId }: SendNotificat
         </View>
       </View>
       <Text style={styles.notificationBody} numberOfLines={2}>{item.body}</Text>
-      <Text style={styles.notificationDate}>{formatDate(item.sent_at)}</Text>
+      <View style={styles.notificationFooter}>
+        <Text style={styles.notificationDate}>{formatDate(item.sent_at)}</Text>
+        {item.audience && item.audience !== 'all' && (
+          <Text style={styles.audienceTag}>
+            {AUDIENCES.find(a => a.id === item.audience)?.label || item.audience}
+          </Text>
+        )}
+      </View>
     </View>
   );
 
@@ -116,6 +160,42 @@ export default function SendNotificationScreen({ onBack, userId }: SendNotificat
         {/* Compose Form */}
         <View style={styles.composeSection}>
           <Text style={styles.sectionTitle}>{t('admin.composeNotification')}</Text>
+
+          {audienceInfo && !audienceInfo.configured && (
+            <View style={styles.warningBanner}>
+              <MaterialCommunityIcons name="alert" size={18} color="#f59e0b" />
+              <Text style={styles.warningText}>
+                El servidor no tiene credenciales de Firebase. Define FIREBASE_SERVICE_ACCOUNT_BASE64 para poder enviar.
+              </Text>
+            </View>
+          )}
+
+          {/* Audience selector */}
+          <View style={styles.audienceRow}>
+            {AUDIENCES.map(option => (
+              <TouchableOpacity
+                key={option.id}
+                style={[styles.audienceChip, audience === option.id && styles.audienceChipActive]}
+                onPress={() => setAudience(option.id)}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={14}
+                  color={audience === option.id ? '#fff' : Colors.textSecondary}
+                />
+                <Text style={[styles.audienceChipText, audience === option.id && styles.audienceChipTextActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {estimatedReach() !== null && (
+            <Text style={styles.reachText}>
+              Llegará a aproximadamente {estimatedReach()} dispositivo(s)
+            </Text>
+          )}
 
           <TextInput
             style={styles.input}
@@ -202,7 +282,7 @@ export default function SendNotificationScreen({ onBack, userId }: SendNotificat
         message={
           sendResult
             ? t('admin.notificationSentMessage', { count: sendResult.successCount })
-            : t('admin.notificationSendError')
+            : sendError || t('admin.notificationSendError')
         }
         type={sendResult ? 'success' : 'warning'}
         icon={
@@ -339,6 +419,64 @@ const styles = StyleSheet.create({
   notificationDate: {
     fontSize: FontSizes.xs,
     color: Colors.textTertiary,
+  },
+  notificationFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  audienceTag: {
+    fontSize: FontSizes.xs,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  audienceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: Spacing.sm,
+  },
+  audienceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  audienceChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  audienceChipText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  audienceChipTextActive: {
+    color: '#fff',
+  },
+  reachText: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
+    marginBottom: Spacing.sm,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: '#f59e0b18',
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: FontSizes.xs,
+    color: '#f59e0b',
   },
   emptyText: {
     fontSize: FontSizes.md,

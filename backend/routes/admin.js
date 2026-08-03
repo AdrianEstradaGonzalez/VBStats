@@ -1,61 +1,41 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { requireAuth, requireSuperadmin } = require('../middleware/auth');
+const { sendToTokens, isPushConfigured } = require('../services/pushService');
 
-// Middleware to verify superadmin access
-async function requireSuperadmin(req, res, next) {
-  const userId = req.headers['x-user-id'] || req.body.userId || req.query.userId;
-  if (!userId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+// NOTE: `requireSuperadmin` now comes from the shared auth middleware and checks the
+// session token. The previous local version trusted an `x-user-id` header, so anyone
+// who guessed an admin's numeric id had full admin rights.
 
-  try {
-    const [rows] = await pool.query('SELECT is_superadmin FROM users WHERE id = ?', [userId]);
-    if (rows.length === 0 || !rows[0].is_superadmin) {
-      return res.status(403).json({ error: 'Forbidden: superadmin access required' });
-    }
-    req.adminUserId = Number(userId);
-    next();
-  } catch (err) {
-    console.error('Superadmin check error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-// Check if a user is superadmin
+// Check if the signed-in user is a superadmin
 router.get('/is-superadmin', async (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) {
-    return res.json({ isSuperadmin: false });
-  }
-
-  try {
-    const [rows] = await pool.query('SELECT is_superadmin FROM users WHERE id = ?', [userId]);
-    const isSuperadmin = rows.length > 0 && !!rows[0].is_superadmin;
-    res.json({ isSuperadmin });
-  } catch (err) {
-    console.error('Error checking superadmin:', err);
-    res.json({ isSuperadmin: false });
-  }
+  // Derived from the session; a client can no longer ask about an arbitrary id.
+  res.json({ isSuperadmin: !!(req.auth && req.auth.verified && req.auth.isSuperadmin) });
 });
 
 // ==========================================
 // PUSH TOKEN MANAGEMENT
 // ==========================================
 
-// Register push token for a user
-router.post('/push-token', async (req, res) => {
-  const { userId, token, platform } = req.body;
-  if (!userId || !token) {
-    return res.status(400).json({ error: 'userId and token are required' });
+// Register (or refresh) this device's push token for the signed-in user
+router.post('/push-token', requireAuth, async (req, res) => {
+  const { token, platform } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'token is required' });
   }
+  const validPlatforms = ['ios', 'android', 'unknown'];
+  const devicePlatform = validPlatforms.includes(platform) ? platform : 'unknown';
 
   try {
+    // A device that switches account must not keep delivering to the previous one.
+    await pool.query('DELETE FROM push_tokens WHERE token = ? AND user_id != ?', [token, req.auth.userId]);
+
     await pool.query(
       `INSERT INTO push_tokens (user_id, token, platform)
        VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE token = VALUES(token), platform = VALUES(platform), updated_at = CURRENT_TIMESTAMP`,
-      [userId, token, platform || 'unknown']
+       ON DUPLICATE KEY UPDATE platform = VALUES(platform), updated_at = CURRENT_TIMESTAMP`,
+      [req.auth.userId, token, devicePlatform]
     );
     res.json({ message: 'Push token registered' });
   } catch (err) {
@@ -64,17 +44,63 @@ router.post('/push-token', async (req, res) => {
   }
 });
 
+// Remove this device's token (called on logout / when the user revokes permission)
+router.delete('/push-token', requireAuth, async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ error: 'token is required' });
+  }
+  try {
+    await pool.query('DELETE FROM push_tokens WHERE token = ? AND user_id = ?', [token, req.auth.userId]);
+    res.json({ message: 'Push token removed' });
+  } catch (err) {
+    console.error('Error removing push token:', err);
+    res.status(500).json({ error: 'Failed to remove push token' });
+  }
+});
+
 // ==========================================
-// NOTIFICATION MANAGEMENT (superadmin only)
+// NOTIFICATIONS (superadmin only)
 // ==========================================
 
-// Get all notifications sent by admin
+// Delivery stats so the admin screen can show how many devices are reachable
+router.get('/notifications/audience', requireSuperadmin, async (req, res) => {
+  try {
+    const [[totals]] = await pool.query(
+      `SELECT COUNT(*) AS devices, COUNT(DISTINCT user_id) AS users FROM push_tokens`
+    );
+    const [byPlatform] = await pool.query(
+      `SELECT platform, COUNT(*) AS devices FROM push_tokens GROUP BY platform`
+    );
+    const [[byPlan]] = await pool.query(
+      `SELECT
+         SUM(u.subscription_type = 'free') AS free,
+         SUM(u.subscription_type = 'basic') AS basic,
+         SUM(u.subscription_type = 'pro') AS pro
+       FROM push_tokens pt JOIN users u ON pt.user_id = u.id`
+    );
+
+    res.json({
+      configured: isPushConfigured(),
+      devices: totals.devices,
+      users: totals.users,
+      byPlatform,
+      byPlan,
+    });
+  } catch (err) {
+    console.error('Error fetching notification audience:', err);
+    res.status(500).json({ error: 'Failed to fetch audience' });
+  }
+});
+
+// History of sent notifications
 router.get('/notifications', requireSuperadmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, title, body, sent_at, recipients_count
-       FROM admin_notifications
-       ORDER BY sent_at DESC
+      `SELECT n.id, n.title, n.body, n.sent_at, n.recipients_count, n.audience, u.email AS sent_by_email
+       FROM admin_notifications n
+       LEFT JOIN users u ON n.sent_by = u.id
+       ORDER BY n.sent_at DESC
        LIMIT 50`
     );
     res.json(rows);
@@ -84,71 +110,85 @@ router.get('/notifications', requireSuperadmin, async (req, res) => {
   }
 });
 
-// Send notification to all users
+/** Resolves the target tokens for an audience selector. */
+async function resolveTokens(audience) {
+  if (audience === 'free' || audience === 'basic' || audience === 'pro') {
+    const [rows] = await pool.query(
+      `SELECT pt.token FROM push_tokens pt
+       JOIN users u ON pt.user_id = u.id
+       WHERE u.subscription_type = ?`,
+      [audience]
+    );
+    return rows.map((r) => r.token);
+  }
+  if (audience === 'paid') {
+    const [rows] = await pool.query(
+      `SELECT pt.token FROM push_tokens pt
+       JOIN users u ON pt.user_id = u.id
+       WHERE u.subscription_type IN ('basic', 'pro')`
+    );
+    return rows.map((r) => r.token);
+  }
+  const [rows] = await pool.query('SELECT token FROM push_tokens');
+  return rows.map((r) => r.token);
+}
+
+// Send a notification
 router.post('/notifications/send', requireSuperadmin, async (req, res) => {
-  const { title, body } = req.body;
-  if (!title || !body) {
+  const { title, body, audience = 'all' } = req.body;
+
+  if (!title || !String(title).trim() || !body || !String(body).trim()) {
     return res.status(400).json({ error: 'title and body are required' });
+  }
+  if (String(title).length > 100 || String(body).length > 500) {
+    return res.status(400).json({ error: 'El título admite 100 caracteres y el mensaje 500.' });
+  }
+
+  const validAudiences = ['all', 'free', 'basic', 'pro', 'paid'];
+  if (!validAudiences.includes(audience)) {
+    return res.status(400).json({ error: 'Audiencia no válida' });
+  }
+
+  if (!isPushConfigured()) {
+    return res.status(503).json({
+      error: 'El servidor no tiene configuradas las credenciales de Firebase. Define FIREBASE_SERVICE_ACCOUNT_BASE64.',
+      code: 'PUSH_NOT_CONFIGURED',
+    });
   }
 
   try {
-    // Get all push tokens
-    const [tokens] = await pool.query(
-      'SELECT DISTINCT token, platform FROM push_tokens'
-    );
+    const tokens = await resolveTokens(audience);
 
-    // Store the notification in DB
+    // Record the notification first so there is always an audit trail, even if
+    // delivery fails halfway.
     const [result] = await pool.query(
-      `INSERT INTO admin_notifications (title, body, sent_by, recipients_count)
-       VALUES (?, ?, ?, ?)`,
-      [title, body, req.adminUserId, tokens.length]
+      `INSERT INTO admin_notifications (title, body, sent_by, recipients_count, audience)
+       VALUES (?, ?, ?, 0, ?)`,
+      [String(title).trim(), String(body).trim(), req.adminUserId, audience]
     );
 
-    // Send push notifications via Expo Push API (works for both iOS/Android with Expo)
-    let successCount = 0;
-    let failCount = 0;
-
-    if (tokens.length > 0) {
-      const messages = tokens
-        .filter(t => t.token && t.token.startsWith('ExponentPushToken'))
-        .map(t => ({
-          to: t.token,
-          sound: 'default',
-          title: title,
-          body: body,
-          data: { notificationId: result.insertId },
-        }));
-
-      // Send in batches of 100 (Expo limit)
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-        const batch = messages.slice(i, i + BATCH_SIZE);
-        try {
-          const response = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json',
-              'Accept-Encoding': 'gzip, deflate',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(batch),
-          });
-
-          const data = await response.json();
-          if (data.data) {
-            data.data.forEach(ticket => {
-              if (ticket.status === 'ok') successCount++;
-              else failCount++;
-            });
-          }
-        } catch (pushErr) {
-          console.error('Error sending push batch:', pushErr);
-          failCount += batch.length;
-        }
-      }
+    if (tokens.length === 0) {
+      return res.json({
+        message: 'No hay dispositivos registrados para esta audiencia',
+        notificationId: result.insertId,
+        totalTokens: 0,
+        successCount: 0,
+        failCount: 0,
+      });
     }
 
-    // Update recipients count with actual successes
+    const { successCount, failureCount, invalidTokens } = await sendToTokens(tokens, {
+      title: String(title).trim(),
+      body: String(body).trim(),
+      data: { notificationId: result.insertId, type: 'admin' },
+    });
+
+    // Prune devices FCM told us are gone.
+    if (invalidTokens.length > 0) {
+      await pool.query('DELETE FROM push_tokens WHERE token IN (?)', [invalidTokens]);
+      console.log(`🧹 Removed ${invalidTokens.length} stale push tokens`);
+    }
+
     await pool.query(
       'UPDATE admin_notifications SET recipients_count = ? WHERE id = ?',
       [successCount, result.insertId]
@@ -159,7 +199,7 @@ router.post('/notifications/send', requireSuperadmin, async (req, res) => {
       notificationId: result.insertId,
       totalTokens: tokens.length,
       successCount,
-      failCount,
+      failCount: failureCount,
     });
   } catch (err) {
     console.error('Error sending notification:', err);
@@ -175,7 +215,7 @@ router.post('/notifications/send', requireSuperadmin, async (req, res) => {
 router.get('/users', requireSuperadmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.email,
         u.name,
@@ -183,7 +223,9 @@ router.get('/users', requireSuperadmin, async (req, res) => {
         u.subscription_expires_at,
         u.auto_renew,
         u.created_at,
-        u.last_login_at
+        u.last_login_at,
+        u.is_superadmin,
+        (SELECT COUNT(*) FROM push_tokens pt WHERE pt.user_id = u.id) AS device_count
        FROM users u
        ORDER BY u.last_login_at DESC, u.created_at DESC`
     );
@@ -198,7 +240,7 @@ router.get('/users', requireSuperadmin, async (req, res) => {
 router.delete('/users/:id', requireSuperadmin, async (req, res) => {
   const targetId = Number(req.params.id);
 
-  if (!targetId || isNaN(targetId)) {
+  if (!Number.isInteger(targetId) || targetId <= 0) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
 

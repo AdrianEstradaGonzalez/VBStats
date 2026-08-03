@@ -2,11 +2,17 @@
  * Excel Export Service — Genera archivos .xlsx profesionales
  * con múltiples hojas, estilos de la app, tablas y gráficas ASCII
  *
- * Match Export: Resumen, Desglose, Por Sets, Jugadores (cada uno), Detalle
+ * Match Export: Resumen, Marcador, Desglose, Por Sets, Jugadores, Detalle
  * Tracking Export: Resumen, Evolución, Categorías, Jugadores
+ *
+ * IMPORTANT — why `xlsx-js-style` and not `xlsx`:
+ * the community build of SheetJS parses the `s` (style) property but silently drops
+ * it when writing. Every colour, border and font in this file was therefore being
+ * discarded and the exported workbook came out as plain unformatted text.
+ * `xlsx-js-style` is a drop-in fork with the same API that actually writes styles.
  */
 
-import XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import RNFS from 'react-native-fs';
 import { Platform, PermissionsAndroid } from 'react-native';
 
@@ -43,11 +49,25 @@ export interface RawStat {
   player_number: number;
   stat_category: string;
   stat_type: string;
+  /**
+   * Scoreboard context captured with the action. The app records it on every stat
+   * but the export used to throw it away, so the workbook had no idea what the
+   * score was when anything happened.
+   */
+  player_position?: string;
+  puntos_local?: number;
+  puntos_visitante?: number;
+  sets_local?: number;
+  sets_visitante?: number;
+  created_at?: string;
 }
 
 export interface MatchExportData {
   matchInfo: string;
   dateStr: string;
+  /** Team names, so the workbook can label columns properly instead of "Local". */
+  teamName?: string;
+  opponentName?: string;
   scoreHome: number | null;
   scoreAway: number | null;
   location: string;
@@ -313,6 +333,36 @@ const bar = (pct: number, clr: string) => {
 /** shortcut to create a styled cell */
 const c = (v: any, style: any) => ({ v, s: style });
 
+/**
+ * Numeric cell with an explicit format.
+ *
+ * Percentages and G-P used to be written as strings ("65%", "+12"), which meant
+ * Excel treated them as text: no sorting, no charts, no conditional formatting.
+ * These write real numbers and let the number format do the presentation.
+ */
+const numCell = (v: number, style: any, fmt?: string) => ({
+  v,
+  t: 'n' as const,
+  z: fmt,
+  s: style,
+});
+
+/** Percentage cell. Takes 0-100 and stores it as a real 0-1 percentage. */
+const pctCell = (pct: number, style: any) => ({
+  v: pct / 100,
+  t: 'n' as const,
+  z: '0%',
+  s: style,
+});
+
+/** G-P (ganados menos perdidos): signed integer, plus sign kept visible. */
+const gpCell = (v: number, style: any) => ({
+  v,
+  t: 'n' as const,
+  z: '+0;-0;0',
+  s: style,
+});
+
 // ─── Shared sheet building blocks ───────────────────────────────────────
 
 function addMergedTitle(rows: any[][], title: string, sub: string, cols: number) {
@@ -334,10 +384,20 @@ function addBranding(rows: any[][]) {
   rows.push([c('Generado con VBStats Pro — BlueDeBug.com', sty.brand())]);
 }
 
+interface SheetOptions {
+  /** 0-based row index of the header row the autofilter applies to. */
+  headerRow?: number;
+  /** Number of columns the autofilter should span. */
+  filterCols?: number;
+  /** 0-based index of the last data row, so the filter excludes totals/branding. */
+  lastDataRow?: number;
+}
+
 function buildSheet(
   rows: any[][],
   cols: { wch: number }[],
   mergeCols: number,
+  options: SheetOptions = {},
 ): XLSX.WorkSheet {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = cols;
@@ -346,6 +406,25 @@ function buildSheet(
     { s: { r: 1, c: 0 }, e: { r: 1, c: mergeCols - 1 } },
   ];
   ws['!rows'] = [{ hpt: 34 }, { hpt: 26 }];
+
+  // Autofilter on the long tables, so the reader can sort and filter in place.
+  //
+  // NOTE: frozen panes are deliberately not attempted here. SheetJS (and the
+  // xlsx-js-style fork) does not emit the <pane> element when writing, so setting
+  // `ws['!freeze']` would look like it worked while producing nothing — the same
+  // failure mode as the dropped cell styles.
+  if (options.headerRow !== undefined && options.filterCols) {
+    const lastRow = options.lastDataRow ?? rows.length - 1;
+    if (lastRow > options.headerRow) {
+      ws['!autofilter'] = {
+        ref: XLSX.utils.encode_range(
+          { r: options.headerRow, c: 0 },
+          { r: lastRow, c: options.filterCols - 1 },
+        ),
+      };
+    }
+  }
+
   return ws;
 }
 
@@ -391,6 +470,81 @@ function calcRating(stats: RawStat[]): number {
   const minP = stats.length * -4;
   const norm = (w - minP) / (maxP - minP);
   return Math.max(1, Math.min(10, Math.round(norm * 9 + 1)));
+}
+
+/** Per-set scoreboard summary derived from the score captured on each action. */
+interface SetScore {
+  setNumber: number;
+  pointsHome: number;
+  pointsAway: number;
+  won: boolean | null;
+  actions: number;
+  gp: number;
+  effectiveness: number;
+}
+
+/**
+ * Reconstructs the score of each set.
+ *
+ * Every stat row carries the scoreboard at the moment it was recorded, so the last
+ * action of a set holds that set's final score. Actions are ordered by created_at
+ * when available and fall back to total points, which is monotonic within a set.
+ */
+function buildSetScores(raw: RawStat[]): SetScore[] {
+  const sets = [...new Set(raw.map(r => r.set_number))].sort((a, b) => a - b);
+
+  return sets.map(setNumber => {
+    const actions = raw.filter(r => r.set_number === setNumber);
+
+    const ordered = [...actions].sort((a, b) => {
+      if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+        return a.created_at < b.created_at ? -1 : 1;
+      }
+      const totalA = (a.puntos_local ?? 0) + (a.puntos_visitante ?? 0);
+      const totalB = (b.puntos_local ?? 0) + (b.puntos_visitante ?? 0);
+      return totalA - totalB;
+    });
+
+    const last = ordered[ordered.length - 1];
+    const pointsHome = last?.puntos_local ?? 0;
+    const pointsAway = last?.puntos_visitante ?? 0;
+
+    const gp = actions.reduce((sum, st) => sum + scoreOf(st.stat_type), 0);
+    const positives = actions.filter(st => scoreOf(st.stat_type) > 0).length;
+    const effectiveness = actions.length > 0 ? Math.round((positives / actions.length) * 100) : 0;
+
+    // A 0-0 set has no recorded score, so we can't claim a winner.
+    const won = pointsHome === pointsAway ? null : pointsHome > pointsAway;
+
+    return { setNumber, pointsHome, pointsAway, won, actions: actions.length, gp, effectiveness };
+  });
+}
+
+/** True when at least one action carries scoreboard data worth exporting. */
+function hasScoreData(raw: RawStat[]): boolean {
+  return raw.some(
+    r =>
+      (r.puntos_local !== undefined && r.puntos_local !== null) ||
+      (r.puntos_visitante !== undefined && r.puntos_visitante !== null),
+  );
+}
+
+/** Kill/error style efficiency figures for a set of actions. */
+function efficiencyOf(stats: RawStat[]) {
+  const total = stats.length;
+  const positives = stats.filter(st => scoreOf(st.stat_type) > 0).length;
+  const errors = stats.filter(st => bucketOf(st.stat_type) === 'err').length;
+  const neutrals = total - positives - errors;
+  return {
+    total,
+    positives,
+    errors,
+    neutrals,
+    positivePct: total > 0 ? Math.round((positives / total) * 100) : 0,
+    errorPct: total > 0 ? Math.round((errors / total) * 100) : 0,
+    // Standard volleyball efficiency: (positives - errors) / total
+    efficiency: total > 0 ? Math.round(((positives - errors) / total) * 100) : 0,
+  };
 }
 
 /** Sort types by bucket: doble+ → pos → neutral → error */
@@ -537,6 +691,8 @@ export async function exportMatchToExcel(
         c('Error', sty.hdr(C.error)),
         c('Efectividad', sty.hdr()),
       ]);
+      let totDbl = 0, totPos = 0, totNeu = 0, totErr = 0, totAll = 0;
+
       data.orderedCategoryKeys.forEach((cat, i) => {
         const p = data.categoryPerformance[cat];
         if (!p) return;
@@ -547,21 +703,46 @@ export async function exportMatchToExcel(
             : 0;
         const barClr =
           posPct >= 60 ? C.success : posPct >= 40 ? C.accent : C.error;
+
+        totDbl += p.doblePositivo;
+        totPos += p.positivo;
+        totNeu += p.neutro;
+        totErr += p.error;
+        totAll += p.total;
+
         R.push([
           c(cat, {
             ...sty.cellL(alt),
             font: { ...sty.cellL(alt).font, bold: true },
           }),
-          c(p.gp, sty.gp(p.gp, alt)),
-          c(`${p.rating}/10`, sty.rating(p.rating)),
-          c(p.total, sty.num(alt)),
-          c(p.doblePositivo, sty.cell(alt)),
-          c(p.positivo, sty.cell(alt)),
-          c(p.neutro, sty.cell(alt)),
-          c(p.error, sty.cell(alt)),
+          gpCell(p.gp, sty.gp(p.gp, alt)),
+          numCell(p.rating, sty.rating(p.rating), '0"/10"'),
+          numCell(p.total, sty.num(alt)),
+          numCell(p.doblePositivo, sty.cell(alt)),
+          numCell(p.positivo, sty.cell(alt)),
+          numCell(p.neutro, sty.cell(alt)),
+          numCell(p.error, sty.cell(alt)),
+          pctCell(posPct, sty.pct(posPct, alt)),
           bar(posPct, barClr),
         ]);
       });
+
+      // Totals row: makes the table self-checking and gives a single line to read.
+      if (totAll > 0) {
+        const totalPosPct = Math.round(((totDbl + totPos) / totAll) * 100);
+        R.push([
+          c('TOTAL', sty.totalRowL()),
+          gpCell(data.totalPerformance.gp, sty.totalRow()),
+          c('', sty.totalRow()),
+          numCell(totAll, sty.totalRow()),
+          numCell(totDbl, sty.totalRow()),
+          numCell(totPos, sty.totalRow()),
+          numCell(totNeu, sty.totalRow()),
+          numCell(totErr, sty.totalRow()),
+          pctCell(totalPosPct, sty.totalRow()),
+          c('', sty.totalRow()),
+        ]);
+      }
 
       addBranding(R);
 
@@ -569,11 +750,124 @@ export async function exportMatchToExcel(
         R,
         [
           { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 11 },
-          { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 28 },
+          { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 28 },
         ],
-        9,
+        10,
       );
       XLSX.utils.book_append_sheet(wb, ws, 'Resumen');
+    }
+
+    // ── SHEET 2: MARCADOR ───────────────────────────────────────
+    // Set-by-set score reconstructed from the scoreboard captured on each action.
+    // This data was already stored with every stat but never made it to the export.
+    if (hasScoreData(raw)) {
+      const setScores = buildSetScores(raw);
+      const homeLabel = data.teamName || 'Local';
+      const awayLabel = data.opponentName || 'Visitante';
+
+      const R: any[][] = [];
+      addMergedTitle(R, 'MARCADOR POR SETS', data.matchInfo, 7);
+
+      R.push([
+        c('DETALLE DE SETS', sty.section()),
+        ...Array(6).fill(c('', sty.section())),
+      ]);
+      const headerRow = R.length;
+      R.push([
+        c('Set', sty.hdr()),
+        c(homeLabel, sty.hdr()),
+        c(awayLabel, sty.hdr()),
+        c('Dif.', sty.hdr()),
+        c('Resultado', sty.hdr()),
+        c('Acciones', sty.hdr()),
+        c('Efectividad', sty.hdr()),
+      ]);
+
+      let setsWon = 0;
+      let setsLost = 0;
+      let pointsFor = 0;
+      let pointsAgainst = 0;
+
+      setScores.forEach((s, i) => {
+        const alt = i % 2 === 1;
+        if (s.won === true) setsWon++;
+        else if (s.won === false) setsLost++;
+        pointsFor += s.pointsHome;
+        pointsAgainst += s.pointsAway;
+
+        R.push([
+          c(`Set ${s.setNumber}`, {
+            ...sty.cell(alt),
+            font: { ...sty.cell(alt).font, bold: true },
+          }),
+          numCell(s.pointsHome, sty.num(alt)),
+          numCell(s.pointsAway, sty.num(alt)),
+          gpCell(s.pointsHome - s.pointsAway, sty.gp(s.pointsHome - s.pointsAway, alt)),
+          c(s.won === null ? '—' : s.won ? 'Ganado' : 'Perdido', sty.result(s.won === null ? '—' : s.won ? 'V' : 'D', alt)),
+          numCell(s.actions, sty.num(alt)),
+          pctCell(s.effectiveness, sty.pct(s.effectiveness, alt)),
+        ]);
+      });
+
+      R.push([
+        c('TOTAL', sty.totalRowL()),
+        numCell(pointsFor, sty.totalRow()),
+        numCell(pointsAgainst, sty.totalRow()),
+        gpCell(pointsFor - pointsAgainst, sty.totalRow()),
+        c(`${setsWon} - ${setsLost}`, sty.totalRow()),
+        numCell(raw.length, sty.totalRow()),
+        c('', sty.totalRow()),
+      ]);
+      R.push([]);
+
+      // Point-by-point progression: how the score moved through each set.
+      R.push([
+        c('PROGRESIÓN DEL MARCADOR', sty.section(C.primaryDark)),
+        ...Array(6).fill(c('', sty.section(C.primaryDark))),
+      ]);
+      setScores.forEach(s => {
+        const actions = raw
+          .filter(r => r.set_number === s.setNumber)
+          .sort((a, b) => {
+            if (a.created_at && b.created_at && a.created_at !== b.created_at) {
+              return a.created_at < b.created_at ? -1 : 1;
+            }
+            return (
+              ((a.puntos_local ?? 0) + (a.puntos_visitante ?? 0)) -
+              ((b.puntos_local ?? 0) + (b.puntos_visitante ?? 0))
+            );
+          });
+
+        // Collapse consecutive actions that share a score into one entry.
+        const progression: string[] = [];
+        let lastKey = '';
+        actions.forEach(a => {
+          const key = `${a.puntos_local ?? 0}-${a.puntos_visitante ?? 0}`;
+          if (key !== lastKey) {
+            progression.push(key);
+            lastKey = key;
+          }
+        });
+
+        R.push([
+          c(`Set ${s.setNumber}`, sty.lbl()),
+          c(progression.join('  ·  ') || 'Sin datos', {
+            ...sty.val(),
+            alignment: { horizontal: 'left' as const, vertical: 'center' as const, wrapText: true },
+          }),
+        ]);
+      });
+
+      addBranding(R);
+
+      const ws = buildSheet(
+        R,
+        [{ wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 11 }, { wch: 13 }],
+        7,
+        // Filter over the per-set rows only, excluding the TOTAL line below them.
+        { headerRow, filterCols: 7, lastDataRow: headerRow + setScores.length },
+      );
+      XLSX.utils.book_append_sheet(wb, ws, 'Marcador');
     }
 
     // ── SHEET 2: DESGLOSE POR CATEGORÍA ─────────────────────────
@@ -661,40 +955,76 @@ export async function exportMatchToExcel(
         c('RANKING DE PARTICIPACIÓN', sty.section()),
         ...Array(5).fill(c('', sty.section())),
       ]);
+      const rankingHeaderRow = R.length;
       R.push([
         c('#', sty.hdr()),
         c('Dorsal', sty.hdr()),
         c('Nombre', sty.hdr()),
+        c('Posición', sty.hdr()),
         c('Acciones', sty.hdr()),
         c('% Part.', sty.hdr()),
+        c('G-P', sty.hdr()),
+        c('Rating', sty.hdr()),
+        c('Positivas', sty.hdr(C.greenPositive)),
+        c('Errores', sty.hdr(C.error)),
+        c('% Pos.', sty.hdr()),
+        c('Eficiencia', sty.hdr()),
         c('Rendimiento', sty.hdr()),
       ]);
 
       const totalAcc = data.playerStats.reduce((sum, p) => sum + p.total, 0);
+      let sumPositives = 0;
+      let sumErrors = 0;
+      let sumGp = 0;
+
       data.playerStats.forEach((pl, i) => {
         const alt = i % 2 === 1;
-        const part =
-          totalAcc > 0 ? Math.round((pl.total / totalAcc) * 100) : 0;
+        const part = totalAcc > 0 ? Math.round((pl.total / totalAcc) * 100) : 0;
+        const playerRaw = raw.filter(r => r.player_id === pl.id);
+        const eff = efficiencyOf(playerRaw);
+        const gpPlayer = playerRaw.reduce((sum, st) => sum + scoreOf(st.stat_type), 0);
+        const rating = calcRating(playerRaw);
+
+        sumPositives += eff.positives;
+        sumErrors += eff.errors;
+        sumGp += gpPlayer;
+
         R.push([
-          c(i + 1, sty.cell(alt)),
+          numCell(i + 1, sty.cell(alt)),
           c(pl.number, {
             ...sty.cell(alt),
             font: { ...sty.cell(alt).font, bold: true, sz: 13 },
           }),
           c(pl.name, sty.cellL(alt)),
-          c(pl.total, sty.num(alt)),
-          c(`${part}%`, sty.cell(alt)),
+          c(pl.position || playerRaw[0]?.player_position || '', sty.cellL(alt)),
+          numCell(pl.total, sty.num(alt)),
+          pctCell(part, sty.cell(alt)),
+          gpCell(gpPlayer, sty.gp(gpPlayer, alt)),
+          numCell(rating, sty.rating(rating), '0"/10"'),
+          numCell(eff.positives, sty.cell(alt)),
+          numCell(eff.errors, sty.cell(alt)),
+          pctCell(eff.positivePct, sty.pct(eff.positivePct, alt)),
+          pctCell(eff.efficiency, sty.pct(eff.efficiency, alt)),
           bar(part, C.primary),
         ]);
       });
 
       // Total row
+      const totalPosPct = totalAcc > 0 ? Math.round((sumPositives / totalAcc) * 100) : 0;
+      const totalEff = totalAcc > 0 ? Math.round(((sumPositives - sumErrors) / totalAcc) * 100) : 0;
       R.push([
         c('', sty.totalRow()),
         c('', sty.totalRow()),
         c('TOTAL', sty.totalRowL()),
-        c(totalAcc, sty.totalRow()),
-        c('100%', sty.totalRow()),
+        c('', sty.totalRow()),
+        numCell(totalAcc, sty.totalRow()),
+        pctCell(100, sty.totalRow()),
+        gpCell(sumGp, sty.totalRow()),
+        c('', sty.totalRow()),
+        numCell(sumPositives, sty.totalRow()),
+        numCell(sumErrors, sty.totalRow()),
+        pctCell(totalPosPct, sty.totalRow()),
+        pctCell(totalEff, sty.totalRow()),
         c('', sty.totalRow()),
       ]);
       R.push([]);
@@ -778,10 +1108,16 @@ export async function exportMatchToExcel(
       addBranding(R);
 
       const colsArr = [
-        { wch: 24 }, { wch: 12 }, { wch: 10 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
+        { wch: 6 }, { wch: 8 }, { wch: 24 }, { wch: 14 }, { wch: 10 }, { wch: 10 },
+        { wch: 8 }, { wch: 10 }, { wch: 11 }, { wch: 10 }, { wch: 10 }, { wch: 11 },
+        { wch: 26 },
       ];
       data.orderedCategoryKeys.forEach(() => colsArr.push({ wch: 12 }));
-      const ws = buildSheet(R, colsArr, 6);
+      const ws = buildSheet(R, colsArr, 13, {
+        headerRow: rankingHeaderRow,
+        filterCols: 13,
+        lastDataRow: rankingHeaderRow + data.playerStats.length,
+      });
       XLSX.utils.book_append_sheet(wb, ws, 'Jugadores');
     }
 
@@ -795,23 +1131,55 @@ export async function exportMatchToExcel(
         5,
       );
 
+      const showScore = hasScoreData(raw);
+      const detailHeaderRow = R.length;
+
+      // Now includes the scoreboard context and the G-P weight of each action, so
+      // the sheet can be pivoted or filtered without going back to the app.
       R.push([
+        c('#', sty.hdr()),
         c('Set', sty.hdr()),
-        c('Jugador', sty.hdr()),
         c('Dorsal', sty.hdr()),
+        c('Jugador', sty.hdr()),
+        c('Posición', sty.hdr()),
         c('Categoría', sty.hdr()),
         c('Tipo', sty.hdr()),
+        c('Valor', sty.hdr()),
+        ...(showScore
+          ? [c('Marcador', sty.hdr()), c('Sets', sty.hdr()), c('Hora', sty.hdr())]
+          : []),
       ]);
+
       raw.forEach((st, i) => {
         const alt = i % 2 === 1;
+        const value = scoreOf(st.stat_type);
+        const time = st.created_at
+          ? new Date(st.created_at).toLocaleTimeString('es-ES', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })
+          : '';
+
         R.push([
-          c(st.set_number, sty.cell(alt)),
-          c(st.player_name || '', sty.cellL(alt)),
+          numCell(i + 1, sty.cell(alt)),
+          numCell(st.set_number, sty.cell(alt)),
           c(st.player_number || '', sty.cell(alt)),
+          c(st.player_name || '', sty.cellL(alt)),
+          c(st.player_position || '', sty.cellL(alt)),
           c(st.stat_category, sty.cellL(alt)),
           c(st.stat_type, sty.stat(st.stat_type, alt)),
+          gpCell(value, sty.gp(value, alt)),
+          ...(showScore
+            ? [
+                c(`${st.puntos_local ?? 0} - ${st.puntos_visitante ?? 0}`, sty.cell(alt)),
+                c(`${st.sets_local ?? 0} - ${st.sets_visitante ?? 0}`, sty.cell(alt)),
+                c(time, sty.cell(alt)),
+              ]
+            : []),
         ]);
       });
+
       R.push([]);
       R.push([
         c(`Total: ${raw.length} acciones registradas`, {
@@ -820,11 +1188,18 @@ export async function exportMatchToExcel(
       ]);
       addBranding(R);
 
-      const ws = buildSheet(
-        R,
-        [{ wch: 8 }, { wch: 22 }, { wch: 10 }, { wch: 16 }, { wch: 20 }],
-        5,
-      );
+      const detailCols = [
+        { wch: 6 }, { wch: 6 }, { wch: 8 }, { wch: 22 }, { wch: 14 },
+        { wch: 16 }, { wch: 20 }, { wch: 8 },
+      ];
+      if (showScore) detailCols.push({ wch: 12 }, { wch: 10 }, { wch: 12 });
+
+      const ws = buildSheet(R, detailCols, detailCols.length, {
+        headerRow: detailHeaderRow,
+        filterCols: detailCols.length,
+        // Only the action rows, not the trailing total/branding lines.
+        lastDataRow: detailHeaderRow + raw.length,
+      });
       XLSX.utils.book_append_sheet(wb, ws, 'Detalle');
     }
 

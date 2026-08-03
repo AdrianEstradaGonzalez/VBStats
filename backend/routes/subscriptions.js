@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { requireAuth, requireOwner } = require('../middleware/auth');
+
+// Server-to-server key used by the webhook handlers to elevate a subscription.
+// It must come from the environment: the previous hardcoded fallback was published
+// in this repo, so anyone could grant themselves a Pro plan with a single request.
+const INTERNAL_SECRET = process.env.SUBSCRIPTION_INTERNAL_KEY || null;
+if (!INTERNAL_SECRET) {
+  console.warn('⚠️  SUBSCRIPTION_INTERNAL_KEY not set — internal subscription upgrades are disabled.');
+}
 
 // Stripe configuration (use live key in production, test key in development)
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -113,14 +122,15 @@ const recordTrialUsage = async (userId, deviceId, planType) => {
 };
 
 // Check trial eligibility for a device
-router.post('/check-trial-eligibility', async (req, res) => {
+router.post('/check-trial-eligibility', requireAuth, async (req, res) => {
   try {
-    const { userId, deviceId } = req.body;
-    
-    if (!userId || !deviceId) {
-      return res.status(400).json({ error: 'userId and deviceId are required' });
+    const { deviceId } = req.body;
+    const userId = req.auth.userId;
+
+    if (!deviceId) {
+      return res.status(400).json({ error: 'deviceId is required' });
     }
-    
+
     const deviceUsedTrial = await hasDeviceUsedTrial(deviceId);
     const userUsedTrial = await hasUserUsedTrial(userId);
     
@@ -155,8 +165,8 @@ router.post('/check-trial-eligibility', async (req, res) => {
   }
 });
 
-// Get user's subscription
-router.get('/:userId', async (req, res) => {
+// Get user's subscription (own account only)
+router.get('/:userId', requireOwner('userId'), async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT subscription_type, subscription_expires_at, stripe_customer_id, stripe_subscription_id,
@@ -342,40 +352,64 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// Update subscription type (ONLY via webhook or internal calls - NOT for direct API calls)
-// This endpoint is PROTECTED and should only be called by Stripe webhooks
+/**
+ * Update a subscription.
+ *
+ * Two callers only:
+ *  - a server-side webhook holding SUBSCRIPTION_INTERNAL_KEY, which may set anything;
+ *  - the account owner, who may only downgrade themselves to 'free'.
+ *
+ * Everything else is rejected. In particular `expires_at`, `stripe_customer_id` and
+ * `stripe_subscription_id` are no longer writable from the app: the old code let any
+ * caller push the expiry date arbitrarily far into the future, or attach someone
+ * else's Stripe customer, without any key at all.
+ */
 router.put('/:userId', async (req, res) => {
   try {
     const { subscription_type, expires_at, stripe_customer_id, stripe_subscription_id, internal_key } = req.body;
-    
-    // SECURITY: Prevent direct subscription type changes without proper authorization
-    // Only allow changes if:
-    // 1. Internal key is provided (for webhook/server-side calls)
-    // 2. Or if downgrading to 'free' (cancellation)
-    // 3. Or if only updating Stripe IDs (not subscription_type)
-    const INTERNAL_SECRET = process.env.SUBSCRIPTION_INTERNAL_KEY || 'vbstats_internal_secure_key_2024';
-    
-    const isInternalCall = internal_key === INTERNAL_SECRET;
-    const isDowngradeToFree = subscription_type === 'free';
-    const isOnlyStripeUpdate = !subscription_type && (stripe_customer_id || stripe_subscription_id || expires_at !== undefined);
-    
-    // If trying to upgrade to paid plan without internal authorization, reject
-    if (subscription_type && (subscription_type === 'basic' || subscription_type === 'pro')) {
-      if (!isInternalCall) {
-        console.warn(`⚠️ SECURITY: Rejected direct subscription upgrade attempt for user ${req.params.userId} to ${subscription_type}`);
-        return res.status(403).json({ 
+    const targetUserId = Number(req.params.userId);
+
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const isInternalCall = !!INTERNAL_SECRET && internal_key === INTERNAL_SECRET;
+
+    if (!isInternalCall) {
+      // Owner path: must be authenticated, must be themselves, and may only cancel.
+      if (!req.auth || !req.auth.verified || req.auth.userId !== targetUserId) {
+        return res.status(403).json({
+          error: 'Cambio de suscripción no autorizado.',
+          code: 'UNAUTHORIZED_SUBSCRIPTION_CHANGE'
+        });
+      }
+      if (subscription_type !== 'free') {
+        console.warn(`⚠️ SECURITY: Rejected subscription change for user ${targetUserId} to ${subscription_type}`);
+        return res.status(403).json({
           error: 'Cambio de suscripción no autorizado. Use el proceso de pago de la aplicación.',
           code: 'UNAUTHORIZED_SUBSCRIPTION_CHANGE'
         });
       }
+      if (expires_at !== undefined || stripe_customer_id !== undefined || stripe_subscription_id !== undefined) {
+        return res.status(403).json({
+          error: 'Campos no modificables desde la aplicación.',
+          code: 'UNAUTHORIZED_SUBSCRIPTION_CHANGE'
+        });
+      }
+
+      await pool.query(
+        'UPDATE users SET subscription_type = ?, auto_renew = FALSE, cancelled_at = NOW() WHERE id = ?',
+        ['free', targetUserId]
+      );
+      console.log(`✅ User ${targetUserId} downgraded themselves to free`);
+      return res.json({ message: 'Subscription updated' });
     }
-    
+
     const validTypes = ['free', 'basic', 'pro'];
     if (subscription_type && !validTypes.includes(subscription_type)) {
       return res.status(400).json({ error: 'Invalid subscription type' });
     }
 
-    let query = 'UPDATE users SET ';
     const updates = [];
     const params = [];
 
@@ -400,12 +434,10 @@ router.put('/:userId', async (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    query += updates.join(', ') + ' WHERE id = ?';
-    params.push(req.params.userId);
+    params.push(targetUserId);
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
 
-    await pool.query(query, params);
-    
-    console.log(`✅ Subscription updated for user ${req.params.userId}: ${subscription_type || 'no type change'}`);
+    console.log(`✅ Subscription updated for user ${targetUserId}: ${subscription_type || 'no type change'}`);
     res.json({ message: 'Subscription updated' });
   } catch (error) {
     console.error('Error updating subscription:', error);
@@ -414,16 +446,17 @@ router.put('/:userId', async (req, res) => {
 });
 
 // Start a free trial (no payment required initially)
-router.post('/start-trial', async (req, res) => {
-  console.log('🎁 Start trial request:', req.body);
-  
+router.post('/start-trial', requireAuth, async (req, res) => {
+  console.log('🎁 Start trial request');
+
   try {
-    const { userId, planType, deviceId } = req.body;
-    
-    if (!userId || !planType || !deviceId) {
-      return res.status(400).json({ error: 'userId, planType and deviceId are required' });
+    const { planType, deviceId } = req.body;
+    const userId = req.auth.userId;
+
+    if (!planType || !deviceId) {
+      return res.status(400).json({ error: 'planType and deviceId are required' });
     }
-    
+
     if (planType !== 'pro') {
       return res.status(400).json({ error: 'La prueba gratuita solo está disponible para el plan Pro' });
     }
@@ -480,9 +513,9 @@ router.post('/start-trial', async (req, res) => {
 });
 
 // Create Stripe checkout session
-router.post('/create-checkout', async (req, res) => {
-  console.log('📦 Create checkout request:', req.body);
-  
+router.post('/create-checkout', requireAuth, async (req, res) => {
+  console.log('📦 Create checkout request');
+
   if (!stripe) {
     console.error('❌ Stripe not configured');
     return res.status(503).json({ 
@@ -491,12 +524,20 @@ router.post('/create-checkout', async (req, res) => {
   }
 
   try {
-    const { userId, priceId, planType, platform, withTrial, deviceId } = req.body;
+    const { priceId, planType, platform, withTrial, deviceId } = req.body;
+    // Always charge the authenticated account: taking userId from the body let a
+    // caller start a checkout that upgrades somebody else.
+    const userId = req.auth.userId;
 
-    if (!userId || !priceId) {
-      return res.status(400).json({ error: 'userId y priceId son requeridos' });
+    if (!priceId) {
+      return res.status(400).json({ error: 'priceId es requerido' });
     }
-    
+
+    // Only our own configured prices may be purchased.
+    if (priceId !== PRICE_IDS.basic && priceId !== PRICE_IDS.pro) {
+      return res.status(400).json({ error: 'Plan no válido' });
+    }
+
     // If requesting trial, check eligibility
     let trialEligible = false;
     if (withTrial && deviceId) {
@@ -658,19 +699,20 @@ router.post('/create-checkout', async (req, res) => {
 
 // Verify checkout session and update subscription if completed
 // This is called when the user clicks "I already paid" to handle webhook delays
-router.post('/verify-checkout-session', async (req, res) => {
-  console.log('🔍 Verify checkout session request:', req.body);
-  
+router.post('/verify-checkout-session', requireAuth, async (req, res) => {
+  console.log('🔍 Verify checkout session request');
+
   if (!stripe) {
     console.error('❌ Stripe not configured');
     return res.status(503).json({ error: 'Servicio de pago no disponible' });
   }
 
   try {
-    const { sessionId, userId } = req.body;
+    const { sessionId } = req.body;
+    const userId = req.auth.userId;
 
-    if (!sessionId || !userId) {
-      return res.status(400).json({ error: 'sessionId y userId son requeridos' });
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId es requerido' });
     }
 
     // Retrieve the checkout session from Stripe
@@ -810,6 +852,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   const sig = req.headers['stripe-signature'];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  // Without the signing secret every webhook fails verification and silently does
+  // nothing — which is why subscription state kept drifting and needed the "sync"
+  // fallbacks in GET /:userId. Make the cause obvious instead of hiding it.
+  if (!endpointSecret) {
+    console.error('❌ STRIPE_WEBHOOK_SECRET is not set. Stripe webhooks cannot be verified and are being dropped.');
+    return res.status(503).send('Webhook not configured');
+  }
 
   let event;
   try {
@@ -970,8 +1020,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   res.json({ received: true });
 });
 
-// Cancel subscription
-router.post('/:userId/cancel', async (req, res) => {
+// Cancel subscription (own account only — this used to let anyone cancel any plan)
+router.post('/:userId/cancel', requireAuth, requireOwner('userId'), async (req, res) => {
   console.log('📛 Cancel subscription request for userId:', req.params.userId);
   
   if (!stripe) {
@@ -1081,8 +1131,8 @@ router.post('/:userId/cancel', async (req, res) => {
   }
 });
 
-// Reactivate a cancelled-but-still-active subscription
-router.post('/:userId/reactivate', async (req, res) => {
+// Reactivate a cancelled-but-still-active subscription (own account only)
+router.post('/:userId/reactivate', requireAuth, requireOwner('userId'), async (req, res) => {
   console.log('🔄 Reactivate subscription request for userId:', req.params.userId);
 
   try {
@@ -1282,14 +1332,15 @@ const extractSubscriptionInfo = (verificationResult) => {
 };
 
 // Verify Apple purchase and update user subscription
-router.post('/apple/verify', async (req, res) => {
+router.post('/apple/verify', requireAuth, async (req, res) => {
   console.log('🍎 Apple purchase verification request');
-  
+
   try {
-    const { userId, productId, transactionId, receipt, originalTransactionId } = req.body;
-    
-    if (!userId || !receipt) {
-      return res.status(400).json({ error: 'userId and receipt are required' });
+    const { receipt } = req.body;
+    const userId = req.auth.userId;
+
+    if (!receipt) {
+      return res.status(400).json({ error: 'receipt is required' });
     }
 
     // Check if APPLE_SHARED_SECRET is configured
@@ -1329,10 +1380,32 @@ router.post('/apple/verify', async (req, res) => {
 
     // Only update if subscription is active
     if (!subscriptionInfo.isActive) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'La suscripción ha expirado',
         code: 'SUBSCRIPTION_EXPIRED'
       });
+    }
+
+    // A receipt is bound to the first account that redeems it. Without this, one
+    // paid receipt could be replayed from any number of accounts and every one of
+    // them would be upgraded for free.
+    const [receiptOwner] = await pool.query(
+      'SELECT id FROM users WHERE apple_original_transaction_id = ? AND id != ? LIMIT 1',
+      [subscriptionInfo.originalTransactionId, userId]
+    );
+    if (receiptOwner.length > 0) {
+      console.warn(
+        `⚠️ SECURITY: receipt ${subscriptionInfo.originalTransactionId} already bound to user ${receiptOwner[0].id}, rejected for user ${userId}`
+      );
+      return res.status(409).json({
+        error: 'Esta compra ya está asociada a otra cuenta.',
+        code: 'RECEIPT_ALREADY_LINKED'
+      });
+    }
+
+    // The product must be one we actually sell.
+    if (!APPLE_PRODUCT_IDS[subscriptionInfo.productId]) {
+      return res.status(400).json({ error: 'Producto no reconocido', code: 'UNKNOWN_PRODUCT' });
     }
 
     // Use willRenew from Apple receipt instead of always setting TRUE
@@ -1408,8 +1481,8 @@ router.post('/apple/verify', async (req, res) => {
   }
 });
 
-// Get Apple subscription status for a user
-router.get('/apple/status/:userId', async (req, res) => {
+// Get Apple subscription status for a user (own account only)
+router.get('/apple/status/:userId', requireAuth, requireOwner('userId'), async (req, res) => {
   console.log('🍎 Apple subscription status request for userId:', req.params.userId);
   
   try {
@@ -1456,10 +1529,26 @@ router.get('/apple/status/:userId', async (req, res) => {
 // Apple sends notifications here when subscription status changes
 router.post('/apple/webhook', async (req, res) => {
   console.log('🍎 Apple S2S Notification received');
-  
+
   try {
     const notification = req.body;
-    
+
+    // Authenticate the notification. Version 1 payloads carry the App-Specific
+    // Shared Secret in `password`; anything else is rejected. Without this check the
+    // endpoint accepted forged notifications that could extend any subscription.
+    //
+    // NOTE: if you migrate to App Store Server Notifications V2, the payload arrives
+    // as a signed JWS in `signedPayload` and must be verified against Apple's x5c
+    // certificate chain instead — this branch will reject V2 until that is added.
+    if (!APPLE_SHARED_SECRET) {
+      console.error('❌ APPLE_SHARED_SECRET not configured; rejecting Apple notification');
+      return res.status(503).json({ error: 'Not configured' });
+    }
+    if (notification.password !== APPLE_SHARED_SECRET) {
+      console.warn('⚠️ SECURITY: Apple notification with invalid or missing shared secret, rejected');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     // Log the notification type
     console.log('📨 Notification type:', notification.notification_type);
     

@@ -5,10 +5,15 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
+const { requireAuth, requireOwner, requireSuperadmin } = require('../middleware/auth');
 
 const SALT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_HOURS = 1; // Token válido por 1 hora
 const VERIFICATION_CODE_EXPIRY_MINUTES = 30; // Código de registro válido por 30 min
+// The user types the first 8 hex chars of the token from the email. Fixed length:
+// it must never be derived from client input, or a 1-char "code" would match
+// every pending token and hand over someone else's account.
+const RESET_CODE_LENGTH = 8;
 
 // ============================================
 // GOOGLE SIGN-IN
@@ -222,8 +227,9 @@ async function ensureUserSettings(userId) {
   }
 }
 
-// Get all users (admin)
-router.get('/', async (req, res) => {
+// Get all users — superadmin only. This used to be public and leaked every
+// registered address.
+router.get('/', requireSuperadmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT id, email, name, created_at FROM users ORDER BY created_at DESC'
@@ -235,8 +241,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get user by ID
-router.get('/:id', async (req, res) => {
+// Get user by ID (own account only)
+router.get('/:id', requireOwner('id'), async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT id, email, name, created_at FROM users WHERE id = ?',
@@ -317,11 +323,20 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Register
+// Register (legacy, no email verification).
+// Kept only for app builds older than the verified-registration flow. It lets an
+// account be created with an address the caller doesn't own, so it is disabled by
+// default; set ALLOW_LEGACY_REGISTER=true if you need it during a rollout.
 router.post('/register', async (req, res) => {
+  if (String(process.env.ALLOW_LEGACY_REGISTER || '').toLowerCase() !== 'true') {
+    return res.status(410).json({
+      error: 'Actualiza la aplicación para crear una cuenta.',
+      code: 'LEGACY_REGISTER_DISABLED',
+    });
+  }
   try {
     const { email, password, name } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
     }
@@ -598,33 +613,38 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// Get current session token for user
-router.get('/:id/session', async (req, res) => {
+// Check whether this device still holds the active session.
+// It never returns another account's token: the caller is already authenticated with
+// that token, so we simply echo it back. Previously this endpoint handed the session
+// token of any user id to anyone who asked, which was a full account takeover.
+router.get('/:id/session', requireAuth, requireOwner('id'), async (req, res) => {
   try {
-    const userId = req.params.id;
-    const [rows] = await retryQuery(() => 
-      pool.query(
-        'SELECT session_token FROM users WHERE id = ?',
-        [userId]
-      )
+    const [rows] = await retryQuery(() =>
+      pool.query('SELECT session_token FROM users WHERE id = ?', [req.targetUserId])
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ session_token: rows[0].session_token || null });
+    // Valid only when the stored token is exactly the one this request authenticated with.
+    const stored = rows[0].session_token || null;
+    const isCurrent = !!stored && stored === (req.headers.authorization || '').slice(7).trim();
+
+    res.json({
+      valid: isCurrent,
+      session_token: isCurrent ? stored : null,
+    });
   } catch (err) {
-    console.error('Error fetching session token:', err);
-    res.status(500).json({ error: 'Failed to fetch session token' });
+    console.error('Error checking session:', err);
+    res.status(500).json({ error: 'Failed to check session' });
   }
 });
 
 // Logout (clear session token)
-router.post('/:id/logout', async (req, res) => {
+router.post('/:id/logout', requireAuth, requireOwner('id'), async (req, res) => {
   try {
-    const userId = req.params.id;
-    await pool.query('UPDATE users SET session_token = NULL WHERE id = ?', [userId]);
+    await pool.query('UPDATE users SET session_token = NULL WHERE id = ?', [req.targetUserId]);
     res.json({ message: 'Logged out' });
   } catch (err) {
     console.error('Error during logout:', err);
@@ -632,45 +652,48 @@ router.post('/:id/logout', async (req, res) => {
   }
 });
 
-// Update user
-router.put('/:id', async (req, res) => {
+// Update profile (name / email) for your own account.
+// Password changes are NOT accepted here — they must go through /change-password,
+// which verifies the current password. Accepting `password` on this route meant
+// anyone could reset another user's credentials by id.
+router.put('/:id', requireAuth, requireOwner('id'), async (req, res) => {
   try {
-    const { email, name, password } = req.body;
-    const userId = req.params.id;
-    
-    let query = 'UPDATE users SET ';
+    const { email, name } = req.body;
+    const userId = req.targetUserId;
+
     const params = [];
     const updates = [];
-    
-    if (email) {
+
+    if (email !== undefined) {
+      const normalized = String(email).toLowerCase().trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalized)) {
+        return res.status(400).json({ error: 'Correo electrónico no válido' });
+      }
+      const [taken] = await pool.query('SELECT id FROM users WHERE email = ? AND id != ?', [normalized, userId]);
+      if (taken.length > 0) {
+        return res.status(409).json({ error: 'Email already registered' });
+      }
       updates.push('email = ?');
-      params.push(email);
+      params.push(normalized);
     }
     if (name !== undefined) {
       updates.push('name = ?');
       params.push(name);
     }
-    if (password) {
-      // Hash password antes de guardar
-      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-      updates.push('password = ?');
-      params.push(hashedPassword);
-    }
-    
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
-    query += updates.join(', ') + ' WHERE id = ?';
+
     params.push(userId);
-    
-    await pool.query(query, params);
-    
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+
     const [rows] = await pool.query(
       'SELECT id, email, name, created_at FROM users WHERE id = ?',
       [userId]
     );
-    
+
     res.json(rows[0]);
   } catch (err) {
     console.error('Error updating user:', err);
@@ -679,7 +702,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Change password (requires current password verification)
-router.post('/:id/change-password', async (req, res) => {
+router.post('/:id/change-password', requireAuth, requireOwner('id'), async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     const userId = req.params.id;
@@ -722,14 +745,15 @@ router.post('/:id/change-password', async (req, res) => {
     // Hash nueva contraseña
     const hashedNewPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
     
-    // Actualizar contraseña
+    // Actualizar contraseña e invalidar la sesión, para que un atacante que hubiera
+    // capturado el token anterior quede fuera.
     await pool.query(
-      'UPDATE users SET password = ? WHERE id = ?',
+      'UPDATE users SET password = ?, session_token = NULL WHERE id = ?',
       [hashedNewPassword, userId]
     );
-    
+
     console.log(`Password cambiada exitosamente para usuario ${userId}`);
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: 'Password changed successfully', sessionInvalidated: true });
   } catch (err) {
     console.error('Error changing password:', err);
     res.status(500).json({ error: 'Failed to change password' });
@@ -737,25 +761,31 @@ router.post('/:id/change-password', async (req, res) => {
 });
 
 // Delete user account and all associated data
-router.delete('/:id', async (req, res) => {
-  const userId = req.params.id;
+router.delete('/:id', requireAuth, requireOwner('id'), async (req, res) => {
+  const userId = req.targetUserId;
   const { password } = req.body || {};
 
   try {
     // Verify user exists and check password for security
-    const [users] = await pool.query('SELECT id, password FROM users WHERE id = ?', [userId]);
+    const [users] = await pool.query('SELECT id, password, auth_provider FROM users WHERE id = ?', [userId]);
     if (users.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    // Require password confirmation for account deletion
-    if (!password) {
-      return res.status(400).json({ error: 'Se requiere la contraseña para eliminar la cuenta' });
-    }
+    // Google accounts have a random unusable password, so asking for it would make
+    // the account impossible to delete. The bearer token is the proof of identity there.
+    const isGoogleAccount = users[0].auth_provider === 'google';
 
-    const isPasswordValid = await bcrypt.compare(password, users[0].password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    if (!isGoogleAccount) {
+      // Require password confirmation for account deletion
+      if (!password) {
+        return res.status(400).json({ error: 'Se requiere la contraseña para eliminar la cuenta' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, users[0].password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Contraseña incorrecta' });
+      }
     }
 
     const conn = await pool.getConnection();
@@ -944,48 +974,66 @@ IMPORTANTE:
   }
 });
 
-// Verify reset token - check if token is valid
+/**
+ * Looks up a pending reset by the 8-character code from the email.
+ *
+ * Two things this deliberately does NOT do, because the previous version did and both
+ * were exploitable:
+ *   - it never takes the prefix length from the request (a 1-char "code" used to match
+ *     every outstanding token);
+ *   - it never returns the full token to the client.
+ *
+ * Matching is additionally scoped by email, so a valid code only ever unlocks the
+ * account it was issued for.
+ */
+async function findPendingReset(email, code) {
+  const normalizedCode = String(code).toLowerCase().trim();
+  if (normalizedCode.length !== RESET_CODE_LENGTH) return null;
+  if (!/^[0-9a-f]+$/.test(normalizedCode)) return null;
+
+  const normalizedEmail = String(email || '').toLowerCase().trim();
+  if (!normalizedEmail) return null;
+
+  const [tokens] = await pool.query(
+    `SELECT prt.id, prt.token, prt.user_id, u.email
+     FROM password_reset_tokens prt
+     JOIN users u ON prt.user_id = u.id
+     WHERE LOWER(LEFT(prt.token, ?)) = ?
+       AND LOWER(u.email) = ?
+       AND prt.used = FALSE
+       AND prt.expires_at > NOW()
+     ORDER BY prt.created_at DESC
+     LIMIT 1`,
+    [RESET_CODE_LENGTH, normalizedCode, normalizedEmail]
+  );
+
+  return tokens.length > 0 ? tokens[0] : null;
+}
+
+// Verify reset code - confirms the code is valid without handing out the token
 router.post('/verify-reset-token', async (req, res) => {
   try {
-    const { token } = req.body;
-    
-    if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
+    const { token, code, email } = req.body;
+    const providedCode = code || token;
+
+    if (!providedCode || !email) {
+      return res.status(400).json({ error: 'Email y código son obligatorios' });
     }
 
-    // Buscar token en la base de datos (usamos los primeros 8 caracteres en mayúscula)
-    // El usuario ingresa solo los primeros 8 caracteres
-    const tokenPrefix = token.toLowerCase();
-    
-    const [tokens] = await pool.query(
-      `SELECT prt.*, u.email 
-       FROM password_reset_tokens prt 
-       JOIN users u ON prt.user_id = u.id 
-       WHERE LOWER(LEFT(prt.token, ?)) = ? 
-         AND prt.used = FALSE 
-         AND prt.expires_at > NOW()
-       ORDER BY prt.created_at DESC 
-       LIMIT 1`,
-      [tokenPrefix.length, tokenPrefix]
-    );
+    const resetToken = await findPendingReset(email, providedCode);
 
-    if (tokens.length === 0) {
-      return res.status(400).json({ 
+    if (!resetToken) {
+      return res.status(400).json({
         error: 'Código inválido o expirado. Solicita uno nuevo.',
-        valid: false 
+        valid: false
       });
     }
 
-    const resetToken = tokens[0];
-    
-    // Obtener email parcialmente oculto para confirmación
-    const email = resetToken.email;
-    const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+    const maskedEmail = resetToken.email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
 
-    res.json({ 
+    res.json({
       valid: true,
       email: maskedEmail,
-      fullToken: resetToken.token // Necesario para el siguiente paso
     });
 
   } catch (err) {
@@ -994,37 +1042,28 @@ router.post('/verify-reset-token', async (req, res) => {
   }
 });
 
-// Reset password with valid token
+// Reset password with a valid recovery code
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
-    
-    if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password are required' });
+    const { token, code, email, newPassword } = req.body;
+    const providedCode = code || token;
+
+    if (!providedCode || !email || !newPassword) {
+      return res.status(400).json({ error: 'Email, código y nueva contraseña son obligatorios' });
     }
 
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
-    // Buscar token válido
-    const [tokens] = await pool.query(
-      `SELECT prt.*, u.id as user_id, u.email 
-       FROM password_reset_tokens prt 
-       JOIN users u ON prt.user_id = u.id 
-       WHERE prt.token = ? 
-         AND prt.used = FALSE 
-         AND prt.expires_at > NOW()`,
-      [token]
-    );
+    const resetToken = await findPendingReset(email, providedCode);
 
-    if (tokens.length === 0) {
-      return res.status(400).json({ 
-        error: 'Código inválido o expirado. Solicita uno nuevo.' 
+    if (!resetToken) {
+      return res.status(400).json({
+        error: 'Código inválido o expirado. Solicita uno nuevo.'
       });
     }
 
-    const resetToken = tokens[0];
     const conn = await pool.getConnection();
     
     try {

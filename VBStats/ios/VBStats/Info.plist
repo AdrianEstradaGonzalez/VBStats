@@ -33,6 +33,28 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Necesitamos la cámara para escanear códigos QR.</string>
+    <!--
+      vbstats:// deep links — the return from Stripe Checkout (payment-success /
+      payment-cancelled) and the "Open in the app" button of the password-reset email.
+    -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>com.vbstats</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>vbstats</string>
+            </array>
+        </dict>
+    </array>
+    <!-- Push notifications arriving while the app is in the background -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string></string>
     <key>RCTNewArchEnabled</key>

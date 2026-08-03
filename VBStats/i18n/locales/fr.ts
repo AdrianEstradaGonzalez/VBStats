@@ -620,6 +620,7 @@ const fr = {
 
   // Match Field Screen
   matchField: {
+    offlineSaved: 'Enregistré sur l\'appareil. Sera envoyé au retour de la connexion.',
     selectPlayers: 'Sélectionner les Joueurs',
     selectStartingPlayers: 'Sélectionnez les joueurs titulaires',
     start: 'Commencer',
@@ -666,6 +667,12 @@ const fr = {
   },
 
   // Admin Panel
+  notifications: {
+    optInTitle: 'Activer les notifications',
+    optInMessage: 'VBStats peut vous informer des nouveautés, des améliorations et des messages importants de l\'équipe. Vous pouvez changer cela à tout moment dans les réglages du téléphone.',
+    optInAccept: 'Activer',
+    optInDecline: 'Pas maintenant',
+  },
   admin: {
     panelTitle: 'Panneau Admin',
     panelSubtitle: 'Gestion de l\'application',
