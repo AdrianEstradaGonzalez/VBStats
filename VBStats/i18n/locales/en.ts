@@ -620,6 +620,7 @@ const en = {
 
   // Match Field Screen
   matchField: {
+    offlineSaved: 'Saved on this device. It will sync when you are back online.',
     selectPlayers: 'Select Players',
     selectStartingPlayers: 'Select the starting players',
     start: 'Start',

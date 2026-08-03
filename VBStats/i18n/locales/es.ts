@@ -620,6 +620,7 @@ const es = {
 
   // Match Field Screen
   matchField: {
+    offlineSaved: 'Guardado en el dispositivo. Se enviará al recuperar conexión.',
     selectPlayers: 'Seleccionar Jugadores',
     selectStartingPlayers: 'Selecciona los jugadores titulares',
     start: 'Iniciar',

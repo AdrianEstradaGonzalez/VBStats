@@ -28,6 +28,15 @@ import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon, Doub
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
 import { userPreferencesService } from '../services/userPreferencesService';
+import {
+  saveLocalMatchState,
+  loadLocalMatchState,
+  markSynced,
+  chooseFreshestState,
+  clearLocalMatchState,
+  saveUnflushedStats,
+  clearUnflushedStats,
+} from '../services/matchStateCache';
 import { displayStatType } from '../services/statTemplates';
 import type { MatchDetails } from './MatchDetailsScreen';
 import type { Player, StatSetting, MatchStatCreate, Match } from '../services/types';
@@ -188,6 +197,8 @@ export default function MatchFieldScreen({
   // Estados para estadísticas en memoria (cache)
   const [pendingStats, setPendingStats] = useState<StatAction[]>([]);
   const [savingStats, setSavingStats] = useState(false);
+  /** True while something is recorded on the device but not yet on the server. */
+  const [hasUnsyncedData, setHasUnsyncedData] = useState(false);
   
   // Estados para feedback visual
   const [lastStatFeedback, setLastStatFeedback] = useState<LastStatFeedback>(null);
@@ -258,10 +269,20 @@ export default function MatchFieldScreen({
           setMatchId(existingMatch.id);
           setMatchCreated(true);
           
-          // Load match state (positions, pending stats)
-          const matchState = await matchesService.getMatchState(resumeMatchId);
-          console.log('📦 Estado del partido cargado:', matchState);
-          
+          // Load match state (positions, pending stats).
+          // Try the server, but fall back to the device copy — and prefer it when it
+          // holds work the server never received (recorded offline).
+          const serverState = await matchesService.getMatchState(resumeMatchId).catch(err => {
+            console.warn('No se pudo leer el estado del servidor, se usara el local:', err);
+            return null;
+          });
+          const cached = await loadLocalMatchState(resumeMatchId);
+          const { state: matchState, source } = chooseFreshestState(serverState, cached);
+          console.log(`📦 Estado del partido cargado (origen: ${source})`);
+          if (source === 'local' && cached && !cached.syncedToServer) {
+            setHasUnsyncedData(true);
+          }
+
           if (matchState) {
             if (matchState.positions && matchState.positions.length > 0) {
               // Restore positions
@@ -363,52 +384,56 @@ export default function MatchFieldScreen({
   const saveMatchState = useCallback(async () => {
     const state = stateRef.current;
     if (!state.matchId || !state.userId) return;
-    
+
+    // Prepare action history for serialization
+    const serializedHistory = state.actionHistory.map(a => ({
+      type: a.type,
+      data: a.data,
+      timestamp: a.timestamp,
+    }));
+
+    // Prepare pending stats for serialization
+    const serializedStats = state.pendingStats.map(s => ({
+      id: s.id,
+      playerId: s.playerId,
+      playerName: s.playerName,
+      playerNumber: s.playerNumber,
+      setNumber: s.setNumber,
+      statSettingId: s.statSettingId,
+      statCategory: s.statCategory,
+      statType: s.statType,
+      timestamp: s.timestamp,
+      scoreLocal: s.scoreLocal,
+      scoreVisitante: s.scoreVisitante,
+      setsLocal: s.setsLocal,
+      setsVisitante: s.setsVisitante,
+    }));
+
+    const snapshot = {
+      positions: state.positions,
+      current_set: state.currentSet,
+      is_set_active: state.isSetActive,
+      action_history: serializedHistory,
+      pending_stats: serializedStats,
+      score_local: state.scoreLocal,
+      score_visitante: state.scoreVisitante,
+      sets_local: state.setsLocal,
+      sets_visitante: state.setsVisitante,
+    };
+
+    // Write to the device first. Sports halls routinely have no usable signal, and
+    // the server round-trip must never be what stands between a recorded set and
+    // keeping it.
+    await saveLocalMatchState(state.matchId, snapshot);
+
     try {
-      // Prepare action history for serialization
-      const serializedHistory = state.actionHistory.map(a => ({
-        type: a.type,
-        data: a.data,
-        timestamp: a.timestamp,
-      }));
-      
-      // Prepare pending stats for serialization
-      const serializedStats = state.pendingStats.map(s => ({
-        id: s.id,
-        playerId: s.playerId,
-        playerName: s.playerName,
-        playerNumber: s.playerNumber,
-        setNumber: s.setNumber,
-        statSettingId: s.statSettingId,
-        statCategory: s.statCategory,
-        statType: s.statType,
-        timestamp: s.timestamp,
-        scoreLocal: s.scoreLocal,
-        scoreVisitante: s.scoreVisitante,
-        setsLocal: s.setsLocal,
-        setsVisitante: s.setsVisitante,
-      }));
-      
-      await matchesService.saveMatchState(state.matchId, {
-        positions: state.positions,
-        current_set: state.currentSet,
-        is_set_active: state.isSetActive,
-        action_history: serializedHistory,
-        pending_stats: serializedStats,
-        score_local: state.scoreLocal,
-        score_visitante: state.scoreVisitante,
-        sets_local: state.setsLocal,
-        sets_visitante: state.setsVisitante,
-      });
-      console.log('Estado del partido guardado:', {
-        matchId: state.matchId,
-        positions: state.positions.filter(p => p.playerId).length,
-        currentSet: state.currentSet,
-        isSetActive: state.isSetActive,
-        pendingStats: state.pendingStats.length,
-      });
+      await matchesService.saveMatchState(state.matchId, snapshot);
+      await markSynced(state.matchId);
+      setHasUnsyncedData(false);
     } catch (error) {
-      console.error('Error guardando estado:', error);
+      // Not fatal: the local copy holds everything and the next autosave retries.
+      console.warn('Estado guardado solo en el dispositivo (sin conexion):', error);
+      setHasUnsyncedData(true);
     }
   }, []); // No dependencies - uses ref
 
@@ -893,31 +918,40 @@ export default function MatchFieldScreen({
   // Función para guardar las estadísticas pendientes en BD
   const savePendingStats = async (): Promise<boolean> => {
     if (pendingStats.length === 0 || !matchId || !userId) return true;
-    
+
     setSavingStats(true);
+    const statsToSave: MatchStatCreate[] = pendingStats.map(stat => ({
+      user_id: userId,
+      match_id: matchId,
+      player_id: stat.playerId,
+      set_number: stat.setNumber,
+      stat_setting_id: stat.statSettingId,
+      stat_category: stat.statCategory,
+      stat_type: stat.statType,
+      sets_local: stat.setsLocal ?? 0,
+      sets_visitante: stat.setsVisitante ?? 0,
+      puntos_local: stat.scoreLocal ?? 0,
+      puntos_visitante: stat.scoreVisitante ?? 0,
+    }));
+
+    // Keep a device-side copy before the request, so a crash mid-flight can't lose
+    // the set. Cleared again as soon as the server confirms.
+    await saveUnflushedStats(matchId, statsToSave);
+
     try {
-      const statsToSave: MatchStatCreate[] = pendingStats.map(stat => ({
-        user_id: userId,
-        match_id: matchId,
-        player_id: stat.playerId,
-        set_number: stat.setNumber,
-        stat_setting_id: stat.statSettingId,
-        stat_category: stat.statCategory,
-        stat_type: stat.statType,
-        sets_local: stat.setsLocal ?? 0,
-        sets_visitante: stat.setsVisitante ?? 0,
-        puntos_local: stat.scoreLocal ?? 0,
-        puntos_visitante: stat.scoreVisitante ?? 0,
-      }));
-      
       const result = await statsService.saveMatchStatsBatch(statsToSave);
       console.log(`${result.inserted} estadisticas guardadas en BD`);
-      
+
+      await clearUnflushedStats(matchId);
       // Limpiar stats pendientes del set actual
       setPendingStats([]);
+      setHasUnsyncedData(false);
       return true;
     } catch (error) {
+      // pendingStats is deliberately NOT cleared: the actions stay in memory and in
+      // the local cache, and the next end-of-set or match-finish retries them.
       console.error('Error guardando estadisticas:', error);
+      setHasUnsyncedData(true);
       return false;
     } finally {
       setSavingStats(false);
@@ -1030,12 +1064,21 @@ export default function MatchFieldScreen({
         setFinishedMatch(updatedMatch);
         console.log('Partido finalizado y guardado', { scoreHome: scoreHomeNum, scoreAway: scoreAwayNum });
         
-        // Delete saved match state since match is finished
+        // Delete saved match state since match is finished.
+        // The local copy is only dropped once the stats made it to the server —
+        // otherwise a failed flush would take the recording with it.
         try {
           await matchesService.deleteMatchState(matchId);
           console.log('Estado del partido eliminado');
         } catch (stateError) {
           console.log('No state to delete or error:', stateError);
+        }
+
+        if (!hasUnsyncedData) {
+          await clearLocalMatchState(matchId);
+          await clearUnflushedStats(matchId);
+        } else {
+          console.warn('Quedan datos sin sincronizar; se conserva la copia local del partido');
         }
       } catch (error) {
         console.error('Error finalizando partido:', error);
@@ -1730,6 +1773,21 @@ export default function MatchFieldScreen({
     <View style={styles.container}>
       {/* Background accents to match theme (soft pink blobs) */}
       <View style={styles.backgroundAccentTop} pointerEvents="none" />
+
+      {/*
+        Offline indicator. Everything is already safe on the device at this point;
+        this exists so the user isn't left thinking a set was lost, and knows to stay
+        in the app until it syncs.
+      */}
+      {hasUnsyncedData && (
+        <View style={styles.offlineBanner}>
+          <MaterialCommunityIcons name="cloud-off-outline" size={16} color="#FFFFFF" />
+          <Text style={styles.offlineBannerText}>
+            {t('matchField.offlineSaved', 'Guardado en el dispositivo. Se enviará al recuperar conexión.')}
+          </Text>
+        </View>
+      )}
+
       {/* Header oscuro compacto */}
       <View style={styles.header}>
         <View style={styles.controlsRow}>
@@ -2569,6 +2627,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     paddingTop: SAFE_AREA_TOP,
     paddingBottom: Platform.OS === 'android' ? ANDROID_NAV_BAR_HEIGHT : 0,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#B45309',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  offlineBannerText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   header: {
     backgroundColor: '#1a1a1a',
