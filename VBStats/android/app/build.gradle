@@ -107,8 +107,10 @@ android {
         applicationId "com.vbstats"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 26
-        versionName "5.0"
+        // Bumped for the auth rework: the rollout plan relies on raising
+        // MIN_APP_VERSION to 5.1 to force clients onto the token-authenticated build.
+        versionCode 27
+        versionName "5.1"
     }
     // Release signing credentials come from android/keystore.properties, which is
     // gitignored. They used to live in the committed gradle.properties.

@@ -1,6 +1,9 @@
 package com.vbstats
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -34,5 +37,31 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     loadReactNative(this)
+    createDefaultNotificationChannel()
+  }
+
+  /**
+   * Creates the channel referenced by
+   * `com.google.firebase.messaging.default_notification_channel_id` in the manifest.
+   *
+   * Android 8+ drops any notification whose channel does not exist; FCM would fall
+   * back to an auto-created channel literally named "Miscellaneous", which is what
+   * the user would then see in the system settings. Creating it here gives it a
+   * proper name. Creating an existing channel is a no-op, so this is safe on every
+   * launch.
+   */
+  private fun createDefaultNotificationChannel() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+    val channel = NotificationChannel(
+        "vbstats-default",
+        "Avisos de VBStats",
+        NotificationManager.IMPORTANCE_HIGH
+    ).apply {
+      description = "Novedades y mensajes importantes de VBStats"
+    }
+
+    val manager = getSystemService(NotificationManager::class.java)
+    manager?.createNotificationChannel(channel)
   }
 }
