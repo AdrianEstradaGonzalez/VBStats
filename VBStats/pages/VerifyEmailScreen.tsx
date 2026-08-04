@@ -15,16 +15,15 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  StatusBar,
   ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import { usersService } from '../services/usersService';
 import { User } from '../services/types';
 
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface VerifyEmailScreenProps {
   email: string;

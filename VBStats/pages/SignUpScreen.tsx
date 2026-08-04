@@ -14,19 +14,17 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  StatusBar,
   ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import LanguageSelector from '../components/LanguageSelector';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import { isGoogleSignInConfigured } from '../services/config';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface SignUpScreenProps {
   onSignUp: (email: string, password: string, name?: string) => Promise<boolean>;

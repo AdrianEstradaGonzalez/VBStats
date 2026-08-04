@@ -13,15 +13,14 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  StatusBar,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import { usersService } from '../services/usersService';
 
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface ForgotPasswordScreenProps {
   onBack: () => void;
@@ -98,7 +97,14 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        {/* Scrollable so the content stays reachable on short screens and when the
+            keyboard is open. */}
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {/* Header con botón de retroceso */}
           <View style={styles.header}>
             <TouchableOpacity 
@@ -206,7 +212,7 @@ export default function ForgotPasswordScreen({ onBack, onCodeSent }: ForgotPassw
               {t('forgotPassword.securityNote')}
             </Text>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -224,8 +230,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.lg,
   },
   header: {
     paddingTop: Spacing.md,

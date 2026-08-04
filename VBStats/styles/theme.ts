@@ -3,47 +3,49 @@
  * Colores y estilos globales de la aplicación
  */
 
-import { Platform, StatusBar, Dimensions, NativeModules } from 'react-native';
+import { Platform, StatusBar, Dimensions } from 'react-native';
+import { initialWindowMetrics } from 'react-native-safe-area-context';
 
-const { StatusBarManager } = NativeModules;
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /**
- * Get the iOS status bar height.
- * - Devices with Dynamic Island (iPhone 14 Pro+, 15, 16): ~59pt
- * - Devices with notch (iPhone X-14): ~47-50pt
- * - Devices without notch (iPad, older iPhones): ~20pt
- * On Android, StatusBar.currentHeight works correctly.
+ * Safe area insets.
+ *
+ * These used to be *guesses*: the top was derived from the screen height on iOS
+ * (assuming a notch above 812pt, a Dynamic Island above 852pt) and the bottom was a
+ * flat 48 on every Android device. That breaks on anything the heuristics didn't
+ * anticipate — punch-hole cameras, gesture navigation, foldables, tablets — and it
+ * got worse with `targetSdkVersion 36`: from Android 15 the system enforces
+ * edge-to-edge and in Android 16 the opt-out is ignored, so the window really does
+ * extend under both system bars and the content was being clipped.
+ *
+ * `initialWindowMetrics` comes from the native side at startup, so these are the
+ * real insets for the actual device. The old heuristics remain only as a fallback
+ * for the rare case where the native module hasn't provided metrics yet.
+ *
+ * For anything that needs to react to changes (rotation, foldables opening), use
+ * the `useSafeAreaInsets()` hook instead of these constants.
  */
-const getStatusBarHeight = (): number => {
+const fallbackTopInset = (): number => {
   if (Platform.OS === 'android') {
     return StatusBar.currentHeight || 24;
   }
-  // iOS: Estimate based on screen height
-  // iPhone X+ have screen heights >= 812pt
   if (Platform.OS === 'ios') {
-    // iPads and older iPhones (no notch)
-    if (SCREEN_HEIGHT < 812) {
-      return 20;
-    }
-    // iPhone 14 Pro, 15, 16 (Dynamic Island) have height >= 852
-    if (SCREEN_HEIGHT >= 852) {
-      return 59;
-    }
-    // iPhone X, XS, 11 Pro, 12 mini, 13 mini, etc (notch)
+    if (SCREEN_HEIGHT < 812) return 20;
+    if (SCREEN_HEIGHT >= 852) return 59;
     return 50;
   }
   return 0;
 };
 
-export const SAFE_AREA_TOP = getStatusBarHeight();
+const fallbackBottomInset = (): number =>
+  Platform.OS === 'ios' ? (SCREEN_HEIGHT >= 812 ? 34 : 0) : 48;
 
-/**
- * Bottom safe area height for devices with home indicator.
- */
-export const SAFE_AREA_BOTTOM: number = Platform.OS === 'ios'
-  ? (SCREEN_HEIGHT >= 812 ? 34 : 0)
-  : 48;
+const insets = initialWindowMetrics?.insets;
+
+export const SAFE_AREA_TOP: number = insets ? insets.top : fallbackTopInset();
+
+export const SAFE_AREA_BOTTOM: number = insets ? insets.bottom : fallbackBottomInset();
 
 export const Colors = {
   // Colores principales

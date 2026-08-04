@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking, BackHandler } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import './i18n';
@@ -1038,6 +1039,10 @@ export default function App() {
   };
 
   return (
+    // SafeAreaProvider must wrap everything: it is what publishes the real device
+    // insets that styles/theme.ts and useSafeAreaInsets() read. `initialMetrics`
+    // makes them available on the very first render, avoiding a visible jump.
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <StatusBar
         barStyle="light-content"
@@ -1248,5 +1253,6 @@ export default function App() {
         }}
       />
     </View>
+    </SafeAreaProvider>
   );
 }

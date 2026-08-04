@@ -12,7 +12,6 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
-  StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +23,6 @@ import { subscriptionService, SubscriptionType, TrialInfo, TRIAL_DAYS } from '..
 import { apiFetchJson } from '../services/http';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
 interface ProfileScreenProps {
   onOpenMenu?: () => void;

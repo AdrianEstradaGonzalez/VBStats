@@ -35,7 +35,6 @@ import GuideScreen from './GuideScreen';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
 // Legal URLs - Replace with your actual URLs
 const PRIVACY_POLICY_URL = 'https://bluedebug.com/vistas/vbstats-privacidad';

@@ -14,18 +14,17 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  StatusBar,
+  ScrollView,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import LanguageSelector from '../components/LanguageSelector';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import { isGoogleSignInConfigured } from '../services/config';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface LoginScreenProps {
   onLogin: (email: string, password: string) => Promise<boolean>;
@@ -113,7 +112,20 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp, onGoo
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        {/*
+          Scrollable so the form is always reachable. Previously this was a plain
+          flex:1 + justifyContent:'center' View: on a short screen — or once the
+          Google button made the content taller — the overflow was simply clipped
+          and there was no way to scroll down to it.
+          `flexGrow: 1` + `justifyContent: 'center'` keeps the centred look when the
+          content does fit.
+        */}
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {/* Logo/Header Section */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
@@ -258,7 +270,7 @@ export default function LoginScreen({ onLogin, onForgotPassword, onSignUp, onGoo
               />
             )}
           </Animated.View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       <LanguageSelector
@@ -294,9 +306,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    flex: 1,
+    // flexGrow (not flex) so the ScrollView still centres short content but is
+    // allowed to grow and scroll when the form doesn't fit.
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
   header: {
     alignItems: 'center',

@@ -15,7 +15,6 @@ import {
   Animated,
   ScrollView,
   Platform,
-  StatusBar,
   AppState,
   AppStateStatus,
   TextInput,
@@ -23,7 +22,7 @@ import {
 } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import { MenuIcon, PlusIcon, XIcon, DeleteIcon, StatsIcon, DoubleMinusIcon, DoublePlusIcon, TargetIcon, MinusIcon } from '../components/VectorIcons';
 import CustomAlert from '../components/CustomAlert';
 import { playersService, settingsService, matchesService, statsService } from '../services/api';
@@ -46,8 +45,7 @@ import { useTranslation } from 'react-i18next';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48; // Altura aproximada de la barra de navegación
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM; // Altura aproximada de la barra de navegación
 
 interface MatchFieldScreenProps {
   onOpenMenu?: () => void;

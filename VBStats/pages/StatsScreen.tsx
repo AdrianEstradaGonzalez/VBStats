@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
-  StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -33,8 +32,6 @@ import {
 } from '../components/VectorIcons';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface MatchRecord {
   id: string;

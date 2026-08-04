@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  StatusBar,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
@@ -46,8 +45,6 @@ import { userPreferencesService } from '../services/userPreferencesService';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface SettingsScreenProps {
   onBack?: () => void;
