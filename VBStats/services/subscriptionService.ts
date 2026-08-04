@@ -4,6 +4,8 @@
 
 import { API_BASE_URL } from './api';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiFetch, apiFetchJson } from './http';
 
 // Stripe Publishable Key
 export const STRIPE_PUBLISHABLE_KEY = 'pk_live_51SsPg4JAUMhTgnDDXmhaJVhotefqHTRXUalJRW5QHZLRWrAHDR9khiGkI6m54yTaWyVyaI7sSkDGxy8Gk52YmTv100ElaTBhuX';
@@ -131,10 +133,41 @@ export interface UserSubscription {
 
 export const SUBSCRIPTIONS_URL = `${API_BASE_URL}/subscriptions`;
 
+/**
+ * Last plan the server confirmed, per user.
+ *
+ * Used only to survive a transient failure without visibly downgrading someone to
+ * 'free'. It is never used to *grant* access on its own: every gated action still
+ * revalidates against the server, and the server is the only thing that can raise
+ * a plan.
+ */
+const SUBSCRIPTION_CACHE_KEY = '@VBStats:lastSubscription';
+
+const readCachedSubscription = async (userId: number): Promise<UserSubscription | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(`${SUBSCRIPTION_CACHE_KEY}:${userId}`);
+    if (!raw) return null;
+    const cached: UserSubscription = JSON.parse(raw);
+    // An expired cached plan is worthless — fall through to 'free'.
+    if (cached.expiresAt && new Date(cached.expiresAt) < new Date()) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedSubscription = async (userId: number, data: UserSubscription): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(`${SUBSCRIPTION_CACHE_KEY}:${userId}`, JSON.stringify(data));
+  } catch {
+    // Caching is best-effort.
+  }
+};
+
 // Validate subscription from server (to prevent local tampering)
 const validateSubscriptionFromServer = async (userId: number): Promise<SubscriptionType> => {
   try {
-    const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`);
+    const response = await apiFetch(`${SUBSCRIPTIONS_URL}/${userId}`);
     if (!response.ok) {
       return 'free';
     }
@@ -159,16 +192,30 @@ const validateSubscriptionFromServer = async (userId: number): Promise<Subscript
 export const subscriptionService = {
   SUBSCRIPTIONS_URL,
   
-  // Get user's current subscription with server validation
+  /**
+   * Get the user's current subscription.
+   *
+   * On a *network* failure we return the last plan the server confirmed instead of
+   * falling back to 'free'. Treating every failure as "free" meant a lost
+   * connection — or any bug in the request — silently stripped a paying user of
+   * their plan in the UI. Only an explicit answer from the server can downgrade.
+   */
   getSubscription: async (userId: number): Promise<UserSubscription> => {
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`);
+      const response = await apiFetch(`${SUBSCRIPTIONS_URL}/${userId}`);
+
       if (!response.ok) {
-        // Default to free if no subscription found
-        return { type: 'free' };
+        if (response.status === 401 || response.status === 403) {
+          // Session no longer valid: the caller will route back to login.
+          return { type: 'free' };
+        }
+        // 5xx / 404 and friends: don't punish the user for a server hiccup.
+        const cached = await readCachedSubscription(userId);
+        return cached || { type: 'free' };
       }
+
       const data = await response.json();
-      
+
       // Validate expiration client-side as well
       if (data.expiresAt) {
         const expirationDate = new Date(data.expiresAt);
@@ -177,11 +224,13 @@ export const subscriptionService = {
           return { type: 'free', expiresAt: data.expiresAt };
         }
       }
-      
+
+      await writeCachedSubscription(userId, data);
       return data;
     } catch (error) {
       console.error('Error fetching subscription:', error);
-      return { type: 'free' };
+      const cached = await readCachedSubscription(userId);
+      return cached || { type: 'free' };
     }
   },
 
@@ -207,10 +256,8 @@ export const subscriptionService = {
     }
     
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription_type: subscriptionType }),
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/${userId}`, 'PUT', {
+        subscription_type: subscriptionType,
       });
       return response.ok;
     } catch (error) {
@@ -233,14 +280,9 @@ export const subscriptionService = {
         return { error: 'Plan no válido' };
       }
 
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/create-checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          priceId: plan.stripePriceId,
-          platform: Platform.OS,
-        }),
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/create-checkout`, 'POST', {
+        priceId: plan.stripePriceId,
+        platform: Platform.OS,
       });
 
       if (!response.ok) {
@@ -328,7 +370,7 @@ export const subscriptionService = {
   // Search match by share code
   searchByCode: async (code: string): Promise<{ matchId?: number; error?: string }> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/matches/by-code/${code}`);
+      const response = await apiFetch(`${API_BASE_URL}/matches/by-code/${code}`);
       if (!response.ok) {
         if (response.status === 404) {
           return { error: 'Código no encontrado' };
@@ -346,10 +388,7 @@ export const subscriptionService = {
   // Cancel subscription
   cancelSubscription: async (userId: number): Promise<{ success: boolean; expiresAt?: string; cancelledAt?: string; error?: string }> => {
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/${userId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/${userId}/cancel`, 'POST');
 
       const data = await response.json();
 
@@ -371,11 +410,7 @@ export const subscriptionService = {
   // Check trial eligibility
   checkTrialEligibility: async (userId: number, deviceId: string): Promise<TrialEligibility> => {
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/check-trial-eligibility`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, deviceId }),
-      });
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/check-trial-eligibility`, 'POST', { deviceId });
 
       if (!response.ok) {
         return {
@@ -403,11 +438,7 @@ export const subscriptionService = {
   // Start a free trial
   startTrial: async (userId: number, planType: SubscriptionType, deviceId: string): Promise<{ success: boolean; trialEndsAt?: string; error?: string }> => {
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/start-trial`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, planType, deviceId }),
-      });
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/start-trial`, 'POST', { planType, deviceId });
 
       if (!response.ok) {
         const error = await response.json();
@@ -441,17 +472,12 @@ export const subscriptionService = {
         return { error: 'Plan no válido' };
       }
 
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/create-checkout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          priceId: plan.stripePriceId,
-          planType: planId,
-          platform: Platform.OS,
-          withTrial,
-          deviceId,
-        }),
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/create-checkout`, 'POST', {
+        priceId: plan.stripePriceId,
+        planType: planId,
+        platform: Platform.OS,
+        withTrial,
+        deviceId,
       });
 
       if (!response.ok) {
@@ -473,11 +499,7 @@ export const subscriptionService = {
     userId: number
   ): Promise<{ success: boolean; type?: SubscriptionType; isTrial?: boolean; message?: string; error?: string }> => {
     try {
-      const response = await fetch(`${SUBSCRIPTIONS_URL}/verify-checkout-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, userId }),
-      });
+      const response = await apiFetchJson(`${SUBSCRIPTIONS_URL}/verify-checkout-session`, 'POST', { sessionId });
 
       const data = await response.json();
       

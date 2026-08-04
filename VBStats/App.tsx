@@ -44,7 +44,7 @@ import { adminService } from "./services/adminService";
 import { notificationService } from "./services/notificationService";
 // Aliased: the component already has a `setSessionToken` React state setter, and an
 // unaliased import would be shadowed by it inside the component body.
-import { setSessionToken as persistAuthToken, loadSessionToken } from "./services/http";
+import { setSessionToken as persistAuthToken, loadSessionToken, apiFetchJson } from "./services/http";
 
 type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode' | 'adminPanel' | 'sendNotification' | 'userManagement';
 
@@ -728,10 +728,7 @@ export default function App() {
     
     setIsCancelling(true);
     try {
-      const response = await fetch(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await apiFetchJson(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/cancel`, 'POST');
 
       if (response.ok) {
         setShowCancelSubscriptionAlert(false);

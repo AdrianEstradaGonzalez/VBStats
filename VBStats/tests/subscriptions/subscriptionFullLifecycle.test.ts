@@ -89,6 +89,9 @@ describe('1. Free Account — Initial State', () => {
     const sub = await subscriptionService.getSubscription(1);
     expect(sub.type).toBe('free');
   });
+
+  // The inverse case — a paid plan surviving a transient failure instead of being
+  // reported as free — is covered in tests/services/authHeaders.test.ts.
 });
 
 // ═══════════════════════════════════════════════════════════════════════

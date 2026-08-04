@@ -8,6 +8,7 @@
  */
 
 import { Platform } from 'react-native';
+import { apiFetch, apiFetchJson } from './http';
 import {
   initConnection,
   endConnection,
@@ -287,17 +288,14 @@ class AppleIAPService {
     userId: number
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE_URL}/subscriptions/apple/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          productId: purchase.productId,
-          transactionId: purchase.transactionId,
-          receipt: purchase.transactionReceipt,
-          originalTransactionId: purchase.originalTransactionIdentifierIOS,
-        }),
-      });
+      // The account is taken from the session token; the server ignores any user id
+      // sent in the body so a receipt can't be redeemed onto someone else's account.
+      const response = await apiFetchJson(`${API_BASE_URL}/subscriptions/apple/verify`, 'POST', {
+        productId: purchase.productId,
+        transactionId: purchase.transactionId,
+        receipt: purchase.transactionReceipt,
+        originalTransactionId: purchase.originalTransactionIdentifierIOS,
+      }, { timeoutMs: 30000 });
 
       if (!response.ok) {
         const error = await response.json();
@@ -408,7 +406,7 @@ class AppleIAPService {
 
     try {
       // Get status from our server (which validates with Apple)
-      const response = await fetch(`${API_BASE_URL}/subscriptions/apple/status/${userId}`);
+      const response = await apiFetch(`${API_BASE_URL}/subscriptions/apple/status/${userId}`);
       
       if (!response.ok) {
         return {
