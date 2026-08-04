@@ -41,9 +41,19 @@ local.properties
 android/keystore.properties
 !android/keystore.properties.example
 
-# Firebase config (contains project identifiers tied to your account)
-android/app/google-services.json
-ios/**/GoogleService-Info.plist
+# Firebase config files ARE versioned on purpose.
+#
+# google-services.json and GoogleService-Info.plist are not secrets: they ship
+# inside every published APK/IPA and Google documents them as app identifiers.
+# What protects the project is the package name + signing SHA-1 binding, not the
+# secrecy of these files. Versioning them keeps every machine (and CI) building
+# with a plain `git pull`.
+#
+# The Firebase *service account* key is a different matter entirely: it grants
+# send rights over the whole project and must never be committed. It lives only
+# in the server environment (FIREBASE_SERVICE_ACCOUNT_BASE64).
+firebase-adminsdk*.json
+**/firebase-adminsdk*.json
 
 # Secrets
 .env

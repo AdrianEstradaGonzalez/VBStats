@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "483023567899",
+    "project_id": "vbstats-c43c6",
+    "storage_bucket": "vbstats-c43c6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:483023567899:android:d1d4761897ee943c26ccbe",
+        "android_client_info": {
+          "package_name": "com.vbstats"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "483023567899-bbhabhv94505kl33e7uvppmphg4lgca4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.vbstats",
+            "certificate_hash": "712360fb32ca4f2ebbea2f982ef9242ef6364e78"
+          }
+        },
+        {
+          "client_id": "483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAseSgk8A9gHNpanhY3JmrqG75z89Hivg8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
