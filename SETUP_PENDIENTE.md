@@ -73,29 +73,19 @@ que nunca estuvo instalado en esta app (React Native puro, sin Expo). El require
 fallaba siempre, así que no se registraba ningún token y no se podía entregar
 ninguna notificación. Ahora usa Firebase Cloud Messaging.
 
-**Consola de Firebase** (https://console.firebase.google.com):
+**Guía paso a paso completa: [FIREBASE_SETUP.md](FIREBASE_SETUP.md)** — incluye el
+alta del proyecto, el registro de las apps Android e iOS, la clave de APNs, las
+credenciales del servidor y cómo probarlo de punta a punta.
 
-1. Crear un proyecto (o reutilizar uno).
-2. Añadir una app **Android** con el paquete `com.vbstats`.
-   Descargar `google-services.json` → `VBStats/android/app/google-services.json`.
-3. Añadir una app **iOS** con el bundle id correspondiente.
-   Descargar `GoogleService-Info.plist` → añadirlo al proyecto en Xcode.
-4. Para iOS, subir la **APNs Auth Key** en
-   Configuración del proyecto → Cloud Messaging.
-5. Configuración del proyecto → Cuentas de servicio → *Generar nueva clave
-   privada*. Codificar el JSON en base64 y ponerlo en Render como:
-
-```
-FIREBASE_SERVICE_ACCOUNT_BASE64=<base64 del json>
-```
-
-En Linux/macOS: `base64 -w0 service-account.json`.
-En PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))`
+Resumen: registrar la app en Firebase, colocar `google-services.json` en
+`VBStats/android/app/`, y poner la cuenta de servicio en base64 en Render como
+`FIREBASE_SERVICE_ACCOUNT_BASE64`.
 
 > Sin `google-services.json` el build de Android **sigue compilando** (el plugin de
 > Google Services se aplica de forma condicional), pero las notificaciones no
-> funcionarán. La pantalla de administración avisa cuando el servidor no tiene
-> credenciales.
+> funcionarán: la configuración se incrusta en tiempo de compilación, así que hay
+> que **recompilar** después de añadir el fichero. La pantalla de administración
+> avisa cuando el servidor no tiene credenciales.
 
 Los usuarios ven una explicación propia antes del diálogo del sistema, y la
 respuesta se recuerda para no volver a preguntar en cada inicio de sesión.
