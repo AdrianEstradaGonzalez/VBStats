@@ -94,19 +94,30 @@ respuesta se recuerda para no volver a preguntar en cada inicio de sesión.
 
 ## 4. Inicio de sesión con Google
 
-Actualmente **no aparece en la app**. Faltan tres cosas:
+Actualmente **no aparece en la app**. El paquete nativo
+`@react-native-google-signin/google-signin` **ya está instalado** (v13.2.0) y el
+autolinking lo recoge en el build de Android. Sólo falta la configuración:
 
-1. El paquete nativo:
-   ```bash
-   npm install @react-native-google-signin/google-signin
-   ```
-   (y `pod install` en iOS)
-2. `GOOGLE_WEB_CLIENT_ID` en `VBStats/services/config.ts` — está vacío, y con el
+1. `GOOGLE_WEB_CLIENT_ID` en `VBStats/services/config.ts` — está vacío, y con el
    valor vacío el botón se oculta deliberadamente.
-3. `GOOGLE_WEB_CLIENT_ID` en el entorno del backend.
+2. `GOOGLE_WEB_CLIENT_ID` en el entorno del backend.
+3. En Google Cloud Console, un **cliente OAuth de tipo Android** con el paquete
+   `com.vbstats` y la huella SHA-1 del certificado de firma. Sin él, Google
+   rechaza la petición desde la app aunque el Web client ID sea correcto.
+   - SHA-1 del keystore de release:
+     `71:23:60:FB:32:CA:4F:2E:BB:EA:2F:98:2E:F9:24:2E:F6:36:4E:78`
+   - Si usas **Play App Signing**, usa además la SHA-1 que muestra Play Console
+     en *Integridad de la app*, que es la que firma lo que instalan los usuarios.
 
-Los tres valores deben ser el **Web client ID** de Google Cloud Console, no el de
-Android ni el de iOS. Guía completa en `VBStats/GOOGLE_SIGNIN_SETUP.md`.
+Los valores de los puntos 1 y 2 deben ser el **Web client ID**, no el de Android
+ni el de iOS. Guía completa en `VBStats/GOOGLE_SIGNIN_SETUP.md`.
+
+> El proyecto de Firebase ya creado (`vbstats-c43c6`) sirve también para esto: al
+> añadir la SHA-1 en la configuración de la app Android en Firebase, se genera el
+> cliente OAuth automáticamente y aparece en `google-services.json` dentro de
+> `oauth_client`. Ahora mismo ese array está vacío porque se registró la app sin
+> huella. Si añades la SHA-1 en Firebase, **descarga otra vez**
+> `google-services.json` y recompila.
 
 `google-auth-library` faltaba en las dependencias del backend, así que el endpoint
 `/api/users/google` habría devuelto 500 aunque el resto estuviera configurado. Ya
