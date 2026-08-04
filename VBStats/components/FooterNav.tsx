@@ -10,17 +10,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  StatusBar,
   Dimensions,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { Colors, Spacing, FontSizes, Shadows } from '../styles';
+import { Colors, Spacing, FontSizes, Shadows, SAFE_AREA_BOTTOM } from '../styles';
 import type { SubscriptionType } from '../services/subscriptionService';
 import { useTranslation } from 'react-i18next';
 
 const FOOTER_TAB_HEIGHT = 58;
 // Bottom safe area: on Android use nav bar height, on iOS approximate notch-device safe area
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 // Heuristic for iOS devices with home indicator (iPhone X+): screen height > 800
 const IOS_BOTTOM_INSET = Platform.OS === 'ios' && SCREEN_HEIGHT >= 812 ? 34 : 0;

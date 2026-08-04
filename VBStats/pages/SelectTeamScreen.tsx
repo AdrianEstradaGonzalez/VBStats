@@ -12,16 +12,14 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  StatusBar,
 } from 'react-native';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import { MenuIcon, TeamIcon, ChevronRightIcon } from '../components/VectorIcons';
 import { teamsService, playersService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface SelectTeamScreenProps {
   onBack?: () => void;

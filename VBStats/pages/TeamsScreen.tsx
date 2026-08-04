@@ -13,7 +13,6 @@ import {
   TextInput,
   Alert,
   Platform,
-  StatusBar,
   Image,
   KeyboardAvoidingView,
 } from 'react-native';
@@ -35,8 +34,6 @@ import { teamsService, playersService, Team, Player } from '../services/api';
 import { SubscriptionType, subscriptionService, BASIC_MAX_TEAMS } from '../services/subscriptionService';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface TeamsScreenProps {
   onBack?: () => void;

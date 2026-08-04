@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Platform,
   PermissionsAndroid,
-  StatusBar,
   Image,
   Share,
   Alert,
@@ -33,7 +32,6 @@ import { exportMatchToExcel } from '../services/excelExportService';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
 interface MatchStatsScreenProps {
   match: Match;

@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Platform,
   PermissionsAndroid,
-  StatusBar,
   Share,
   Alert,
   Dimensions,
@@ -31,7 +30,6 @@ import RNFS from 'react-native-fs';
 import { exportTrackingToExcel } from '../services/excelExportService';
 
 
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 48;
 const CHART_HEIGHT = 240;

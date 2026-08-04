@@ -10,7 +10,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
-  StatusBar,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -30,8 +29,6 @@ import { Team, Player, Match, matchesService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 interface StartMatchScreenProps {
   teams?: Team[];

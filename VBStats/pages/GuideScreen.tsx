@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-  StatusBar,
   Dimensions,
   Modal,
 } from 'react-native';
@@ -22,8 +21,6 @@ import type { SubscriptionType } from '../services/subscriptionService';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 

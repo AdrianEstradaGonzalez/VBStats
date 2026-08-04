@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StatusBar, Alert, Platform, ActivityIndicator, Linking, BackHandler } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import './i18n';
@@ -101,6 +102,7 @@ export default function App() {
   const [updateInfo, setUpdateInfo] = useState<VersionCheckResult | null>(null);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [showNotificationOptIn, setShowNotificationOptIn] = useState(false);
+  const [showNotificationDenied, setShowNotificationDenied] = useState(false);
   const [foregroundNotification, setForegroundNotification] = useState<{ title: string; body: string } | null>(null);
   const screenHistoryRef = useRef<Screen[]>([]);
   const isBackNavigationRef = useRef(false);
@@ -303,7 +305,12 @@ export default function App() {
   const handleAcceptNotifications = async () => {
     setShowNotificationOptIn(false);
     try {
-      await notificationService.requestPermissionAndRegister();
+      const status = await notificationService.requestPermissionAndRegister();
+      if (status === 'denied') {
+        // The OS dialog only appears once per install on both platforms, so from
+        // here the only way back is the system settings screen.
+        setShowNotificationDenied(true);
+      }
     } catch (error) {
       console.error('Error requesting notification permission:', error);
     }
@@ -313,7 +320,7 @@ export default function App() {
     setShowNotificationOptIn(false);
     // Record the answer so we don't ask again on every login.
     try {
-      await AsyncStorage.setItem('@VBStats:pushPrompted', 'true');
+      await notificationService.markDeclined();
     } catch (error) {
       console.error('Error saving notification preference:', error);
     }
@@ -1038,6 +1045,10 @@ export default function App() {
   };
 
   return (
+    // SafeAreaProvider must wrap everything: it is what publishes the real device
+    // insets that styles/theme.ts and useSafeAreaInsets() read. `initialMetrics`
+    // makes them available on the very first render, avoiding a visible jump.
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <View style={{ flex: 1, backgroundColor: Colors.background }}>
       <StatusBar
         barStyle="light-content"
@@ -1149,6 +1160,31 @@ export default function App() {
         onClose={handleDeclineNotifications}
       />
 
+      {/* Permission refused at OS level: offer the settings shortcut */}
+      <CustomAlert
+        visible={showNotificationDenied}
+        title={t('notifications.deniedTitle')}
+        message={t('notifications.deniedMessage')}
+        type="warning"
+        icon={<MaterialCommunityIcons name="bell-off-outline" size={32} color={Colors.warning} />}
+        buttons={[
+          {
+            text: t('common.understood'),
+            onPress: () => setShowNotificationDenied(false),
+            style: 'cancel',
+          },
+          {
+            text: t('notifications.openSettings'),
+            onPress: () => {
+              setShowNotificationDenied(false);
+              notificationService.openSystemSettings();
+            },
+            style: 'primary',
+          },
+        ]}
+        onClose={() => setShowNotificationDenied(false)}
+      />
+
       {/* In-app banner for a notification received while the app is open */}
       <CustomAlert
         visible={!!foregroundNotification}
@@ -1248,5 +1284,6 @@ export default function App() {
         }}
       />
     </View>
+    </SafeAreaProvider>
   );
 }

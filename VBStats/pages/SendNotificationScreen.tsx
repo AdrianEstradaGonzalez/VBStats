@@ -24,6 +24,7 @@ import {
   NotificationAudienceInfo,
 } from '../services/adminService';
 import CustomAlert from '../components/CustomAlert';
+import { notificationService } from '../services/notificationService';
 import { useTranslation } from 'react-i18next';
 
 interface SendNotificationScreenProps {
@@ -52,6 +53,13 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
   const [showResultAlert, setShowResultAlert] = useState(false);
   const [sendResult, setSendResult] = useState<SendNotificationResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  /** Notification pending re-send confirmation. */
+  const [resendTarget, setResendTarget] = useState<AdminNotification | null>(null);
+  const [diagnostics, setDiagnostics] = useState<{
+    moduleAvailable: boolean;
+    permission: string;
+    tokenRegistered: boolean;
+  } | null>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -69,6 +77,53 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
       console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
+    }
+
+    // Why this device may not be receiving anything — the "0 devices" case was
+    // impossible to diagnose from inside the app before.
+    try {
+      const d = await notificationService.getDiagnostics();
+      setDiagnostics({
+        moduleAvailable: d.moduleAvailable,
+        permission: d.permission,
+        tokenRegistered: d.tokenRegistered,
+      });
+    } catch {
+      setDiagnostics(null);
+    }
+  };
+
+  /** Loads a past notification back into the form so it can be tweaked and sent. */
+  const handleReuse = (item: AdminNotification) => {
+    setTitle(item.title);
+    setBody(item.body);
+    setAudience(item.audience || 'all');
+  };
+
+  /** Sends a past notification again, unchanged. */
+  const handleResend = async () => {
+    if (!resendTarget) return;
+    const target = resendTarget;
+    setResendTarget(null);
+    setSending(true);
+    setSendError(null);
+
+    try {
+      const result = await adminService.sendNotification(
+        target.title,
+        target.body,
+        target.audience || 'all'
+      );
+      setSendResult(result);
+      setShowResultAlert(true);
+      loadNotifications();
+    } catch (error: any) {
+      console.error('Error resending notification:', error);
+      setSendResult(null);
+      setSendError(error?.message || null);
+      setShowResultAlert(true);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -122,7 +177,12 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
   };
 
   const renderNotification = ({ item }: { item: AdminNotification }) => (
-    <View style={styles.notificationItem}>
+    // Tapping loads it into the form to edit; the button re-sends it as-is.
+    <TouchableOpacity
+      style={styles.notificationItem}
+      onPress={() => handleReuse(item)}
+      activeOpacity={0.7}
+    >
       <View style={styles.notificationHeader}>
         <Text style={styles.notificationTitle} numberOfLines={1}>{item.title}</Text>
         <View style={styles.recipientsBadge}>
@@ -133,13 +193,24 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
       <Text style={styles.notificationBody} numberOfLines={2}>{item.body}</Text>
       <View style={styles.notificationFooter}>
         <Text style={styles.notificationDate}>{formatDate(item.sent_at)}</Text>
-        {item.audience && item.audience !== 'all' && (
-          <Text style={styles.audienceTag}>
-            {AUDIENCES.find(a => a.id === item.audience)?.label || item.audience}
-          </Text>
-        )}
+        <View style={styles.notificationActions}>
+          {item.audience && item.audience !== 'all' && (
+            <Text style={styles.audienceTag}>
+              {AUDIENCES.find(a => a.id === item.audience)?.label || item.audience}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.resendButton}
+            onPress={() => setResendTarget(item)}
+            disabled={sending}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialCommunityIcons name="send-clock" size={16} color={Colors.primary} />
+            <Text style={styles.resendButtonText}>Reenviar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -166,6 +237,29 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
               <MaterialCommunityIcons name="alert" size={18} color="#f59e0b" />
               <Text style={styles.warningText}>
                 El servidor no tiene credenciales de Firebase. Define FIREBASE_SERVICE_ACCOUNT_BASE64 para poder enviar.
+              </Text>
+            </View>
+          )}
+
+          {/* Why this device might not be receiving anything */}
+          {diagnostics && !(diagnostics.moduleAvailable && diagnostics.permission === 'granted' && diagnostics.tokenRegistered) && (
+            <View style={styles.warningBanner}>
+              <MaterialCommunityIcons name="cellphone-off" size={18} color="#f59e0b" />
+              <Text style={styles.warningText}>
+                {!diagnostics.moduleAvailable
+                  ? 'Este dispositivo no tiene Firebase disponible: la app se compiló sin google-services.json.'
+                  : diagnostics.permission !== 'granted'
+                  ? 'Este dispositivo no tiene permiso de notificaciones. Actívalo en los ajustes del teléfono.'
+                  : 'Este dispositivo aún no ha registrado su token. Cierra sesión y vuelve a entrar.'}
+              </Text>
+            </View>
+          )}
+
+          {audienceInfo && audienceInfo.devices === 0 && (
+            <View style={styles.warningBanner}>
+              <MaterialCommunityIcons name="information" size={18} color="#f59e0b" />
+              <Text style={styles.warningText}>
+                No hay ningún dispositivo registrado todavía. Los usuarios deben abrir la app y aceptar las notificaciones.
               </Text>
             </View>
           )}
@@ -273,6 +367,28 @@ export default function SendNotificationScreen({ onBack }: SendNotificationScree
           },
         ]}
         onClose={() => setShowConfirmAlert(false)}
+      />
+
+      {/* Confirm re-send */}
+      <CustomAlert
+        visible={!!resendTarget}
+        title="Reenviar notificación"
+        message={resendTarget ? `Se enviará de nuevo "${resendTarget.title}" a: ${AUDIENCES.find(a => a.id === (resendTarget.audience || 'all'))?.label || 'Todos'}.` : ''}
+        type="warning"
+        icon={<MaterialCommunityIcons name="send-clock" size={32} color="#f59e0b" />}
+        buttons={[
+          {
+            text: t('common.cancel'),
+            onPress: () => setResendTarget(null),
+            style: 'cancel',
+          },
+          {
+            text: 'Reenviar',
+            onPress: handleResend,
+            style: 'default',
+          },
+        ]}
+        onClose={() => setResendTarget(null)}
       />
 
       {/* Result Alert */}
@@ -426,6 +542,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   audienceTag: {
+    fontSize: FontSizes.xs,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  notificationActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  resendButtonText: {
     fontSize: FontSizes.xs,
     color: Colors.primary,
     fontWeight: '600',

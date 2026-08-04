@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
 
 interface HomeScreenProps {
   userName?: string;

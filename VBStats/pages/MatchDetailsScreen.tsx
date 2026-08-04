@@ -12,16 +12,14 @@ import {
   TextInput,
   Alert,
   Platform,
-  StatusBar,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from '../styles';
+import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP, SAFE_AREA_BOTTOM } from '../styles';
 import { MenuIcon, PlayIcon } from '../components/VectorIcons';
 import { useTranslation } from 'react-i18next';
 
 // Safe area paddings para Android
-const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
-const ANDROID_NAV_BAR_HEIGHT = 48;
+const ANDROID_NAV_BAR_HEIGHT = SAFE_AREA_BOTTOM;
 
 interface MatchDetailsScreenProps {
   onBack?: () => void;
