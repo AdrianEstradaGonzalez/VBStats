@@ -18,10 +18,11 @@ async function checkUserPlan(email) {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, email, name, subscription_type, subscription_expires_at, 
+      `SELECT id, email, name, is_superadmin, auth_provider,
+              subscription_type, subscription_expires_at,
               auto_renew, cancelled_at, stripe_customer_id, stripe_subscription_id,
-              apple_original_transaction_id, apple_transaction_id, apple_product_id, 
-              trial_used, trial_started_at, trial_ends_at, trial_plan_type 
+              apple_original_transaction_id, apple_transaction_id, apple_product_id,
+              trial_used, trial_started_at, trial_ends_at, trial_plan_type
        FROM users WHERE email = ?`,
       [email]
     );

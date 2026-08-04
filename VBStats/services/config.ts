@@ -42,11 +42,18 @@ export const API_BASE_URL = getApiUrl();
 
 /**
  * Google Sign-In configuration.
- * Use the OAuth 2.0 "Web client" ID from Google Cloud Console (the same value the
- * backend uses in GOOGLE_WEB_CLIENT_ID). Leave empty to disable the Google button.
- * Setup guide: GOOGLE_SIGNIN_SETUP.md
+ *
+ * This is the OAuth 2.0 **Web** client ID (client_type 3 in google-services.json),
+ * not the Android one. The backend must be given the exact same value in its
+ * GOOGLE_WEB_CLIENT_ID environment variable: it is the audience the idToken is
+ * verified against, and a mismatch makes every sign-in fail with "token no válido".
+ *
+ * Not a secret — it ships inside the app and is public by design. What protects the
+ * flow is the Android OAuth client bound to the package name and signing SHA-1.
+ *
+ * Leave empty to hide the Google button. Setup guide: GOOGLE_SIGNIN_SETUP.md
  */
-export const GOOGLE_WEB_CLIENT_ID = '';
+export const GOOGLE_WEB_CLIENT_ID = '483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com';
 
 /** Whether Google Sign-In has a configured Web client ID */
 export const isGoogleSignInConfigured = (): boolean => GOOGLE_WEB_CLIENT_ID.trim().length > 0;

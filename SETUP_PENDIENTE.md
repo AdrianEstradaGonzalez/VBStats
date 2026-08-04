@@ -73,29 +73,19 @@ que nunca estuvo instalado en esta app (React Native puro, sin Expo). El require
 fallaba siempre, así que no se registraba ningún token y no se podía entregar
 ninguna notificación. Ahora usa Firebase Cloud Messaging.
 
-**Consola de Firebase** (https://console.firebase.google.com):
+**Guía paso a paso completa: [FIREBASE_SETUP.md](FIREBASE_SETUP.md)** — incluye el
+alta del proyecto, el registro de las apps Android e iOS, la clave de APNs, las
+credenciales del servidor y cómo probarlo de punta a punta.
 
-1. Crear un proyecto (o reutilizar uno).
-2. Añadir una app **Android** con el paquete `com.vbstats`.
-   Descargar `google-services.json` → `VBStats/android/app/google-services.json`.
-3. Añadir una app **iOS** con el bundle id correspondiente.
-   Descargar `GoogleService-Info.plist` → añadirlo al proyecto en Xcode.
-4. Para iOS, subir la **APNs Auth Key** en
-   Configuración del proyecto → Cloud Messaging.
-5. Configuración del proyecto → Cuentas de servicio → *Generar nueva clave
-   privada*. Codificar el JSON en base64 y ponerlo en Render como:
-
-```
-FIREBASE_SERVICE_ACCOUNT_BASE64=<base64 del json>
-```
-
-En Linux/macOS: `base64 -w0 service-account.json`.
-En PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))`
+Resumen: registrar la app en Firebase, colocar `google-services.json` en
+`VBStats/android/app/`, y poner la cuenta de servicio en base64 en Render como
+`FIREBASE_SERVICE_ACCOUNT_BASE64`.
 
 > Sin `google-services.json` el build de Android **sigue compilando** (el plugin de
 > Google Services se aplica de forma condicional), pero las notificaciones no
-> funcionarán. La pantalla de administración avisa cuando el servidor no tiene
-> credenciales.
+> funcionarán: la configuración se incrusta en tiempo de compilación, así que hay
+> que **recompilar** después de añadir el fichero. La pantalla de administración
+> avisa cuando el servidor no tiene credenciales.
 
 Los usuarios ven una explicación propia antes del diálogo del sistema, y la
 respuesta se recuerda para no volver a preguntar en cada inicio de sesión.
@@ -104,19 +94,30 @@ respuesta se recuerda para no volver a preguntar en cada inicio de sesión.
 
 ## 4. Inicio de sesión con Google
 
-Actualmente **no aparece en la app**. Faltan tres cosas:
+Actualmente **no aparece en la app**. El paquete nativo
+`@react-native-google-signin/google-signin` **ya está instalado** (v13.2.0) y el
+autolinking lo recoge en el build de Android. Sólo falta la configuración:
 
-1. El paquete nativo:
-   ```bash
-   npm install @react-native-google-signin/google-signin
-   ```
-   (y `pod install` en iOS)
-2. `GOOGLE_WEB_CLIENT_ID` en `VBStats/services/config.ts` — está vacío, y con el
+1. `GOOGLE_WEB_CLIENT_ID` en `VBStats/services/config.ts` — está vacío, y con el
    valor vacío el botón se oculta deliberadamente.
-3. `GOOGLE_WEB_CLIENT_ID` en el entorno del backend.
+2. `GOOGLE_WEB_CLIENT_ID` en el entorno del backend.
+3. En Google Cloud Console, un **cliente OAuth de tipo Android** con el paquete
+   `com.vbstats` y la huella SHA-1 del certificado de firma. Sin él, Google
+   rechaza la petición desde la app aunque el Web client ID sea correcto.
+   - SHA-1 del keystore de release:
+     `71:23:60:FB:32:CA:4F:2E:BB:EA:2F:98:2E:F9:24:2E:F6:36:4E:78`
+   - Si usas **Play App Signing**, usa además la SHA-1 que muestra Play Console
+     en *Integridad de la app*, que es la que firma lo que instalan los usuarios.
 
-Los tres valores deben ser el **Web client ID** de Google Cloud Console, no el de
-Android ni el de iOS. Guía completa en `VBStats/GOOGLE_SIGNIN_SETUP.md`.
+Los valores de los puntos 1 y 2 deben ser el **Web client ID**, no el de Android
+ni el de iOS. Guía completa en `VBStats/GOOGLE_SIGNIN_SETUP.md`.
+
+> El proyecto de Firebase ya creado (`vbstats-c43c6`) sirve también para esto: al
+> añadir la SHA-1 en la configuración de la app Android en Firebase, se genera el
+> cliente OAuth automáticamente y aparece en `google-services.json` dentro de
+> `oauth_client`. Ahora mismo ese array está vacío porque se registró la app sin
+> huella. Si añades la SHA-1 en Firebase, **descarga otra vez**
+> `google-services.json` y recompila.
 
 `google-auth-library` faltaba en las dependencias del backend, así que el endpoint
 `/api/users/google` habría devuelto 500 aunque el resto estuviera configurado. Ya

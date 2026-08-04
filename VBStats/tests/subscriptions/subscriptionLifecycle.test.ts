@@ -45,13 +45,16 @@ describe('subscriptionService.getSubscription', () => {
     expect(sub.type).toBe('free');
   });
 
-  test('returns free on server error', async () => {
+  // A transient failure must not look like a downgrade. With no cached plan for
+  // this user the answer is still 'free', but see authHeaders.test.ts for the case
+  // where a previously confirmed plan is retained.
+  test('falls back to free on server error when nothing was ever confirmed', async () => {
     setFetchMock(mockFetchError({ error: 'Server error' }, 500));
     const sub = await subscriptionService.getSubscription(1);
     expect(sub.type).toBe('free');
   });
 
-  test('returns free on network error', async () => {
+  test('falls back to free on network error when nothing was ever confirmed', async () => {
     setFetchMock(mockFetchNetworkError());
     const sub = await subscriptionService.getSubscription(1);
     expect(sub.type).toBe('free');

@@ -19,4 +19,5 @@ module.exports = {
     '^@react-native-async-storage/async-storage$': '<rootDir>/tests/helpers/asyncStorageMock.ts',
   },
   setupFiles: ['<rootDir>/tests/helpers/setup.ts'],
+  setupFilesAfterEnv: ['<rootDir>/tests/helpers/afterEnv.ts'],
 };

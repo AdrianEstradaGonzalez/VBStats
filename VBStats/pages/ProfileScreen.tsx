@@ -21,6 +21,7 @@ import { MenuIcon, UserIcon } from '../components/VectorIcons';
 import { CustomAlert, CustomAlertButton } from '../components';
 import { usersService } from '../services/api';
 import { subscriptionService, SubscriptionType, TrialInfo, TRIAL_DAYS } from '../services/subscriptionService';
+import { apiFetchJson } from '../services/http';
 
 // Safe area paddings para Android
 const ANDROID_STATUS_BAR_HEIGHT = StatusBar.currentHeight || 24;
@@ -163,10 +164,7 @@ export default function ProfileScreen({
     setShowReactivateConfirm(false);
 
     try {
-      const response = await fetch(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/reactivate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = await apiFetchJson(`${subscriptionService.SUBSCRIPTIONS_URL}/${userId}/reactivate`, 'POST');
 
       const data = await response.json();
 
