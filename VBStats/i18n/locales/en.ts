@@ -672,6 +672,9 @@ const en = {
     optInMessage: 'VBStats can let you know about news, improvements and important team messages. You can change this any time in your phone settings.',
     optInAccept: 'Turn on',
     optInDecline: 'Not now',
+    deniedTitle: 'Notifications are off',
+    deniedMessage: 'You declined the permission. To get VBStats alerts, turn it on in your phone settings.',
+    openSettings: 'Open settings',
   },
   admin: {
     panelTitle: 'Admin Panel',

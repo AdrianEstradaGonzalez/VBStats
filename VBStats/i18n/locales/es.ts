@@ -672,6 +672,9 @@ const es = {
     optInMessage: 'VBStats puede avisarte de novedades, mejoras y mensajes importantes del equipo. Puedes cambiarlo cuando quieras desde los ajustes del teléfono.',
     optInAccept: 'Activar',
     optInDecline: 'Ahora no',
+    deniedTitle: 'Notificaciones desactivadas',
+    deniedMessage: 'Has rechazado el permiso. Para recibir avisos de VBStats, actívalo en los ajustes del teléfono.',
+    openSettings: 'Abrir ajustes',
   },
   admin: {
     panelTitle: 'Panel Admin',

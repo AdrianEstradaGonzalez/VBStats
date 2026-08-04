@@ -672,6 +672,9 @@ const pt = {
     optInMessage: 'O VBStats pode avisar-te sobre novidades, melhorias e mensagens importantes da equipa. Podes alterar isto a qualquer momento nas definições do telemóvel.',
     optInAccept: 'Ativar',
     optInDecline: 'Agora não',
+    deniedTitle: 'Notificações desativadas',
+    deniedMessage: 'Recusaste a permissão. Para receber avisos do VBStats, ativa-a nas definições do telemóvel.',
+    openSettings: 'Abrir definições',
   },
   admin: {
     panelTitle: 'Painel Admin',
