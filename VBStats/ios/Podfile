@@ -7,6 +7,11 @@ require Pod::Executable.execute_command('node', ['-p',
 
 platform :ios, min_ios_version_supported
 
+# React Native Firebase 26 uses Firebase through SPM by default. The app is
+# linked statically, so resolve Firebase with CocoaPods to avoid duplicated
+# Firebase frameworks and the SPM/static-linkage installation error.
+$RNFirebaseDisableSPM = true
+
 # Explicitly point CocoaPods to the Xcode project
 project 'VBStats.xcodeproj'
 
@@ -19,6 +24,10 @@ if linkage != nil
 end
 
 target 'VBStats' do
+  # FirebaseCoreInternal is a Swift pod and needs a module map for this
+  # Objective-C dependency when CocoaPods builds the graph as static libraries.
+  pod 'GoogleUtilities', :modular_headers => true
+
   config = use_native_modules!
 
   use_react_native!(
