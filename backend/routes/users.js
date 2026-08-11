@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { sendEmail, isEmailConfigured } = require('../services/emailService');
 const { pool, retryQuery } = require('../db');
 const { StatTemplates } = require('../config/statTemplates');
 const { requireAuth, requireOwner, requireSuperadmin } = require('../middleware/auth');
@@ -34,58 +34,10 @@ function getGoogleClient() {
 }
 
 // ============================================
-// EMAIL via Gmail SMTP (Nodemailer)
-// No requiere dominio propio ni verificación de dominio.
-// Solo necesitas una cuenta de Gmail con "Contraseña de aplicación".
-//
-// Variables de entorno necesarias:
-//   GMAIL_USER=tucuenta@gmail.com
-//   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   (16 chars, con o sin espacios)
-//   EMAIL_FROM=VBStats <tucuenta@gmail.com>   (opcional, usa GMAIL_USER si no se define)
+// EMAIL
+// Envío a través de Resend (con Gmail SMTP como respaldo).
+// Ver backend/services/emailService.js para la configuración.
 // ============================================
-const GMAIL_USER = (process.env.GMAIL_USER || '').trim();
-const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').trim();
-const EMAIL_FROM = process.env.EMAIL_FROM
-  ? process.env.EMAIL_FROM.trim()
-  : (GMAIL_USER ? `VBStats <${GMAIL_USER}>` : '');
-
-let transporter = null;
-if (GMAIL_USER && GMAIL_APP_PASSWORD) {
-  transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
-  console.log('✅ Email transporter configured (Gmail SMTP)');
-} else {
-  console.warn('⚠️  GMAIL_USER / GMAIL_APP_PASSWORD not configured – password recovery emails will not be sent');
-}
-
-// Función para enviar email usando Nodemailer + Gmail
-async function sendEmail({ to, subject, html, text }) {
-  if (!transporter) {
-    throw new Error(
-      'Email no configurado. Define GMAIL_USER y GMAIL_APP_PASSWORD en las variables de entorno.'
-    );
-  }
-
-  try {
-    const info = await transporter.sendMail({
-      from: EMAIL_FROM,
-      to,
-      subject,
-      html,
-      text,
-    });
-    console.log('📧 Email sent:', info.messageId);
-    return info;
-  } catch (err) {
-    console.error('❌ Nodemailer error:', err);
-    throw new Error(err.message || 'Error al enviar el email');
-  }
-}
 
 // Función para generar token seguro
 function generateSecureToken() {
@@ -422,7 +374,7 @@ router.post('/register/request-code', async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    if (!transporter) {
+    if (!isEmailConfigured()) {
       // Sin email configurado no se puede verificar la propiedad del correo
       return res.status(503).json({ error: 'El servicio de correo no está disponible. Inténtalo más tarde.' });
     }
