@@ -109,7 +109,20 @@ app.use('/api/users', users);
 app.use('/api/subscriptions', subscriptions);
 app.use('/api/admin', admin);
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+// Health check. Reports whether the optional integrations are wired up, so a
+// misconfigured deploy can be spotted from outside without reading the logs.
+// Only booleans and provider names — never keys or addresses.
+app.get('/api/health', (req, res) => {
+  const { isEmailConfigured, getEmailProvider } = require('./services/emailService');
+  const { isPushConfigured } = require('./services/pushService');
+
+  res.json({
+    ok: true,
+    email: { configured: isEmailConfigured(), provider: getEmailProvider() },
+    push: { configured: isPushConfigured() },
+    auth: { strict: STRICT_AUTH },
+  });
+});
 
 // Version check endpoint
 app.get('/api/version', (req, res) => {
