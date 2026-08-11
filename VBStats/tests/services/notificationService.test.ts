@@ -8,8 +8,10 @@
  * and every broadcast reported 0 devices — all without a single error in the logs.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+// Node builtins via require: @types/node isn't part of this project's tsconfig,
+// so `import * as fs from 'fs'` fails the type check even though it runs fine.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const fs = require('fs');
 
 const registerPushToken = jest.fn().mockResolvedValue(undefined);
 const removePushToken = jest.fn().mockResolvedValue(undefined);
@@ -48,10 +50,9 @@ beforeEach(() => {
 describe('installed Firebase messaging package', () => {
   // Guards the assumption the service is built on. If a future upgrade brings the
   // namespaced API back, or drops a function we call, this fails loudly here.
-  const distPath = path.join(
-    __dirname, '..', '..',
-    'node_modules', '@react-native-firebase', 'messaging', 'dist', 'module', 'index.js'
-  );
+  // Relative to the project root (jest's working directory). `require.resolve`
+  // can't be used: the package restricts subpath access via its `exports` field.
+  const distPath = 'node_modules/@react-native-firebase/messaging/dist/module/index.js';
 
   test('exposes the modular functions the service depends on', () => {
     const src = fs.readFileSync(distPath, 'utf8');

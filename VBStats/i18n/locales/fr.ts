@@ -174,6 +174,11 @@ const fr = {
     statisticsDesc: 'Consultez l\'historique des matchs',
     myMatches: 'Mes Matchs',
     myMatchesDesc: 'Consultez les matchs sauvegardés et recherchez par code',
+    trackingDesc: 'Analysez la progression avec des graphiques comparatifs',
+    trackingProTitle: 'Fonction VBStats Pro',
+    trackingProMessage: 'Le Suivi d\'Équipe est une fonction exclusive de VBStats Pro qui permet d\'analyser la progression avec des graphiques détaillés.',
+    trackingProWarning: 'Améliorez votre forfait pour y accéder, et à bien plus encore.',
+    trackingProCta: 'Obtenir VBStats Pro',
   },
 
   // Profile Screen

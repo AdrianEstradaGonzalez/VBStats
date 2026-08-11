@@ -174,6 +174,11 @@ const en = {
     statisticsDesc: 'Review match history',
     myMatches: 'My Matches',
     myMatchesDesc: 'View saved matches and search by code',
+    trackingDesc: 'Track progress with comparative charts',
+    trackingProTitle: 'VBStats Pro feature',
+    trackingProMessage: 'Team Tracking is a VBStats Pro feature that lets you analyse your progress with detailed charts.',
+    trackingProWarning: 'Upgrade your plan to unlock this and much more.',
+    trackingProCta: 'Get VBStats Pro',
   },
 
   // Profile Screen

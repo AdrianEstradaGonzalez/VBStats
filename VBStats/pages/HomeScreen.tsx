@@ -2,7 +2,7 @@
  * Pantalla principal / Dashboard
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { Colors, Spacing, BorderRadius, FontSizes, Shadows, SAFE_AREA_TOP } from
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
 import { MenuIcon, TeamIcon, PlayIcon, StatsIcon, VolleyballIcon } from '../components/VectorIcons';
+import CustomAlert from '../components/CustomAlert';
+import type { SubscriptionType } from '../services/subscriptionService';
 
 // Safe area paddings para Android
 
@@ -26,46 +28,79 @@ interface HomeScreenProps {
   onNavigate?: (screen: string) => void;
   onLogout?: () => void;
   onOpenMenu?: () => void;
+  subscriptionType?: SubscriptionType;
+  onUpgradeToPro?: () => void;
 }
 
-export default function HomeScreen({ 
-  userName = 'Usuario', 
+export default function HomeScreen({
+  userName = 'Usuario',
   userEmail = 'usuario@vbstats.com',
   onNavigate,
   onLogout,
   onOpenMenu,
+  subscriptionType = 'free',
+  onUpgradeToPro,
 }: HomeScreenProps) {
   const { t } = useTranslation();
+  const [showProAlert, setShowProAlert] = useState(false);
+  const isProSubscription = subscriptionType === 'pro';
 
   const mainOptions = [
-    { 
-      id: 'startMatch', 
-      title: t('home.startMatch'), 
+    {
+      id: 'startMatch',
+      title: t('home.startMatch'),
       description: t('home.startMatchDesc'),
       icon: <PlayIcon size={48} color={Colors.primary} />,
+      proOnly: false,
     },
-    { 
-      id: 'teams', 
-      title: t('home.myTeams'), 
+    {
+      id: 'teams',
+      title: t('home.myTeams'),
       description: t('home.myTeamsDesc'),
       icon: <TeamIcon size={48} color={Colors.primary} />,
+      proOnly: false,
     },
-    { 
-      id: 'stats', 
-      title: t('home.statistics'), 
+    {
+      id: 'stats',
+      title: t('home.statistics'),
       description: t('home.statisticsDesc'),
       icon: <StatsIcon size={48} color={Colors.primary} />,
+      proOnly: false,
+    },
+    {
+      // Was buried inside Statistics; promoted to a first-class entry so it is
+      // discoverable, and marked as a Pro feature when the plan doesn't include it.
+      id: 'tracking',
+      title: t('stats.teamTracking'),
+      description: t('home.trackingDesc'),
+      icon: (
+        <MaterialCommunityIcons
+          name="chart-timeline-variant"
+          size={48}
+          color={isProSubscription ? Colors.primary : Colors.textTertiary}
+        />
+      ),
+      proOnly: true,
     },
     {
       id: 'searchByCode',
       title: t('home.myMatches'),
       description: t('home.myMatchesDesc'),
       icon: <MaterialCommunityIcons name="qrcode-scan" size={48} color={Colors.primary} />,
+      proOnly: false,
     },
   ];
 
   const handleNavigate = (screen: string) => {
     onNavigate?.(screen);
+  };
+
+  const handleOptionPress = (option: { id: string; proOnly: boolean }) => {
+    if (option.proOnly && !isProSubscription) {
+      setShowProAlert(true);
+      return;
+    }
+    handleNavigate(option.id);
   };
 
   return (
@@ -118,24 +153,70 @@ export default function HomeScreen({
 
         {/* Opciones principales */}
         <View style={styles.optionsContainer}>
-          {mainOptions.map((option) => (
-            <TouchableOpacity
-              key={option.id}
-              style={styles.optionCard}
-              onPress={() => handleNavigate(option.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.optionIconContainer}>
-                {option.icon}
-              </View>
-              <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>{option.title}</Text>
-                <Text style={styles.optionDescription}>{option.description}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {mainOptions.map((option) => {
+            const locked = option.proOnly && !isProSubscription;
+            return (
+              <TouchableOpacity
+                key={option.id}
+                style={[styles.optionCard, locked && styles.optionCardLocked]}
+                onPress={() => handleOptionPress(option)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.optionIconContainer}>
+                  {option.icon}
+                </View>
+                <View style={styles.optionContent}>
+                  <View style={styles.optionTitleRow}>
+                    <Text style={[styles.optionTitle, locked && styles.optionTitleLocked]}>
+                      {option.title}
+                    </Text>
+                    {locked && (
+                      <View style={styles.proBadge}>
+                        <MaterialCommunityIcons name="crown" size={12} color="#f59e0b" />
+                        <Text style={styles.proBadgeText}>PRO</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.optionDescription, locked && styles.optionTitleLocked]}>
+                    {option.description}
+                  </Text>
+                </View>
+                {locked && (
+                  <MaterialCommunityIcons name="lock" size={20} color={Colors.textTertiary} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
+
+      {/* Pro feature gate — same wording as the alert this entry replaced in Stats */}
+      <CustomAlert
+        visible={showProAlert}
+        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
+        iconBackgroundColor="#f59e0b15"
+        title={t('home.trackingProTitle')}
+        message={t('home.trackingProMessage')}
+        warning={t('home.trackingProWarning')}
+        buttonLayout="column"
+        buttons={[
+          {
+            text: t('home.trackingProCta'),
+            icon: <MaterialCommunityIcons name="crown" size={18} color="#fff" />,
+            onPress: () => {
+              setShowProAlert(false);
+              onUpgradeToPro?.();
+            },
+            style: 'primary',
+          },
+          {
+            text: t('common.cancel'),
+            onPress: () => setShowProAlert(false),
+            style: 'cancel',
+          },
+        ]}
+        onClose={() => setShowProAlert(false)}
+      />
     </View>
   );
 }
@@ -211,11 +292,37 @@ const styles = StyleSheet.create({
   optionContent: {
     flex: 1,
   },
+  optionCardLocked: {
+    opacity: 0.6,
+  },
+  optionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
   optionTitle: {
     fontSize: FontSizes.xl,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: Spacing.xs,
+    // Spacing below comes from optionTitleRow now, so the title itself adds none.
+  },
+  optionTitleLocked: {
+    color: Colors.textTertiary,
+  },
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#f59e0b20',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  proBadgeText: {
+    fontSize: FontSizes.xs,
+    color: '#f59e0b',
+    fontWeight: '700',
   },
   optionDescription: {
     fontSize: FontSizes.sm,

@@ -174,6 +174,11 @@ const es = {
     statisticsDesc: 'Revisa el historial de partidos',
     myMatches: 'Mis partidos',
     myMatchesDesc: 'Consulta los partidos guardados y busca por código',
+    trackingDesc: 'Analiza el progreso con gráficas comparativas',
+    trackingProTitle: 'Función VBStats Pro',
+    trackingProMessage: 'El Seguimiento de Equipos es una función exclusiva de VBStats Pro que te permite analizar el progreso con gráficas detalladas.',
+    trackingProWarning: 'Mejora tu plan para acceder a esta función y muchas más.',
+    trackingProCta: 'Obtener VBStats Pro',
   },
 
   // Profile Screen

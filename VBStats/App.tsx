@@ -27,6 +27,7 @@ import {
   Team,
   MatchDetails,
   MatchStatsScreen,
+  TeamTrackingScreen,
 } from "./pages";
 import SelectPlanScreen from "./pages/SelectPlanScreen";
 import SearchByCodeScreen from "./pages/SearchByCodeScreen";
@@ -47,7 +48,7 @@ import { notificationService } from "./services/notificationService";
 // unaliased import would be shadowed by it inside the component body.
 import { setSessionToken as persistAuthToken, loadSessionToken, apiFetchJson } from "./services/http";
 
-type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode' | 'adminPanel' | 'sendNotification' | 'userManagement';
+type Screen = 'home' | 'teams' | 'startMatch' | 'stats' | 'settings' | 'profile' | 'selectTeam' | 'matchDetails' | 'matchField' | 'startMatchFlow' | 'scoreboard' | 'searchByCode' | 'selectPlan' | 'guide' | 'matchStatsFromCode' | 'adminPanel' | 'sendNotification' | 'userManagement' | 'tracking';
 
 // Keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -945,13 +946,37 @@ export default function App() {
         );
       case 'stats':
         return (
-          <StatsScreen 
+          <StatsScreen
             onOpenMenu={handleOpenMenu}
             userId={userId}
             teams={teams}
             subscriptionType={subscriptionType}
-            onUpgradeToPro={handleUpgradeToPro}
             resetTrackingKey={statsResetKey}
+          />
+        );
+      case 'tracking':
+        // Promoted out of Statistics to its own Home entry. The Pro check also
+        // lives here, not just in the menu, so the screen can't be reached by any
+        // other route without a Pro plan. Rendered directly rather than via
+        // setCurrentScreen, which would be a state update during render.
+        if (subscriptionType !== 'pro' || !userId) {
+          return (
+            <SelectPlanScreen
+              onPlanSelected={handlePlanSelected}
+              onEnsureUser={ensurePendingRegistrationUser}
+              onBack={() => setCurrentScreen('home')}
+              currentPlan={subscriptionType}
+              userId={userId}
+              cancelAtPeriodEnd={subscriptionCancelledPending || !autoRenew}
+            />
+          );
+        }
+        return (
+          <TeamTrackingScreen
+            userId={userId}
+            teams={teams}
+            onBack={() => setCurrentScreen('home')}
+            onOpenMenu={handleOpenMenu}
           />
         );
       case 'settings':
@@ -1033,12 +1058,14 @@ export default function App() {
           );
         }
         return (
-          <HomeScreen 
+          <HomeScreen
             userName={userName}
             userEmail={userEmail}
             onNavigate={handleNavigate}
             onLogout={handleLogout}
             onOpenMenu={handleOpenMenu}
+            subscriptionType={subscriptionType}
+            onUpgradeToPro={handleUpgradeToPro}
           />
         );
     }

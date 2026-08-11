@@ -174,6 +174,11 @@ const pt = {
     statisticsDesc: 'Revise o histórico de partidas',
     myMatches: 'Minhas Partidas',
     myMatchesDesc: 'Consulte as partidas salvas e busque por código',
+    trackingDesc: 'Analise o progresso com gráficos comparativos',
+    trackingProTitle: 'Função VBStats Pro',
+    trackingProMessage: 'O Acompanhamento de Equipas é uma função exclusiva do VBStats Pro que permite analisar o progresso com gráficos detalhados.',
+    trackingProWarning: 'Melhora o teu plano para aceder a esta função e a muitas mais.',
+    trackingProCta: 'Obter VBStats Pro',
   },
 
   // Profile Screen

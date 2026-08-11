@@ -21,7 +21,6 @@ import type { Match, Team } from '../services/types';
 import CustomAlert from '../components/CustomAlert';
 
 import MatchStatsScreen from './MatchStatsScreen';
-import TeamTrackingScreen from './TeamTrackingScreen';
 import { useTranslation } from 'react-i18next';
 import { SubscriptionType } from '../services/subscriptionService';
 import { 
@@ -54,18 +53,17 @@ interface StatsScreenProps {
   onOpenMenu?: () => void;
   onViewMatch?: (match: Match) => void;
   subscriptionType?: SubscriptionType;
-  onUpgradeToPro?: () => void;
   teams?: Team[];
+  /** Bumped by the caller to reset the screen back to the match list. */
   resetTrackingKey?: number;
 }
 
-export default function StatsScreen({ 
+export default function StatsScreen({
   userId,
-  onBack, 
+  onBack,
   onOpenMenu,
   onViewMatch,
   subscriptionType = 'pro',
-  onUpgradeToPro,
   teams = [],
   resetTrackingKey = 0,
 }: StatsScreenProps) {
@@ -76,8 +74,6 @@ export default function StatsScreen({
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [showTracking, setShowTracking] = useState(false);
-  const [showProAlert, setShowProAlert] = useState(false);
   const [filterFromDate, setFilterFromDate] = useState<Date | null>(null);
   const [filterToDate, setFilterToDate] = useState<Date | null>(null);
   const [opponentQuery, setOpponentQuery] = useState('');
@@ -85,12 +81,8 @@ export default function StatsScreen({
   const [showToPicker, setShowToPicker] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<number | 'all'>('all');
 
-  const isProSubscription = subscriptionType === 'pro';
-
   useEffect(() => {
-    setShowTracking(false);
     setSelectedMatch(null);
-    setShowProAlert(false);
   }, [resetTrackingKey]);
 
   useEffect(() => {
@@ -151,14 +143,6 @@ export default function StatsScreen({
     onViewMatch?.(match);
   };
 
-  const handleTrackingPress = () => {
-    if (isProSubscription) {
-      setShowTracking(true);
-    } else {
-      setShowProAlert(true);
-    }
-  };
-
   const formatFilterDate = (value: Date | null) => {
     if (!value) return '';
     const year = value.getFullYear();
@@ -190,18 +174,6 @@ export default function StatsScreen({
       const bTime = b.date ? new Date(b.date).getTime() : 0;
       return bTime - aTime;
     });
-  
-  // If showing tracking screen
-  if (showTracking && userId) {
-    return (
-      <TeamTrackingScreen
-        userId={userId}
-        teams={teams}
-        onBack={() => setShowTracking(false)}
-        onOpenMenu={onOpenMenu}
-      />
-    );
-  }
 
   // If a match is selected, show the detailed stats screen
   if (selectedMatch) {
@@ -250,34 +222,11 @@ export default function StatsScreen({
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Botón de Seguimiento PRO */}
-        <TouchableOpacity
-          style={styles.trackingButton}
-          onPress={handleTrackingPress}
-          activeOpacity={0.8}
-        >
-          <View style={styles.trackingButtonContent}>
-            <View style={styles.trackingIconContainer}>
-              <MaterialCommunityIcons name="chart-timeline-variant" size={28} color="#fff" />
-            </View>
-            <View style={styles.trackingTextContainer}>
-              <View style={styles.trackingTitleRow}>
-                <Text style={styles.trackingTitle}>{t('stats.teamTracking')}</Text>
-                {!isProSubscription && (
-                  <View style={styles.proBadge}>
-                    <MaterialCommunityIcons name="crown" size={12} color="#f59e0b" />
-                    <Text style={styles.proBadgeText}>PRO</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.trackingSubtitle}>
-                {t('stats.teamTrackingDesc')}
-              </Text>
-            </View>
-            <ChevronRightIcon size={24} color="rgba(255,255,255,0.7)" />
-          </View>
-        </TouchableOpacity>
-
+        {/*
+          The Team Tracking entry point moved to the Home screen, where it sits
+          alongside the other top-level sections instead of being buried one level
+          down inside Statistics.
+        */}
         {matches.length === 0 ? (
           <View style={styles.emptyState}>
             <StatsIcon size={80} color={Colors.textTertiary} />
@@ -515,32 +464,8 @@ export default function StatsScreen({
         ]}
       />
 
-      {/* CustomAlert for PRO upgrade */}
-      <CustomAlert
-        visible={showProAlert}
-        icon={<MaterialCommunityIcons name="crown" size={48} color="#f59e0b" />}
-        iconBackgroundColor="#f59e0b15"
-        title="Función VBStats Pro"
-        message="El Seguimiento de Equipos es una función exclusiva de VBStats Pro que te permite analizar el progreso con gráficas detalladas."
-        warning="Mejora tu plan para acceder a esta función y muchas más."
-        buttonLayout="column"
-        buttons={[
-          {
-            text: 'Obtener VBStats Pro',
-            icon: <MaterialCommunityIcons name="crown" size={18} color="#fff" />,
-            onPress: () => {
-              setShowProAlert(false);
-              onUpgradeToPro?.();
-            },
-            style: 'primary',
-          },
-          {
-            text: t('common.cancel'),
-            onPress: () => setShowProAlert(false),
-            style: 'cancel',
-          },
-        ]}
-      />
+      {/* The Pro upgrade prompt for Team Tracking now lives on the Home screen,
+          next to the entry point it guards. */}
     </View>
   );
 }
