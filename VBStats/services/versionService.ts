@@ -12,7 +12,7 @@ import { API_BASE_URL } from './config';
 // android/app/build.gradle y con MARKETING_VERSION en iOS. Si se queda atrás, la
 // comprobación de actualización obligatoria compara la versión equivocada y puede
 // dejar a los usuarios fuera de la app (o no forzar la actualización cuando toca).
-export const APP_VERSION = '5.1';
+export const APP_VERSION = '5.2';
 
 export interface VersionInfo {
   minVersion: string;

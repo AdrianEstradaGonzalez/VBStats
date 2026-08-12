@@ -107,12 +107,12 @@ android {
         applicationId "com.vbstats"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // versionName stays 5.1: the rollout plan sets MIN_APP_VERSION to 5.1 to
-        // force clients onto the token-authenticated build, and that comparison is
-        // done on versionName. versionCode is what Play requires to be unique per
-        // upload, so only it moves between builds of the same release.
-        versionCode 29
-        versionName "5.1"
+        // versionName drives the forced-update check (MIN_APP_VERSION on the
+        // server compares against it), so it must stay in sync with APP_VERSION in
+        // services/versionService.ts. versionCode is what Play requires to be
+        // unique per upload.
+        versionCode 30
+        versionName "5.2"
     }
     // Release signing credentials come from android/keystore.properties, which is
     // gitignored. They used to live in the committed gradle.properties.
